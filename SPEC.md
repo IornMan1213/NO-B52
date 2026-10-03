@@ -113,7 +113,7 @@ Upper deck, scratch-built in Blender, modern B-52J layout:
   goal.
 
 ## 6. Build pipeline
-1. Base model: Sketchfab "Boeing B-52 Stratofortress" by **hruschak30** (CC-BY 4.0, credited).
+1. Base model: Sketchfab "Boeing B-52 Stratofortress" by **bohmerang** (CC-BY 4.0, credited): https://sketchfab.com/3d-models/boeing-b-52-stratofortress-38b0c64bd552431394efa8625d7f5144.
 2. Blender: rescale to real size, split the parts (fuselage, wings L/R, tail, 4 engine pods, 7 spoilers per
    side, flaps, elevators, rudder, gear trucks and doors, bay doors), set pivots, export FBX.
 3. Unity 2022.3.62f2 + Blueprinter Editor: build the prefab with Aircraft / AeroPart / Turbofan /

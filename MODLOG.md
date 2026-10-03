@@ -38,12 +38,19 @@ Blueprinter Editor setup (from GUIDE.md, release 0.1.0, 2026-08-31):
 - `Cockpit`: joysticks, throttles, tacScreen
 
 ## Decisions
-- Base model: Sketchfab hruschak30 "Boeing B-52 Stratofortress" (CC-BY), 15k faces. The user picked it.
+- Base model: **bohmerang** "Boeing B-52 Stratofortress" (CC-BY 4.0, 16.6k faces, 27 materials, 262 likes).
+  - It was switched from hruschak30 after a provenance check. hruschak30's uploads include rips from Halo 2A,
+    Halo CE Anniversary, Halo 4 and FNAF, so its CC-BY label is not trustworthy for a public release. The B-52
+    had no description and odd tags. Don't use it.
+  - bohmerang is a prolific original aircraft modeller (4.5k followers, 32 free aircraft such as the F-16, B-2
+    and F-15E), and the panel-lined PBR textures look good up close.
+  - Rejected: S1Priv (stylised Blockbench pixel-art), ATD "B52" (542k faces, flat white, untextured), VuckyZ123
+    (Ace Combat 7 rip, NC-SA), manilov.ap (2017, OK fallback), thomas333 (an edit of bohmerang's model).
 - Repo: `Documents\GitHub\NO-B52`, private on GitHub via the gh CLI.
 - Variant: B-52J (CERP F130 engines, APQ-188 AESA, 1760 IWBU) on the B-52H airframe. Numbers are in SPEC.md.
 
 ## Next
-- [ ] User: download the hruschak30 GLB to `source_assets/`
+- [ ] User: download bohmerang's GLB to `source_assets/`
 - [ ] User: `gh auth login` → create the private repo and push
 - [ ] Get AssetRipper and the Blueprinter Editor → set up the Unity project (1-3 h)
 - [ ] Blender split/rig script (`tools/blender_prep.py`)

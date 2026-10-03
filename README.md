@@ -15,8 +15,8 @@ more).
 Put `B-52J Stratofortress_<version>.nobp` in `Nuclear Option/BepInEx/plugins`.
 
 ## Credits
-- Base 3D model: "Boeing B-52 Stratofortress" by **hruschak30** on Sketchfab
-  (https://sketchfab.com/3d-models/boeing-b-52-stratofortress-44b4fdb01ef640c0ad7c5ba0f9ac30ca), licensed CC BY 4.0.
+- Base 3D model: "Boeing B-52 Stratofortress" by **bohmerang** on Sketchfab
+  (https://sketchfab.com/3d-models/boeing-b-52-stratofortress-38b0c64bd552431394efa8625d7f5144), licensed CC BY 4.0.
   It was modified: split into parts, rescaled, rigged, and given a custom interior.
 - Blueprinter by Nikkorap.
 - Built with help from Claude (AI).
