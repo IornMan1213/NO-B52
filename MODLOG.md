@@ -125,6 +125,12 @@ Installed to `BepInEx/plugins/B-52J_Stratofortress/` (the .nobp and the DLL).
 
 Max level speed: 631 mph at 10.7 km (real: 650 mph). Cruise attitude is slightly nose-down, L/D ~13-15.
 
+Pitch balance (Unity z, + = forward). Lift acts at each part's lift-normal position: wingroot 8.94, wing1 3.62, wing2
+-0.58, wingtip -2.51, flap1 7.42, flap2 4.03, so the area-weighted wing lift centre is z 4.65. The CG (`CoM`
+transform, applied by UnitPart.ModifyMass in simple physics) is at z 5.8: 1.15 m ahead, roughly 15% MAC static
+margin. Cruise trim needs ~77 kN of tail download (CL_tail ~0.07), and at lift-off (90 m/s) CL_tail ~0.22. Both
+are well within the elevators' ±20°.
+
 ## Version history
 - 0.1.0: first build. Spawned, then fell apart (joint strengths).
 - 0.1.1-0.1.3: load-sized joints, self-collision ignore, NRE cleanup, nozzles/IR.
