@@ -57,6 +57,11 @@ M = {
     'eng': mat('CP_MFD_ENG', (1, 1, 1), 0.0, 0.2, 'mfd_engines.png', 1.5),
     'tsd': mat('CP_MFD_TSD', (1, 1, 1), 0.0, 0.2, 'mfd_tsd.png', 1.5),
     'gauge': mat('CP_GaugeFace', (0.02, 0.02, 0.02), 0.0, 0.3),
+    'asi': mat('CP_DialASI', (1, 1, 1), 0.0, 0.4, 'dial_asi.png', 0.6),
+    'alt': mat('CP_DialALT', (1, 1, 1), 0.0, 0.4, 'dial_alt.png', 0.6),
+    'vsi': mat('CP_DialVSI', (1, 1, 1), 0.0, 0.4, 'dial_vsi.png', 0.6),
+    'adi': mat('CP_ADICard', (1, 1, 1), 0.0, 0.4, 'adi_card.png', 0.6),
+    'needle': mat('CP_Needle', (0.95, 0.95, 0.95), 0.0, 0.4),
     'white': mat('CP_White', (0.9, 0.9, 0.9), 0.0, 0.5),
 }
 
@@ -222,10 +227,31 @@ screens = [
 ]
 # Standby instruments (round) and switch strip under the displays
 off = panel_rot @ Vector((0, -1, 0))
-for gx, gz in ((-0.25, 0.20), (-0.25, -0.08), (0.25, 0.20), (0.25, -0.08)):
+up_p = panel_rot @ Vector((0, 0, 1)); right_p = Vector((1, 0, 0))
+# Standby instruments: ASI and altimeter left of centre, ADI and VSI right. B52Systems.Instruments drives the
+# needle_* objects (rotation about the panel normal) and adi_card (roll about the normal, pitch along panel-up).
+for gx, gz, kind in ((-0.25, 0.10, 'asi'), (-0.25, -0.15, 'alt'), (0.25, 0.10, 'adi'), (0.25, -0.15, 'vsi')):
     c = Vector((gx, PANEL_Y, gz)) + off * 0.02
     b.cyl(c - off * 0.01, c + off * 0.025, 0.055, M['black'], 24)
-    b.cyl(c + off * 0.025, c + off * 0.027, 0.047, M['gauge'], 24)
+    face = c + off * 0.026
+    r = 0.047
+    if kind == 'adi':
+        # Card shows the middle half of the tall sky/ground texture; the plugin scrolls its UVs for pitch and
+        # rolls the card about the panel normal.
+        card = obj('adi_card', root, tuple(face))
+        cb = Builder()
+        cb.quad([face - right_p * r - up_p * r, face + right_p * r - up_p * r,
+                 face + right_p * r + up_p * r, face - right_p * r + up_p * r], M['adi'],
+                uv=((0, 0.25), (1, 0.25), (1, 0.75), (0, 0.75)))
+        cb.write(card)
+        b.box(face + off * 0.004, (0.05, 0.003, 0.004), M['yellow'], rot=panel_rot)   # fixed aircraft symbol
+    else:
+        b.quad([face - right_p * r - up_p * r, face + right_p * r - up_p * r,
+                face + right_p * r + up_p * r, face - right_p * r + up_p * r], M[kind])
+        nd = obj('needle_' + kind, root, tuple(face + off * 0.002))
+        nb = Builder()
+        nb.box(face + off * 0.002 + up_p * r * 0.42, (0.004, 0.002, r * 0.85), M['needle'], rot=panel_rot)
+        nb.write(nd)
 b.box(Vector((0, PANEL_Y, -0.27)) + off * 0.02, (1.9, 0.02, 0.14), M['panelTex'], rot=panel_rot)
 panelo = b.write(obj('cp_panel', root, (0, PANEL_Y, 0)))
 

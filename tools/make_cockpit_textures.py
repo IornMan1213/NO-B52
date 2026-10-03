@@ -127,6 +127,38 @@ def seat_fabric(path):
     im.save(path)
 
 
+def dial(path, label, marks, majors, fmt, sweep=300):
+    """Round gauge face; 0 at 12 o'clock, values increase clockwise over `sweep` degrees."""
+    W = 256; im = Image.new('RGB', (W, W), (10, 10, 10)); d = ImageDraw.Draw(im); c = W / 2
+    d.ellipse((4, 4, W - 4, W - 4), fill=(16, 16, 16), outline=(90, 90, 90), width=3)
+    for i in range(marks + 1):
+        a = math.radians(-90 + sweep * i / marks)
+        r0 = 100 if i % (marks // majors) == 0 else 110
+        d.line((c + r0 * math.cos(a), c + r0 * math.sin(a), c + 118 * math.cos(a), c + 118 * math.sin(a)), fill=WHITE, width=3)
+        if i % (marks // majors) == 0:
+            t = fmt(i * majors // marks if False else i // (marks // majors))
+            d.text((c + 82 * math.cos(a) - 9, c + 82 * math.sin(a) - 9), t, fill=WHITE, font=font(18))
+    d.text((c - 22, c + 34), label, fill=WHITE, font=font(16))
+    im.save(path)
+
+
+def adi(path):
+    """Attitude card: sky over ground with a pitch ladder (the card moves; the frame is fixed)."""
+    W, H = 256, 512
+    im = Image.new('RGB', (W, H), (30, 110, 220)); d = ImageDraw.Draw(im)
+    d.rectangle((0, H // 2, W, H), fill=(120, 75, 30)); d.line((0, H // 2, W, H // 2), fill=WHITE, width=3)
+    for p_ in range(-30, 35, 10):
+        if p_ == 0: continue
+        y = H // 2 - p_ * 4; w = 40 if p_ % 20 == 0 else 24
+        d.line((W // 2 - w, y, W // 2 + w, y), fill=WHITE, width=2)
+    im.save(path)
+
+
+dial(os.path.join(OUT, 'dial_asi.png'), 'KNOTS', 50, 10, lambda k: str(k * 50))
+dial(os.path.join(OUT, 'dial_alt.png'), 'ALT x100', 50, 10, lambda k: str(k))
+dial(os.path.join(OUT, 'dial_vsi.png'), 'VSI x1000', 40, 8, lambda k: str(abs(k - 4) * 1.5 if False else abs(k - 4)), sweep=240)
+adi(os.path.join(OUT, 'adi_card.png'))
+
 pfd(os.path.join(OUT, 'mfd_pfd.png'))
 engine_page(os.path.join(OUT, 'mfd_engines.png'))
 tsd(os.path.join(OUT, 'mfd_tsd.png'))

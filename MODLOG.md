@@ -132,6 +132,7 @@ Max level speed: 631 mph at 10.7 km (real: 650 mph). Cruise attitude is slightly
 - 0.2.0: full ordnance list (32 bay racks, 30 HSAB racks, 9 presets).
 - 0.2.1: rigid airframe, 6° wing incidence, CG at ~25% MAC.
 - 0.2.2: B-52 airfoil, F130 thrust curves, flaps as inner-wing camber.
+- 0.2.4: live standby instruments (ASI, ALT, VSI, ADI) driven by B52Systems.Instruments; throttles +45° (forward = full), yokes 10°.
 - 0.2.3: one-way spoiler panels (SpoilerDriver), gear folds up into belly, engines at measured nacelle centres, analytic (symmetric) hinge axes.
 
 ## Next

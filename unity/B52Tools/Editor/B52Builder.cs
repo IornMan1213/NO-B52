@@ -619,7 +619,7 @@ namespace B52Tools
                 {
                     var e = p.GetArrayElementAtIndex(i);
                     e.FindPropertyRelative("transform").objectReferenceValue = Find(ourRoot, yokes[i]);
-                    e.FindPropertyRelative("range").floatValue = 12f;
+                    e.FindPropertyRelative("range").floatValue = 10f;
                 }
             });
             Set(ck, "throttles", p =>
@@ -631,7 +631,7 @@ namespace B52Tools
                     e.FindPropertyRelative("transform").objectReferenceValue = Find(ourRoot, "throttle_" + (i + 1));
                     e.FindPropertyRelative("rotation").boolValue = true;
                     e.FindPropertyRelative("motion").boolValue = false;
-                    e.FindPropertyRelative("range").floatValue = -40f;
+                    e.FindPropertyRelative("range").floatValue = 45f;     // + tips the lever forward (stock: +54)
                 }
             });
             var scr = Find(ourRoot, "mfd_C_screen");
@@ -1115,7 +1115,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.2.3";
+        public const string Version = "0.2.4";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()
