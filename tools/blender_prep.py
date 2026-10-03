@@ -351,7 +351,18 @@ def hinge_of(o, aft_dir):
 for name, o in objs.items():
     base = name.split('_')[0]
     if base in ('flap1', 'flap2', 'elevator', 'spoilers'):
-        p, axis = hinge_of(o, Vector((0, -1, 0)))
+        # Hinge axis is known analytically (the cut line), so it is not guessed from vertices: on swept parts the
+        # forward-most vertices bunch at one end and gave skewed hinges. Origin = the leading-edge midpoint.
+        sd = name[-1]
+        if base == 'elevator':
+            sgn = -1 if sd == 'L' else 1
+            axis = Vector((sgn * 7.8 * S, -16.95 * S, 0)) - Vector((0, -15.9 * S, 0))
+        else:
+            a_, b_ = hingeL if sd == 'L' else hingeR
+            axis = b_ - a_
+        if axis.x < 0:
+            axis = -axis
+        p, _ = hinge_of(o, Vector((0, -1, 0)))
         set_origin(o, p, axis)
     elif base == 'rudder':
         vs = [v.co for v in o.data.vertices]

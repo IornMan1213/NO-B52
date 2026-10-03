@@ -375,10 +375,12 @@ namespace B52Tools
                 var b = r ? r.bounds : new Bounds(p.position, Vector3.one);
                 for (int k = 0; k < 2; k++)
                 {
-                    float side = (k == 0 ? -1 : 1) * b.extents.x * 0.45f;
+                    bool inboard = pod.StartsWith("pod1");
+                    float sgn = pod.EndsWith("_L") ? -1f : 1f;
+                    float ex = sgn * (inboard ? (k == 0 ? 10.93f : 12.21f) : (k == 0 ? 18.08f : 19.39f));
                     var go = Object.Instantiate(srcEngine.gameObject, p);
                     go.name = "engine" + n;
-                    go.transform.position = new Vector3(b.center.x + side, b.center.y, b.center.z);
+                    go.transform.position = new Vector3(ex, inboard ? -0.6f : -0.2f, inboard ? 11.7f : 6.35f);
                     go.transform.rotation = ourRoot.rotation;
                     var tf = go.GetComponent(T("Turbofan"));
                     SetF(tf, "staticThrust", 75600f);          // F130: ~17,000 lbf
@@ -464,7 +466,9 @@ namespace B52Tools
                 SetF(lg, "springRate", outrigger ? 400000f : 3200000f);
                 SetF(lg, "dampingRate", outrigger ? 60000f : 450000f);
                 SetF(lg, "mass", outrigger ? 300f : 1500f);
-                SetF(lg, "foldDegrees", outrigger ? -95f : 90f);
+                SetF(lg, "foldDegrees", outrigger ? 90f : 90f);
+                // Mains fold forward and rise into the belly; outriggers fold flat under the wingtip.
+                Set(lg, "hingeFoldMotion", q => q.vector3Value = outrigger ? Vector3.zero : new Vector3(0f, 1.2f, 0f));
                 Set(lg, "steering", p => p.boolValue = k[0] == 'F');   // the forward trucks steer
                 Set(lg, "braked", p => p.boolValue = !outrigger);
                 SetF(lg, "steeringLock", 30f);
@@ -513,7 +517,16 @@ namespace B52Tools
                     Object.DestroyImmediate(mr); Object.DestroyImmediate(mf);
                 }
                 SetRef(cs, "visibleMesh", vis.gameObject);
-                if (name.StartsWith("spoilers")) { var vr2 = vis.GetComponent<MeshRenderer>(); if (vr2) vr2.enabled = false; }
+                if (name.StartsWith("spoilers"))
+                {
+                    // The aero surface stays hidden (it swings both ways); B52Systems.SpoilerDriver raises this
+                    // visible copy only on the wing whose spoilers go up.
+                    var vr2 = vis.GetComponent<MeshRenderer>();
+                    var panel = Child(t, "spoilerPanels_" + name.Substring(name.Length - 1), vis.position, vis.rotation);
+                    panel.gameObject.AddComponent<MeshFilter>().sharedMesh = vis.GetComponent<MeshFilter>().sharedMesh;
+                    var pr2 = panel.gameObject.AddComponent<MeshRenderer>(); pr2.sharedMaterials = vr2.sharedMaterials; pr2.enabled = false;
+                    if (vr2) vr2.enabled = false;
+                }
                 SetRef(cs, "attachedSurface", t.GetComponent(T("UnitPart")));
                 SetF(cs, "pitchRange", pitch); SetF(cs, "rollRange", roll); SetF(cs, "yawRange", yaw);
                 SetF(cs, "brakeRange", 0); SetF(cs, "maxSplit", 0);
@@ -1102,7 +1115,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.2.2";
+        public const string Version = "0.2.3";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()
