@@ -4,7 +4,7 @@ import bpy, sys, os, shutil
 from mathutils import Matrix
 out = sys.argv[sys.argv.index('--') + 1]
 os.makedirs(os.path.join(out, 'Textures'), exist_ok=True)
-R = Matrix.Rotation(3.14159265358979, 4, 'Z')
+R = Matrix.Identity(4)   # nose stays +Y; Unity's bakeAxisConversion maps it to +Z
 root = bpy.data.objects['B52']
 order = []
 def walk(o):
@@ -28,6 +28,6 @@ for img in bpy.data.images:
         elif img.packed_file:
             dst = os.path.join(out, 'Textures', bpy.path.clean_name(img.name) + '.png'); img.filepath_raw = dst; img.save()
 bpy.ops.export_scene.fbx(filepath=os.path.join(out, 'B52.fbx'), use_selection=False, object_types={'MESH', 'EMPTY'},
-                         bake_space_transform=True, apply_scale_options='FBX_SCALE_UNITS', add_leaf_bones=False,
+                         bake_space_transform=False, apply_scale_options='FBX_SCALE_UNITS', add_leaf_bones=False,
                          mesh_smooth_type='FACE', path_mode='RELATIVE', use_custom_props=False)
 print('EXPORTED', os.path.join(out, 'B52.fbx'), len(order), 'objects')

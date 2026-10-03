@@ -106,6 +106,8 @@ namespace B52Tools
                 ourRoot = ours.transform.Find("B52") ?? ours.transform;
                 if (ourRoot != ours.transform) { ourRoot.SetParent(null, true); Object.DestroyImmediate(ours); }
                 ourRoot.name = "B52";
+                if (!AssetDatabase.IsValidFolder(Gen)) AssetDatabase.CreateFolder(ModDir, "Generated");
+                NormalizeFrames();
 
                 CopyRoot();
                 foreach (var p in Parts) CopyPart(p.ours, p.donor, p.comps);
@@ -120,9 +122,9 @@ namespace B52Tools
                 WireJoints();
                 AddColliders();
                 RemapReferences();
+                ClearLiveryTargets();
                 Object.DestroyImmediate(tmplRoot.gameObject);
 
-                if (!AssetDatabase.IsValidFolder(Gen)) AssetDatabase.CreateFolder(ModDir, "Generated");
                 ConvertMaterials();
                 var prefabPath = ModDir + "/B52.prefab";
                 var prefab = PrefabUtility.SaveAsPrefabAsset(ourRoot.gameObject, prefabPath);
@@ -216,8 +218,62 @@ namespace B52Tools
             imp.animationType = ModelImporterAnimationType.None;
             imp.importCameras = false; imp.importLights = false;
             imp.useFileScale = true; imp.globalScale = 1f;
+            imp.bakeAxisConversion = true;
             imp.materialImportMode = ModelImporterMaterialImportMode.ImportViaMaterialDescription;
             imp.SaveAndReimport();
+        }
+
+        /// <summary>The FBX nodes arrive with a +90 deg X axis-conversion rotation on every frame. Bake it into
+        /// copies of the meshes so each part's local axes are Unity-native (Y up, Z forward; control surfaces keep
+        /// local X along their hinge).</summary>
+        static void NormalizeFrames()
+        {
+            var all = ourRoot.GetComponentsInChildren<Transform>(true);
+            var pos = all.ToDictionary(t => t, t => t.position);
+            var rot = all.ToDictionary(t => t, t => t.rotation);
+            var fix = Quaternion.Euler(-90f, 0f, 0f);
+            var meshFix = Matrix4x4.Rotate(Quaternion.Euler(90f, 0f, 0f));
+            if (!AssetDatabase.IsValidFolder(Gen + "/Meshes")) AssetDatabase.CreateFolder(Gen, "Meshes");
+            foreach (var t in all)            // GetComponentsInChildren is parent-first
+            {
+                t.SetPositionAndRotation(pos[t], rot[t] * fix);
+                var mf = t.GetComponent<MeshFilter>();
+                if (!mf || !mf.sharedMesh) continue;
+                var m = Object.Instantiate(mf.sharedMesh);
+                m.name = t.name;
+                var v = m.vertices; var n = m.normals; var tg = m.tangents;
+                for (int i = 0; i < v.Length; i++) v[i] = meshFix.MultiplyPoint3x4(v[i]);
+                for (int i = 0; i < n.Length; i++) n[i] = meshFix.MultiplyVector(n[i]);
+                for (int i = 0; i < tg.Length; i++) { var d = meshFix.MultiplyVector(tg[i]); tg[i] = new Vector4(d.x, d.y, d.z, tg[i].w); }
+                m.vertices = v; m.normals = n; m.tangents = tg; m.RecalculateBounds();
+                var path = Gen + "/Meshes/" + t.name + ".asset";
+                AssetDatabase.DeleteAsset(path);
+                AssetDatabase.CreateAsset(m, path);
+                mf.sharedMesh = m;
+            }
+            Note("Normalized " + all.Length + " frames");
+            // Rudder: hinge runs up the fin, so local X = up and local Y (lift normal) = sideways.
+            ReFrame(Find(ourRoot, "rudder"), Quaternion.LookRotation(Vector3.back, Vector3.right));
+        }
+
+        /// <summary>Give t a new world rotation without moving its mesh or children in world space.</summary>
+        static void ReFrame(Transform t, Quaternion newRot)
+        {
+            if (!t) return;
+            var kids = t.Cast<Transform>().Select(c => (c, c.position, c.rotation)).ToList();
+            var mf = t.GetComponent<MeshFilter>();
+            var delta = Matrix4x4.Rotate(Quaternion.Inverse(newRot) * t.rotation);
+            if (mf && mf.sharedMesh)
+            {
+                var m = mf.sharedMesh;
+                var v = m.vertices; var n = m.normals;
+                for (int i = 0; i < v.Length; i++) v[i] = delta.MultiplyPoint3x4(v[i]);
+                for (int i = 0; i < n.Length; i++) n[i] = delta.MultiplyVector(n[i]);
+                m.vertices = v; m.normals = n; m.RecalculateTangents(); m.RecalculateBounds();
+                EditorUtility.SetDirty(m);
+            }
+            t.rotation = newRot;
+            foreach (var (c, p, r) in kids) c.SetPositionAndRotation(p, r);
         }
 
         static void CopyRoot()
@@ -658,6 +714,8 @@ namespace B52Tools
                 for (int i = 0; i < mats.Length; i++)
                 {
                     var src = mats[i]; if (!src) continue;
+                    // Only convert our FBX materials; game materials (seats, tac screen, pilots) stay as placeholders.
+                    if (AssetDatabase.GetAssetPath(src).StartsWith(DoNotShip)) continue;
                     if (MatCache.TryGetValue(src, out var done)) { mats[i] = done; continue; }
                     Material m;
                     if (src.name.StartsWith("Glass") && glassMat) m = glassMat;   // placeholder: restored to the game's glass
@@ -688,6 +746,7 @@ namespace B52Tools
                 for (int i = 0; i < mats.Length; i++)
                 {
                     var src = mats[i]; if (!src) continue;
+                    if (AssetDatabase.GetAssetPath(src).StartsWith(DoNotShip)) continue;
                     if (MatCache.TryGetValue(src, out var done)) { mats[i] = done; continue; }
                     var m = new Material(src) { name = "B52_" + src.name };
                     if (src.name.StartsWith("CP_MFD"))
@@ -703,6 +762,18 @@ namespace B52Tools
                 r.sharedMaterials = mats;
             }
             Note($"Materials: {converted} exterior skins, {MatCache.Count} total");
+        }
+
+        static void ClearLiveryTargets()
+        {
+            // The B-52 keeps bohmerang's per-panel textures, so no renderer takes the single livery texture yet.
+            foreach (var up in ourRoot.GetComponentsInChildren(T("UnitPart"), true))
+                Set(up, "damageMaterial.renderers", p => p.arraySize = 0);
+            var wm = Find(ourRoot, "cockpit").GetComponent(T("WeaponManager"));
+            Set(wm, "skinnables", p => p.arraySize = 0);
+            Set(wm, "colorables", p => p.arraySize = 0);
+            var lod = ourRoot.GetComponent<LODGroup>();
+            if (lod) Object.DestroyImmediate(lod);
         }
 
         static void MakeOps()
@@ -744,6 +815,29 @@ namespace B52Tools
             ps.FindProperty("loadouts").arraySize = 0;
             ps.FindProperty("StandardLoadouts").arraySize = 0;
             ps.FindProperty("DefaultFuelLevel").floatValue = 0.6f;
+            // One USAF livery, offered to every faction the template had.
+            var livPath = Gen + "/B52_USAF_livery.asset";
+            AssetDatabase.DeleteAsset(livPath);
+            var liv = ScriptableObject.CreateInstance(T("LiveryData")); liv.name = "B52_USAF_livery";
+            var ls = SO(liv);
+            ls.FindProperty("Texture").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/middle_fuselage_png.png");
+            ls.FindProperty("Glossiness").floatValue = 0.35f;
+            ls.ApplyModifiedPropertiesWithoutUndo();
+            AssetDatabase.CreateAsset(liv, livPath);
+            var livGuid = AssetDatabase.AssetPathToGUID(livPath);
+            var lv = ps.FindProperty("liveries");
+            var seen = new HashSet<Object>();
+            for (int i = lv.arraySize - 1; i >= 0; i--)
+            {
+                var f = lv.GetArrayElementAtIndex(i).FindPropertyRelative("faction").objectReferenceValue;
+                if (seen.Contains(f)) { lv.DeleteArrayElementAtIndex(i); continue; }
+                seen.Add(f);
+                var e = lv.GetArrayElementAtIndex(i);
+                e.FindPropertyRelative("name").stringValue = "USAF Gunship Gray";
+                e.FindPropertyRelative("assetReference.m_AssetGUID").stringValue = livGuid;
+                e.FindPropertyRelative("assetReference.m_SubObjectName").stringValue = "";
+            }
+            Note($"Liveries: {lv.arraySize} -> {livGuid}");
             ps.FindProperty("aircraftGLimit").floatValue = 2.5f;
             ps.FindProperty("maxSpeed").floatValue = 290f;
             ps.FindProperty("takeoffSpeed").floatValue = 77f;
