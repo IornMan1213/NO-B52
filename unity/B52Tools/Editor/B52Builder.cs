@@ -334,7 +334,7 @@ namespace B52Tools
             PlaceAt("Pilot", "eye_L"); PlaceAt("WSO", "eye_R");
             // Put the CoM at ~25% MAC (between the forward and aft main gear, nearer the wing box).
             var com = Find(ourRoot, "CoM");
-            if (com) com.position = Find(ourRoot, "wingroot_L").position * 0.5f + Find(ourRoot, "wingroot_R").position * 0.5f;
+            if (com) com.position = new Vector3(0f, 0.3f, 5.8f);
         }
 
         static IEnumerable<Transform> FindAll(Transform root, string name)
@@ -510,12 +510,20 @@ namespace B52Tools
                     Object.DestroyImmediate(mr); Object.DestroyImmediate(mf);
                 }
                 SetRef(cs, "visibleMesh", vis.gameObject);
+                if (name.StartsWith("spoilers")) { var vr2 = vis.GetComponent<MeshRenderer>(); if (vr2) vr2.enabled = false; }
                 SetRef(cs, "attachedSurface", t.GetComponent(T("UnitPart")));
                 SetF(cs, "pitchRange", pitch); SetF(cs, "rollRange", roll); SetF(cs, "yawRange", yaw);
                 SetF(cs, "brakeRange", 0); SetF(cs, "maxSplit", 0);
                 SetF(cs, "servoSpeed", name.StartsWith("spoiler") ? 60f : 30f);
                 SetRef(t.GetComponent(T("AeroPart")), "liftNormal", vis);
             }
+            foreach (var w in new[] { "wingroot", "wing1", "wing2", "wingtip", "flap1", "flap2" })
+                foreach (var sd in new[] { "_L", "_R" })
+                {
+                    var t = Find(ourRoot, w + sd); if (!t) continue;
+                    var wln = Child(t, w + sd + "_liftNormal", t.position, ourRoot.rotation * Quaternion.Euler(-WingIncidence, 0, 0));
+                    SetRef(t.GetComponent(T("AeroPart")), "liftNormal", wln);
+                }
             // Fin and rudder: lift acts sideways, so the fin needs a lift normal rotated onto the Y-Z plane.
             var tail = Find(ourRoot, "tail");
             var ln = Child(tail, "tail_liftNormal", tail.position, ourRoot.rotation * Quaternion.Euler(0, 0, 90));
@@ -538,7 +546,8 @@ namespace B52Tools
                 SetF(hld, "deployedArea", Phys[f].area * 0.6f);
                 Set(hld, "movingParts", p =>
                 {
-                    p.arraySize = 1;
+                    p.arraySize = 0;
+                    return;
                     var e = p.GetArrayElementAtIndex(0);
                     e.FindPropertyRelative("move").boolValue = true;
                     e.FindPropertyRelative("rotate").boolValue = true;
@@ -551,6 +560,8 @@ namespace B52Tools
                 });
             }
         }
+
+        const float WingIncidence = 6f;
 
         static void WireCockpit()
         {
@@ -1062,7 +1073,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.2.0";
+        public const string Version = "0.2.1";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()

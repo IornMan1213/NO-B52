@@ -1,4 +1,5 @@
 using BepInEx;
+using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
@@ -6,15 +7,19 @@ using UnityEngine;
 namespace B52Systems
 {
     /// <summary>Runtime systems for the B-52J Stratofortress mod (B-52J Stratofortress_x.y.z.nobp).</summary>
-    [BepInPlugin("com.ironman1213.b52systems", "B-52J Systems", "0.1.2")]
+    [BepInPlugin("com.ironman1213.b52systems", "B-52J Systems", "0.2.1")]
     public class Plugin : BaseUnityPlugin
     {
         internal static ManualLogSource Log;
+        internal static ConfigEntry<bool> RigidAirframe;
         public const string JsonKey = "B52J";
 
         private void Awake()
         {
             Log = Logger;
+            RigidAirframe = Config.Bind("Physics", "RigidAirframe", true,
+                "Keep the B-52 as one rigid body (the game's simple physics). Parts still break off when damaged. " +
+                "Turn off to use per-part jointed physics, which lets the long wings and fuselage flex visibly.");
             new Harmony("com.ironman1213.b52systems").PatchAll();
             Log.LogInfo("B-52J Systems loaded");
         }
@@ -32,9 +37,14 @@ namespace B52Systems
     internal static class IgnoreSelfCollision
     {
         // SetComplexPhysics un-parents every part into its own rigidbody, so the colliders are gathered before it runs.
-        private static void Prefix(Aircraft __instance, out Collider[] __state)
+        // With RigidAirframe on, the B-52 never enters complex physics: returning false skips the original method.
+        private static bool Prefix(Aircraft __instance, out Collider[] __state)
         {
-            __state = Plugin.IsB52(__instance) ? __instance.GetComponentsInChildren<Collider>(true) : null;
+            __state = null;
+            if (!Plugin.IsB52(__instance)) return true;
+            if (Plugin.RigidAirframe.Value) return false;
+            __state = __instance.GetComponentsInChildren<Collider>(true);
+            return true;
         }
 
         private static void Postfix(Aircraft __instance, Collider[] __state)
