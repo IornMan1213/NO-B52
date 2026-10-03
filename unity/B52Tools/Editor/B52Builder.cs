@@ -66,7 +66,7 @@ namespace B52Tools
         static readonly (string ours, string donor, string[] comps)[] Parts =
         {
             ("fuselage_F", "fuselage_F", new[] { "AeroPart", "FuelTank" }),
-            ("cockpit", "cockpit", new[] { "AeroPart", "AutopilotPlane", "ControlsFilter", "WeaponManager", "EscapeCapsule" }),
+            ("cockpit", "cockpit", new[] { "AeroPart", "AutopilotPlane", "ControlsFilter", "WeaponManager" }),
             ("fuselage_R", "fuselage_R", new[] { "AeroPart", "FuelTank" }),
             ("tail", "tail", new[] { "AeroPart" }),
             ("rudder", "rudder_L", new[] { "AeroPart", "ControlSurface" }),
@@ -310,10 +310,8 @@ namespace B52Tools
             foreach (var n in new[] { "vaporCone", "CoM", "contactSparks", "downwash", "aimTarget", "weaponBay_forward", "weaponBay_combined" })
                 Move(n, ourRoot);
             var cockpit = Find(ourRoot, "cockpit");
-            foreach (var n in new[] { "WSO", "Pilot", "EjectSmoke", "ejectionForceTransform", "Parachute", "DrogueChute",
-                                      "cushionTransform_rear", "cushionTransform_front" })
+            foreach (var n in new[] { "WSO", "Pilot" })
                 Move(n, cockpit);
-            foreach (var t in FindAll(tmplRoot, "EjectFlame")) t.SetParent(cockpit, true);
             Move("targetCamPoint_F", cockpit);
             var tail = Find(ourRoot, "tail");
             Move("targetCamPoint_R", tail); Move("landingCam", tail);
@@ -368,6 +366,7 @@ namespace B52Tools
         {
             // Eight F130s, two per pod. Template engine1..4 are moved and cloned to 8.
             var srcEngine = Find(tmplRoot, "engine1");
+            var srcNozzle = Find(tmplRoot, "nozzle1").gameObject;
             int n = 1;
             foreach (var pod in new[] { "pod2_L", "pod1_L", "pod1_R", "pod2_R" })
             {
@@ -383,7 +382,22 @@ namespace B52Tools
                     go.transform.rotation = ourRoot.rotation;
                     var tf = go.GetComponent(T("Turbofan"));
                     SetF(tf, "staticThrust", 75600f);          // F130: ~17,000 lbf
-                    SetRefArray(tf, "nozzles", new Object[0]);  // no afterburner nozzles on a B-52
+                    // Exhaust nozzle at the back of the engine: drives the IR signature and heat haze (no afterburner).
+                    var nz = Object.Instantiate(srcNozzle, p);
+                    nz.name = "nozzle" + n;
+                    nz.transform.position = go.transform.position - ourRoot.forward * 2.6f;
+                    nz.transform.rotation = srcNozzle.transform.rotation;
+                    foreach (Transform c in nz.transform.Cast<Transform>().ToList())
+                        if (c.name.StartsWith("afterburner")) Object.DestroyImmediate(c.gameObject);
+                    var jn = nz.GetComponent(T("JetNozzle"));
+                    Set(jn, "afterburners", q => q.arraySize = 0);
+                    SetRef(jn, "part", p.GetComponent(T("UnitPart")));
+                    SetRef(jn, "engine", go);
+                    SetRef(jn, "turbojet", null);
+                    SetRef(jn, "failureEffect", null);
+                    SetRefArray(jn, "vectorTransforms", new Object[0]);
+                    SetRefArray(tf, "nozzles", new Object[] { jn });
+                    Set(tf, "criticalParts", q => q.arraySize = 0);
                     SetRefArray(tf, "vectoringTransforms", new Object[0]);
                     SetF(tf, "fuelConsumptionMin", 0.08f * 0.7f);
                     SetF(tf, "fuelConsumptionMax", 0.95f * 0.7f);   // CERP: ~30% better than TF33
@@ -835,6 +849,28 @@ namespace B52Tools
                 SetRefArray(rl, "essentialParts", new Object[] { cockpitPart });
             }
 
+            // Nose sensors (radar, target camera): part references point at the cockpit part.
+            foreach (var comp in Find(ourRoot, "nose_sensors").GetComponents<Component>())
+            {
+                if (comp is Transform) continue;
+                var so = SO(comp); var it = so.GetIterator();
+                while (it.Next(true))
+                    if (it.propertyType == SerializedPropertyType.ObjectReference && it.objectReferenceValue == null
+                        && (it.name == "attachedPart" || it.name == "part" || it.name == "unitPart"))
+                        it.objectReferenceValue = cockpitPart;
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            var tc = Find(ourRoot, "nose_sensors").GetComponent(T("TargetCam"));
+            if (tc)
+            {
+                var cpF = Find(ourRoot, "targetCamPoint_F"); var cpR = Find(ourRoot, "targetCamPoint_R"); var lc = Find(ourRoot, "landingCam");
+                if (cpF) { cpF.position = Find(ourRoot, "nose_sensors").position + new Vector3(0, -1.6f, -1.5f); }   // Sniper pod / EVS window under the nose
+                if (SO(tc).FindProperty("camMountForward").objectReferenceValue == null && cpF) SetRef(tc, "camMountForward", cpF);
+                if (SO(tc).FindProperty("camMountRear").objectReferenceValue == null && cpR) SetRef(tc, "camMountRear", cpR);
+                if (SO(tc).FindProperty("camMountLanding").objectReferenceValue == null && lc) SetRef(tc, "camMountLanding", lc);
+                SetRef(tc, "attachedPart", cockpitPart);
+            }
+
             // Weapons come in a later version: no hardpoint sets yet (the template's point at FastBomber bays).
             var wm = Find(ourRoot, "cockpit").GetComponent(T("WeaponManager"));
             Set(wm, "hardpointSets", p => p.arraySize = 0);
@@ -941,7 +977,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.1.2";
+        public const string Version = "0.1.3";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()
@@ -968,6 +1004,7 @@ namespace B52Tools
             for (int i = 0; i < 2; i++) lo.GetArrayElementAtIndex(i).FindPropertyRelative("weapons").arraySize = 0;
             ps.FindProperty("StandardLoadouts").arraySize = 0;
             ps.FindProperty("DefaultFuelLevel").floatValue = 0.6f;
+            ps.FindProperty("HUDExtras").objectReferenceValue = AssetDatabase.LoadAssetAtPath<GameObject>(DoNotShip + "/GameObject/SFB_HUDExtras_PLACEHOLDER.prefab");
             // One USAF livery, offered to every faction the template had.
             var livPath = Gen + "/B52_USAF_livery.asset";
             AssetDatabase.DeleteAsset(livPath);

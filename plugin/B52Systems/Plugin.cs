@@ -6,7 +6,7 @@ using UnityEngine;
 namespace B52Systems
 {
     /// <summary>Runtime systems for the B-52J Stratofortress mod (B-52J Stratofortress_x.y.z.nobp).</summary>
-    [BepInPlugin("com.ironman1213.b52systems", "B-52J Systems", "0.1.0")]
+    [BepInPlugin("com.ironman1213.b52systems", "B-52J Systems", "0.1.1")]
     public class Plugin : BaseUnityPlugin
     {
         internal static ManualLogSource Log;
@@ -31,18 +31,24 @@ namespace B52Systems
     [HarmonyPatch(typeof(Aircraft), nameof(Aircraft.SetComplexPhysics))]
     internal static class IgnoreSelfCollision
     {
-        private static void Postfix(Aircraft __instance)
+        // SetComplexPhysics un-parents every part into its own rigidbody, so the colliders are gathered before it runs.
+        private static void Prefix(Aircraft __instance, out Collider[] __state)
         {
-            if (!Plugin.IsB52(__instance)) return;
-            var cols = __instance.GetComponentsInChildren<Collider>(true);
+            __state = Plugin.IsB52(__instance) ? __instance.GetComponentsInChildren<Collider>(true) : null;
+        }
+
+        private static void Postfix(Aircraft __instance, Collider[] __state)
+        {
+            if (__state == null) return;
             int pairs = 0;
-            for (int i = 0; i < cols.Length; i++)
-                for (int j = i + 1; j < cols.Length; j++)
+            for (int i = 0; i < __state.Length; i++)
+                for (int j = i + 1; j < __state.Length; j++)
                 {
-                    Physics.IgnoreCollision(cols[i], cols[j], true);
+                    if (!__state[i] || !__state[j]) continue;
+                    Physics.IgnoreCollision(__state[i], __state[j], true);
                     pairs++;
                 }
-            Plugin.Log.LogInfo($"B-52J {__instance.name}: ignoring {pairs} self-collision pairs ({cols.Length} colliders)");
+            Plugin.Log.LogInfo($"B-52J {__instance.name}: ignoring {pairs} self-collision pairs ({__state.Length} colliders)");
         }
     }
 }
