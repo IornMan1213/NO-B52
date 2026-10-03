@@ -6,7 +6,7 @@ using UnityEngine;
 namespace B52Systems
 {
     /// <summary>Runtime systems for the B-52J Stratofortress mod (B-52J Stratofortress_x.y.z.nobp).</summary>
-    [BepInPlugin("com.ironman1213.b52systems", "B-52J Systems", "0.1.1")]
+    [BepInPlugin("com.ironman1213.b52systems", "B-52J Systems", "0.1.2")]
     public class Plugin : BaseUnityPlugin
     {
         internal static ManualLogSource Log;
@@ -49,6 +49,25 @@ namespace B52Systems
                     pairs++;
                 }
             Plugin.Log.LogInfo($"B-52J {__instance.name}: ignoring {pairs} self-collision pairs ({__state.Length} colliders)");
+
+            // Stiffen the airframe. PhysX fixed joints go soft when the bodies' masses differ a lot (a 65 t wing on
+            // a lighter fuselage section), so each joint solves its two bodies as equal masses, with more iterations.
+            var bodies = new System.Collections.Generic.HashSet<Rigidbody>();
+            foreach (var c in __state) if (c && c.attachedRigidbody) bodies.Add(c.attachedRigidbody);
+            int joints = 0;
+            foreach (var rb in bodies)
+            {
+                rb.solverIterations = 30;
+                rb.solverVelocityIterations = 12;
+                foreach (var j in rb.GetComponents<FixedJoint>())
+                {
+                    if (!j.connectedBody) continue;
+                    j.massScale = 1f;
+                    j.connectedMassScale = j.connectedBody.mass / Mathf.Max(1f, rb.mass);   // scales inverse mass
+                    joints++;
+                }
+            }
+            Plugin.Log.LogInfo($"B-52J {__instance.name}: stiffened {joints} joints on {bodies.Count} bodies");
         }
     }
 }

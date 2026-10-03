@@ -439,6 +439,7 @@ namespace B52Tools
                 var box = gear.gameObject.AddComponent<BoxCollider>();
                 box.size = new Vector3(outrigger ? 0.3f : 1.0f, 0.4f, outrigger ? 0.85f : 1.5f);
                 box.center = gear.InverseTransformPoint(unsprung.position);
+                box.enabled = false;   // only enabled by LandingGear.BreakWheel; enabled it would block the gear's own ground ray
 
                 float travel = (bump.position - unsprung.position).magnitude + wheelR;
                 SetRef(lg, "attachedPart", parent.GetComponentInParent(T("AeroPart")));
@@ -542,9 +543,10 @@ namespace B52Tools
                     e.FindPropertyRelative("rotate").boolValue = true;
                     e.FindPropertyRelative("transform").objectReferenceValue = vis;
                     e.FindPropertyRelative("positionRetracted").vector3Value = Vector3.zero;
-                    e.FindPropertyRelative("positionDeployed").vector3Value = vis.parent.InverseTransformVector(-ourRoot.forward * 0.9f - ourRoot.up * 0.25f);
+                    e.FindPropertyRelative("positionDeployed").vector3Value = vis.parent.InverseTransformVector(-ourRoot.forward * 0.6f - ourRoot.up * 0.15f);
                     e.FindPropertyRelative("anglesRetracted").vector3Value = Vector3.zero;
-                    e.FindPropertyRelative("anglesDeployed").vector3Value = new Vector3(30f, 0, 0);
+                    // Local X runs along the hinge pointing outboard-right (+X world); a negative angle drops the trailing edge.
+                    e.FindPropertyRelative("anglesDeployed").vector3Value = new Vector3(-25f, 0, 0);
                 });
             }
         }
@@ -977,7 +979,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.1.3";
+        public const string Version = "0.1.4";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()

@@ -272,7 +272,9 @@ for src in ('Engines', 'EngineBlades', 'RandomStuff', 'RandomStuff2'):
 
 # ---- Spoilers: 7 panels per wing on the upper surface ahead of the flaps, outboard of the inner pod.
 #      Generated as thin plates; one ControlSurface per wing drives them (B52Systems makes them one-way).
-SPOILER_MAT = next((m for m in ALL_MATS if m.name == 'Wing3'), ALL_MATS[0])
+SPOILER_MAT = bpy.data.materials.new('B52_SpoilerGray'); SPOILER_MAT.use_nodes = True
+SPOILER_MAT.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.50, 0.52, 0.55, 1)
+ALL_MATS.append(SPOILER_MAT)
 
 
 def wing_top_z(x, y):
