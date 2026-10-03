@@ -1115,7 +1115,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.2.4";
+        public const string Version = "0.2.5";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()

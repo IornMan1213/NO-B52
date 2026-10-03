@@ -144,7 +144,7 @@ def rx(deg):
 
 
 # ------------------------------------------------------------------ shell (floor, walls, ceiling, bulkhead)
-Y0, Y1 = 23.15, 25.75          # aft bulkhead .. panel base
+Y0, Y1 = 21.30, 25.75          # aft bulkhead (behind the EWO/gunner stations) .. panel base
 FLOOR, SILL, ROOF = -0.50, 0.44, 1.24
 b = Builder()
 b.box((0, (Y0 + Y1) / 2, FLOOR - 0.03), (2.7, Y1 - Y0, 0.06), M['floor'])
@@ -159,13 +159,13 @@ for s in (-1, 1):
 # ceiling with overhead panel
 b.box((0, (Y0 + 24.95) / 2, ROOF + 0.03), (2.3, 24.95 - Y0, 0.05), M['wall'])
 b.box((0, 24.5, ROOF - 0.04), (0.9, 0.85, 0.08), M['panelTex2'], rot=rx(-8))
-# aft bulkhead with EWO hatchway
-b.box((-0.75, Y0, (FLOOR + ROOF) / 2), (1.2, 0.05, ROOF - FLOOR), M['wall'])
-b.box((0.95, Y0, (FLOOR + ROOF) / 2), (0.8, 0.05, ROOF - FLOOR), M['wall'])
-b.box((0.2, Y0, ROOF - 0.25), (0.7, 0.05, 0.5), M['wall'])
-b.box((0.2, Y0 - 0.05, FLOOR + 0.6), (0.7, 0.02, 1.2), M['black'])         # dark hatchway beyond
-# ladder well to the lower deck (radar navigator / navigator)
-b.box((0.2, Y0 + 0.3, FLOOR - 0.01), (0.6, 0.5, 0.03), M['black'])
+# aft bulkhead with the crawlway door to the aft fuselage
+b.box((0, Y0, (FLOOR + ROOF) / 2), (2.7, 0.05, ROOF - FLOOR), M['wall'])
+b.box((0, Y0 + 0.03, FLOOR + 0.55), (0.55, 0.01, 1.0), M['black'])
+# ladder well to the lower deck (radar navigator / navigator), between the two crew rows
+b.box((0.0, 22.95, FLOOR - 0.01), (0.7, 0.6, 0.03), M['black'])
+for lx in (-0.3, 0.3):
+    b.box((lx, 22.95, FLOOR - 0.005), (0.04, 0.6, 0.02), M['yellow'])    # well edge markings
 shell = b.write(obj('cp_shell', root, (0, 24.4, 0)))
 
 # Interior skin: the cockpit's own non-glass faces in the cabin region, inset 3 cm and flipped so they face
@@ -174,7 +174,7 @@ src = cockpit
 glass_idx = {i for i, m in enumerate(src.data.materials) if m and m.name == 'Glass'}
 bm = bmesh.new(); bm.from_mesh(src.data); bm.transform(src.matrix_world)
 keep = [f for f in bm.faces if f.material_index not in glass_idx
-        and 23.1 < f.calc_center_median().y < 26.3 and f.calc_center_median().z > -0.55]
+        and 21.2 < f.calc_center_median().y < 26.3 and f.calc_center_median().z > -0.55]
 bmesh.ops.delete(bm, geom=[f for f in bm.faces if f not in set(keep)], context='FACES')
 for v in bm.verts:
     axis_pt = Vector((0, v.co.y, 0.35))
@@ -310,6 +310,34 @@ for side, sx in (('L', -0.55), ('R', 0.55)):
         sb.box((sx + rs * 0.27, sy - 0.25, FLOOR + 0.85), (0.04, 0.10, 1.25), M['metal'], rot=rx(-12))   # rails
         sb.box((sx + rs * 0.24, sy + 0.18, FLOOR + 0.58), (0.03, 0.18, 0.05), M['yellow'])               # handles
     sb.write(obj(f'seat_{side}', root, (sx, sy, FLOOR)))
+
+# ------------------------------------------------------------------ EWO (left) and gunner/instructor (right) stations
+# Aft-facing seats on the upper deck behind the pilots, each with a console of displays against the aft bulkhead.
+for side, sx, scr in (('L', -0.55, ('tsd', 'eng')), ('R', 0.55, ('eng', 'pfd'))):
+    sb = Builder()
+    sy = 22.25
+    sb.box((sx, sy - 0.02, FLOOR + 0.22), (0.50, 0.48, 0.44), M['black'])
+    sb.box((sx, sy - 0.05, FLOOR + 0.48), (0.46, 0.46, 0.08), M['seat'])
+    sb.box((sx, sy + 0.24, FLOOR + 0.98), (0.48, 0.12, 0.90), M['seat'], rot=rx(12))
+    sb.box((sx, sy + 0.33, FLOOR + 1.50), (0.30, 0.14, 0.22), M['black'], rot=rx(12))
+    for rs in (-1, 1):
+        sb.box((sx + rs * 0.27, sy + 0.25, FLOOR + 0.85), (0.04, 0.10, 1.25), M['metal'], rot=rx(12))
+        sb.box((sx + rs * 0.24, sy - 0.18, FLOOR + 0.58), (0.03, 0.18, 0.05), M['yellow'])
+    sb.write(obj(f'seat_aft_{side}', root, (sx, sy, FLOOR)))
+    cb = Builder()
+    cy = Y0 + 0.2
+    cb.box((sx, cy, -0.1), (0.95, 0.32, 0.8), M['panel'])                      # console body
+    cb.box((sx, cy + 0.2, 0.05), (0.8, 0.12, 0.03), M['panelTex'])              # keyboard shelf
+    back = rx(-12)
+    for i, (dx, m) in enumerate(zip((-0.2, 0.2), scr)):
+        c = Vector((sx + dx, cy + 0.17, 0.42))
+        cb.box(c, (0.26, 0.03, 0.30), M['black'], rot=back)
+        n = back @ Vector((0, 1, 0))
+        f = c + n * 0.017
+        u = back @ Vector((0, 0, 1)); r_ = Vector((-1, 0, 0))                   # faces +Y (toward the aft-facing seat)
+        cb.quad([f - r_ * 0.11 - u * 0.13, f + r_ * 0.11 - u * 0.13, f + r_ * 0.11 + u * 0.13, f - r_ * 0.11 + u * 0.13], M[m])
+    cb.box((sx, cy + 0.05, 0.75), (0.95, 0.2, 0.25), M['panelTex2'])            # upper switch panel
+    cb.write(obj(f'console_aft_{side}', root, (sx, cy, 0)))
 
 # Pilot eye points (Unity: Pilot seats / camera)
 for side, sx in (('L', -0.55), ('R', 0.55)):
