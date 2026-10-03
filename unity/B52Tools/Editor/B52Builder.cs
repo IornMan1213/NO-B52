@@ -48,16 +48,16 @@ namespace B52Tools
                 { "cockpit",    (4000, 1, 0.30f, 0) },
                 { "fuselage_R", (7500, 3, 0.35f, 10000) },
                 { "tail",       (1800, 38, 0.06f, 0) },
-                { "rudder",     (200, 12, 0, 0) },
+                { "rudder",     (600, 12, 0, 0) },
                 { "hstab_L",    (900, 30, 0.03f, 0) }, { "hstab_R", (900, 30, 0.03f, 0) },
-                { "elevator_L", (150, 12, 0, 0) },   { "elevator_R", (150, 12, 0, 0) },
+                { "elevator_L", (500, 12, 0, 0) },   { "elevator_R", (500, 12, 0, 0) },
                 { "wingroot_L", (5000, 58, 0.05f, 17000) }, { "wingroot_R", (5000, 58, 0.05f, 17000) },
                 { "wing1_L",    (4000, 42, 0.04f, 14000) }, { "wing1_R", (4000, 42, 0.04f, 14000) },
                 { "wing2_L",    (2500, 27, 0.03f, 8000) },  { "wing2_R", (2500, 27, 0.03f, 8000) },
                 { "wingtip_L",  (1200, 12, 0.12f, 2140) },  { "wingtip_R", (1200, 12, 0.12f, 2140) },
-                { "flap1_L",    (400, 10, 0, 0) }, { "flap1_R", (400, 10, 0, 0) },
-                { "flap2_L",    (450, 11, 0, 0) }, { "flap2_R", (450, 11, 0, 0) },
-                { "spoilers_L", (250, 4, 0, 0) },  { "spoilers_R", (250, 4, 0, 0) },
+                { "flap1_L",    (800, 10, 0, 0) }, { "flap1_R", (800, 10, 0, 0) },
+                { "flap2_L",    (900, 11, 0, 0) }, { "flap2_R", (900, 11, 0, 0) },
+                { "spoilers_L", (700, 4, 0, 0) },  { "spoilers_R", (700, 4, 0, 0) },
                 { "pod1_L",     (4600, 0, 0.35f, 0) }, { "pod1_R", (4600, 0, 0.35f, 0) },
                 { "pod2_L",     (4600, 0, 0.35f, 0) }, { "pod2_R", (4600, 0, 0.35f, 0) },
             };
@@ -122,6 +122,7 @@ namespace B52Tools
                 WireJoints();
                 AddColliders();
                 RemapReferences();
+                FixLeftovers();
                 ClearLiveryTargets();
                 Object.DestroyImmediate(tmplRoot.gameObject);
 
@@ -420,12 +421,14 @@ namespace B52Tools
 
                 var donor = outrigger ? noseDonor : mainDonor;
                 var lg = CopyComponent(donor.GetComponent(T("LandingGear")), gear.gameObject);
+                CloneDonorRefs(lg, donor, unsprung);   // tyre audio, dust, skid effect, fold sounds
                 var box = gear.gameObject.AddComponent<BoxCollider>();
                 box.size = new Vector3(outrigger ? 0.3f : 1.0f, 0.4f, outrigger ? 0.85f : 1.5f);
                 box.center = gear.InverseTransformPoint(unsprung.position);
 
                 float travel = (bump.position - unsprung.position).magnitude + wheelR;
                 SetRef(lg, "attachedPart", parent.GetComponentInParent(T("AeroPart")));
+                SetRef(lg, "gearCollider", box);
                 SetRef(lg, "bumpStop", bump.gameObject);
                 SetRef(lg, "unsprung", unsprung.gameObject);
                 SetRef(lg, "castPoint", bump);
@@ -606,13 +609,31 @@ namespace B52Tools
 
         static void WireJoints()
         {
-            // Each AeroPart is joined to its parent part. Break strength scales with the part mass.
-            foreach (var ap in ourRoot.GetComponentsInChildren(T("AeroPart"), true))
+            // Each AeroPart is joined to its parent part. A joint must carry everything outboard of it (structure
+            // plus full fuel), so it is sized from the subtree's weight and lever arm with a 40x margin. The game
+            // multiplies these by 10 again when it creates the FixedJoint.
+            var apType = T("AeroPart");
+            float PartMass(Component ap)
             {
-                var t = ((Component)ap).transform;
+                float m = SO(ap).FindProperty("mass").floatValue;
+                var ft = ap.GetComponent(T("FuelTank"));
+                if (ft) m += SO(ft).FindProperty("fuelCapacity").floatValue;
+                return m;
+            }
+            foreach (var ap in ourRoot.GetComponentsInChildren(apType, true))
+            {
+                var t = ap.transform;
                 if (t == ourRoot) { Set(ap, "joints", p => p.arraySize = 0); continue; }
-                var parentPart = t.parent ? t.parent.GetComponentInParent(T("AeroPart")) : null;
-                var so = SO(ap); var mass = so.FindProperty("mass").floatValue;
+                var parentPart = t.parent ? t.parent.GetComponentInParent(apType) : null;
+                float sub = 0; Vector3 com = Vector3.zero;
+                foreach (var c in t.GetComponentsInChildren(apType, true))
+                {
+                    var m = PartMass(c); sub += m; com += c.transform.position * m;
+                }
+                com /= Mathf.Max(1f, sub);
+                float arm = (com - t.position).magnitude + 3f;
+                float force = Mathf.Max(2e6f, sub * 9.81f * 40f);
+                float torque = Mathf.Max(2e6f, sub * 9.81f * 40f * arm);
                 Set(ap, "joints", p =>
                 {
                     p.arraySize = parentPart ? 1 : 0;
@@ -620,11 +641,12 @@ namespace B52Tools
                     var j = p.GetArrayElementAtIndex(0);
                     j.FindPropertyRelative("connectedPart").objectReferenceValue = parentPart;
                     j.FindPropertyRelative("tensor").objectReferenceValue = null;
-                    j.FindPropertyRelative("anchor").objectReferenceValue = t;
-                    j.FindPropertyRelative("breakForce").floatValue = Mathf.Max(200000f, mass * 400f);
-                    j.FindPropertyRelative("breakTorque").floatValue = Mathf.Max(200000f, mass * 600f);
-                    j.FindPropertyRelative("solverIterations").intValue = 6;
+                    j.FindPropertyRelative("anchor").objectReferenceValue = null;
+                    j.FindPropertyRelative("breakForce").floatValue = force;
+                    j.FindPropertyRelative("breakTorque").floatValue = torque;
+                    j.FindPropertyRelative("solverIterations").intValue = 20;
                 });
+                Note($"Joint {t.name} -> {(parentPart ? parentPart.name : "-")}: carries {sub / 1000f:F1} t, F {force:E1} N, T {torque:E1} Nm");
             }
         }
 
@@ -764,6 +786,134 @@ namespace B52Tools
             Note($"Materials: {converted} exterior skins, {MatCache.Count} total");
         }
 
+        /// <summary>Repairs template components whose references were cleared by the remap (they NRE at runtime).</summary>
+        static void FixLeftovers()
+        {
+            var ac = ourRoot.GetComponent(T("Aircraft"));
+            var cockpitPart = Find(ourRoot, "cockpit").GetComponent(T("UnitPart"));
+
+            // Plain reference arrays: drop the cleared (null) entries.
+            foreach (var (comp, prop) in new[] { (ac, "dopplerSounds"), (ac, "groundEquipment"),
+                     (ourRoot.GetComponent(T("SetGlobalParticles")), "systems") })
+                DropNulls(comp, prop);
+
+            // Nav lights: keep only entries whose renderer survived.
+            var nav = ourRoot.GetComponent(T("NavLights"));
+            if (nav) Set(nav, "navLights", p =>
+            {
+                for (int i = p.arraySize - 1; i >= 0; i--)
+                {
+                    var e = p.GetArrayElementAtIndex(i);
+                    var r = e.FindPropertyRelative("renderer");
+                    var part = e.FindPropertyRelative("part");
+                    if ((r != null && r.objectReferenceValue == null) || (part != null && part.objectReferenceValue == null))
+                        p.DeleteArrayElementAtIndex(i);
+                }
+                Note("NavLights kept: " + p.arraySize);
+            });
+
+            // Flares: the B-52's dispensers are in the aft fuselage.
+            var fl = ourRoot.GetComponent(T("FlareEjector"));
+            var aft = Find(ourRoot, "fuselage_R");
+            if (fl) Set(fl, "ejectionPoints", p =>
+            {
+                for (int i = 0; i < p.arraySize; i++)
+                {
+                    var e = p.GetArrayElementAtIndex(i);
+                    float side = i % 2 == 0 ? -1.4f : 1.4f;
+                    var pt = Child(aft, "flareEjector_" + i, aft.position + new Vector3(side, -1.5f, -4f), Quaternion.LookRotation(new Vector3(side, -1f, -1f)));
+                    e.FindPropertyRelative("part").objectReferenceValue = aft.GetComponent(T("UnitPart"));
+                    e.FindPropertyRelative("transform").objectReferenceValue = pt;
+                }
+            });
+
+            // Radar locator on the nose sensors.
+            var rl = Find(ourRoot, "nose_sensors")?.GetComponent(T("RadarLocator"));
+            if (rl)
+            {
+                SetRef(rl, "aircraft", ac);
+                SetRefArray(rl, "essentialParts", new Object[] { cockpitPart });
+            }
+
+            // Weapons come in a later version: no hardpoint sets yet (the template's point at FastBomber bays).
+            var wm = Find(ourRoot, "cockpit").GetComponent(T("WeaponManager"));
+            Set(wm, "hardpointSets", p => p.arraySize = 0);
+
+            // Downwash (jet-wash over water) referenced FastBomber engines; the B-52 does without it.
+            var dw = Find(ourRoot, "downwash");
+            if (dw) Object.DestroyImmediate(dw.gameObject);
+
+            // Any remaining null entries in UnitPart.damageEffects / hostedParticles lists.
+            foreach (var up in ourRoot.GetComponentsInChildren(T("UnitPart"), true))
+            {
+                DropNulls(up, "hostedParticles");
+                DropNulls(up, "disintegrationEffects");
+                DropNulls(up, "disintegrateObjects");
+            }
+        }
+
+        static void DropNulls(Object comp, string prop)
+        {
+            if (!comp) return;
+            var so = SO(comp); var p = so.FindProperty(prop);
+            if (p == null || !p.isArray) return;
+            int removed = 0;
+            for (int i = p.arraySize - 1; i >= 0; i--)
+            {
+                var e = p.GetArrayElementAtIndex(i);
+                if (e.propertyType == SerializedPropertyType.ObjectReference && e.objectReferenceValue == null)
+                {
+                    p.DeleteArrayElementAtIndex(i);
+                    if (i < p.arraySize && p.GetArrayElementAtIndex(i).objectReferenceValue == null) p.DeleteArrayElementAtIndex(i);
+                    removed++;
+                }
+            }
+            so.ApplyModifiedPropertiesWithoutUndo();
+            if (removed > 0) Note($"  {comp.GetType().Name}.{prop}: dropped {removed} null entries");
+        }
+
+        /// <summary>Clone every object a copied component references inside the donor's subtree, so audio sources,
+        /// particle effects and similar helpers come along (e.g. LandingGear tyre noise, dust, skid effect).</summary>
+        static void CloneDonorRefs(Component comp, Transform donorRoot, Transform newParent)
+        {
+            var clones = new Dictionary<GameObject, GameObject>();
+            var so = SO(comp); var it = so.GetIterator();
+            while (it.Next(true))
+            {
+                if (it.propertyType != SerializedPropertyType.ObjectReference || it.objectReferenceValue == null) continue;
+                var v = it.objectReferenceValue;
+                var go = v is GameObject g ? g : v is Component c ? c.gameObject : null;
+                if (!go || !go.transform.IsChildOf(donorRoot) || go.transform == donorRoot) continue;
+                Object rep = null;
+                if (v is AudioSource || v is ParticleSystem)
+                {
+                    // Copy just the component (not the donor's wheel mesh) onto a fresh helper object.
+                    if (!clones.TryGetValue(go, out var holder))
+                    {
+                        holder = new GameObject(go.name + "_fx");
+                        holder.transform.SetParent(newParent, false);
+                        clones[go] = holder;
+                    }
+                    var existing = holder.GetComponent(v.GetType());
+                    rep = existing ? existing : CopyComponent((Component)v, holder);
+                    if (v is ParticleSystem && !holder.GetComponent<ParticleSystemRenderer>())
+                        CopyComponent(go.GetComponent<ParticleSystemRenderer>(), holder);
+                }
+                else if (v is GameObject && !go.GetComponentInChildren<MeshRenderer>())
+                {
+                    if (!clones.TryGetValue(go, out var copy))
+                    {
+                        copy = Object.Instantiate(go, newParent); copy.name = go.name; copy.transform.localPosition = Vector3.zero;
+                        clones[go] = copy;
+                    }
+                    rep = copy;
+                }
+                else continue;     // structural refs (wheels, hinge, bumpstop...) are set explicitly afterwards
+                it.objectReferenceValue = rep;
+            }
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         static void ClearLiveryTargets()
         {
             // The B-52 keeps bohmerang's per-panel textures, so no renderer takes the single livery texture yet.
@@ -791,7 +941,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.1.0";
+        public const string Version = "0.1.2";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()
@@ -812,7 +962,10 @@ namespace B52Tools
             var ps = SO(par);
             ps.FindProperty("aircraftName").stringValue = "B52J";
             ps.FindProperty("rankRequired").intValue = 4;
-            ps.FindProperty("loadouts").arraySize = 0;
+            // LoadoutSelector.LoadDefaults reads loadouts[1]; with no hardpoints yet both are empty.
+            var lo = ps.FindProperty("loadouts");
+            lo.arraySize = 2;
+            for (int i = 0; i < 2; i++) lo.GetArrayElementAtIndex(i).FindPropertyRelative("weapons").arraySize = 0;
             ps.FindProperty("StandardLoadouts").arraySize = 0;
             ps.FindProperty("DefaultFuelLevel").floatValue = 0.6f;
             // One USAF livery, offered to every faction the template had.
