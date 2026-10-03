@@ -12,7 +12,17 @@ more).
 - [Nikkorap's Blueprinter](https://github.com/nikkorap/NOBlueprinter-Releases/releases/latest)
 
 ## Install
-Put `B-52J Stratofortress_<version>.nobp` in `Nuclear Option/BepInEx/plugins`.
+1. Install BepInEx 5 and Nikkorap's Blueprinter (see Requirements).
+2. Create `Nuclear Option/BepInEx/plugins/B-52J_Stratofortress/`.
+3. Copy `B-52J Stratofortress_<version>.nobp` **and** `B52Systems.dll` into it. Remove any older B-52 `.nobp`.
+4. The B-52J spawns from **medium hangars** (the ones that host the Darkreach).
+
+`B52Systems.dll` keeps the airframe rigid and holds the B-52's runtime fixes. Its options are in
+`BepInEx/config/com.ironman1213.b52systems.cfg`.
+
+## Building from source
+Run `bash tools/build_all.sh`, then `bash tools/install.sh`. See [MODLOG.md](MODLOG.md) for the pipeline, and
+[LOADOUTS.md](LOADOUTS.md) for the weapons.
 
 ## Credits
 - Base 3D model: "Boeing B-52 Stratofortress" by **bohmerang** on Sketchfab

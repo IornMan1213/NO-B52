@@ -382,6 +382,9 @@ namespace B52Tools
                     go.transform.rotation = ourRoot.rotation;
                     var tf = go.GetComponent(T("Turbofan"));
                     SetF(tf, "staticThrust", 75600f);          // F130: ~17,000 lbf
+                    Set(tf, "altitudeThrust", q => q.animationCurveValue = F130Altitude());
+                    Set(tf, "speedThrust", q => q.animationCurveValue = F130Speed());
+                    SetF(tf, "spoolRate", 260f);                 // big high-bypass fans spool slowly
                     // Exhaust nozzle at the back of the engine: drives the IR signature and heat haze (no afterburner).
                     var nz = Object.Instantiate(srcNozzle, p);
                     nz.name = "nozzle" + n;
@@ -517,6 +520,10 @@ namespace B52Tools
                 SetF(cs, "servoSpeed", name.StartsWith("spoiler") ? 60f : 30f);
                 SetRef(t.GetComponent(T("AeroPart")), "liftNormal", vis);
             }
+            // Fin and rudder: lift acts sideways, so the fin needs a lift normal rotated onto the Y-Z plane.
+            var tail = Find(ourRoot, "tail");
+            var ln = Child(tail, "tail_liftNormal", tail.position, ourRoot.rotation * Quaternion.Euler(0, 0, 90));
+            SetRef(tail.GetComponent(T("AeroPart")), "liftNormal", ln);
             foreach (var w in new[] { "wingroot", "wing1", "wing2", "wingtip", "flap1", "flap2" })
                 foreach (var sd in new[] { "_L", "_R" })
                 {
@@ -524,10 +531,6 @@ namespace B52Tools
                     var wln = Child(t, w + sd + "_liftNormal", t.position, ourRoot.rotation * Quaternion.Euler(-WingIncidence, 0, 0));
                     SetRef(t.GetComponent(T("AeroPart")), "liftNormal", wln);
                 }
-            // Fin and rudder: lift acts sideways, so the fin needs a lift normal rotated onto the Y-Z plane.
-            var tail = Find(ourRoot, "tail");
-            var ln = Child(tail, "tail_liftNormal", tail.position, ourRoot.rotation * Quaternion.Euler(0, 0, 90));
-            SetRef(tail.GetComponent(T("AeroPart")), "liftNormal", ln);
             // Flaps: HighLiftDevice adds area when deployed and animates a visible child (Fowler: back and down).
             foreach (var f in new[] { "flap1_L", "flap1_R", "flap2_L", "flap2_R" })
             {
@@ -544,24 +547,50 @@ namespace B52Tools
                 SetRef(hld, "aeroPart", t.GetComponent(T("AeroPart")));
                 SetRef(hld, "swingWingController", null);
                 SetF(hld, "deployedArea", Phys[f].area * 0.6f);
+                var wingOf = f.StartsWith("flap1") ? "wingroot" + f.Substring(5) : "wing1" + f.Substring(5);
+                var flapLn = Find(t, f + "_liftNormal");
+                var wingLn = Find(Find(ourRoot, wingOf), wingOf + "_liftNormal");
                 Set(hld, "movingParts", p =>
                 {
-                    p.arraySize = 0;
-                    return;
-                    var e = p.GetArrayElementAtIndex(0);
-                    e.FindPropertyRelative("move").boolValue = true;
-                    e.FindPropertyRelative("rotate").boolValue = true;
-                    e.FindPropertyRelative("transform").objectReferenceValue = vis;
-                    e.FindPropertyRelative("positionRetracted").vector3Value = Vector3.zero;
-                    e.FindPropertyRelative("positionDeployed").vector3Value = vis.parent.InverseTransformVector(-ourRoot.forward * 0.3f - ourRoot.up * 0.08f);
-                    e.FindPropertyRelative("anglesRetracted").vector3Value = Vector3.zero;
-                    // Local X runs along the hinge pointing outboard-right (+X world); a negative angle drops the trailing edge.
-                    e.FindPropertyRelative("anglesDeployed").vector3Value = new Vector3(-20f, 0, 0);
+                    var parts = new[] { (flapLn, FlapOwnCamber), (wingLn, FlapInnerCamber) }.Where(x => x.Item1).ToList();
+                    p.arraySize = parts.Count;
+                    for (int i = 0; i < parts.Count; i++)
+                    {
+                        var e = p.GetArrayElementAtIndex(i);
+                        e.FindPropertyRelative("move").boolValue = false;
+                        e.FindPropertyRelative("rotate").boolValue = true;
+                        e.FindPropertyRelative("transform").objectReferenceValue = parts[i].Item1;
+                        e.FindPropertyRelative("anglesRetracted").vector3Value = new Vector3(-WingIncidence, 0, 0);
+                        e.FindPropertyRelative("anglesDeployed").vector3Value = new Vector3(-WingIncidence - parts[i].Item2, 0, 0);
+                    }
                 });
             }
         }
 
         const float WingIncidence = 6f;
+        const float FlapInnerCamber = 8f, FlapOwnCamber = 20f;
+
+        static AnimationCurve Linear(params float[] kv)
+        {
+            var keys = new Keyframe[kv.Length / 2];
+            for (int i = 0; i < keys.Length; i++) keys[i] = new Keyframe(kv[2 * i], kv[2 * i + 1]);
+            var c = new AnimationCurve(keys);
+            for (int i = 0; i < keys.Length; i++)
+            {
+                AnimationUtility.SetKeyLeftTangentMode(c, i, AnimationUtility.TangentMode.Linear);
+                AnimationUtility.SetKeyRightTangentMode(c, i, AnimationUtility.TangentMode.Linear);
+            }
+            return c;
+        }
+
+        // High-aspect-ratio B-52 wing (AR 8.5): CL slope ~5/rad, CLmax ~1.45, induced drag rising with lift.
+        static AnimationCurve B52Lift() => Linear(-3.14159f, 0, -1.57f, 0, -0.785f, -1.1f, -0.45f, -1.0f, -0.30f, -1.45f, -0.22f, -1.1f, 0, 0,
+                                                  0.22f, 1.1f, 0.30f, 1.45f, 0.45f, 1.0f, 0.785f, 1.1f, 1.57f, 0, 3.14159f, 0);
+        static AnimationCurve B52Drag() => Linear(-3f, 0, -1.49f, 0.6f, -0.30f, 0.13f, -0.20f, 0.06f, -0.10f, 0.022f, 0, 0.010f,
+                                                  0.10f, 0.022f, 0.20f, 0.06f, 0.30f, 0.13f, 1.49f, 0.6f, 3f, 0);
+        // Rolls-Royce F130 (high bypass): lapse with altitude and airspeed.
+        static AnimationCurve F130Altitude() => Linear(0, 1.0f, 3000, 0.80f, 6000, 0.62f, 9000, 0.47f, 12000, 0.33f, 15000, 0.21f, 17500, 0.12f);
+        static AnimationCurve F130Speed() => Linear(0, 1.0f, 50, 0.93f, 100, 0.86f, 150, 0.80f, 200, 0.74f, 250, 0.70f, 280, 0.66f, 300, 0.58f, 340, 0.30f);
 
         static void WireCockpit()
         {
@@ -1073,7 +1102,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.2.1";
+        public const string Version = "0.2.2";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()
@@ -1093,6 +1122,14 @@ namespace B52Tools
 
             var ps = SO(par);
             ps.FindProperty("aircraftName").stringValue = "B52J";
+            var af = ps.FindProperty("airfoils");
+            for (int i = 0; i < af.arraySize; i++)
+            {
+                var a = af.GetArrayElementAtIndex(i);
+                a.FindPropertyRelative("name").stringValue = "B52_wing";
+                a.FindPropertyRelative("liftCoef").animationCurveValue = B52Lift();
+                a.FindPropertyRelative("dragCoef").animationCurveValue = B52Drag();
+            }
             ps.FindProperty("rankRequired").intValue = 4;
             // LoadoutSelector.LoadDefaults reads loadouts[1]; with no hardpoints yet both are empty.
             var lo = ps.FindProperty("loadouts");
@@ -1155,10 +1192,10 @@ namespace B52Tools
             Note($"Liveries: {lv.arraySize} -> {livGuid}");
             ps.FindProperty("aircraftGLimit").floatValue = 2.5f;
             ps.FindProperty("maxSpeed").floatValue = 290f;
-            ps.FindProperty("takeoffSpeed").floatValue = 77f;
+            ps.FindProperty("takeoffSpeed").floatValue = 90f;
             ps.FindProperty("takeoffDistance").floatValue = 2900f;
-            ps.FindProperty("approachSpeed").floatValue = 75f;
-            ps.FindProperty("landingSpeed").floatValue = 68f;
+            ps.FindProperty("approachSpeed").floatValue = 82f;
+            ps.FindProperty("landingSpeed").floatValue = 72f;
             ps.FindProperty("shortLandingSpeed").floatValue = 68f;
             ps.FindProperty("cruiseThrottle").floatValue = 0.82f;
             ps.FindProperty("turningRadius").floatValue = 3500f;
