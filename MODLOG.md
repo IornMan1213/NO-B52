@@ -189,3 +189,19 @@ the runway (172 -> 128 kt in 0.6 s) and settled at 112 kt.
   flap area (Fowler), flaps down below 105 m/s, up by 130 m/s. Checker: 161 kt at 181 t, 179 kt at 221 t.
 - The B-52 can't usefully rotate (tail strike ~3 deg, 15 m elevator arm vs 237 t on the rear trucks), so
   hands-off lift-off speed is the number that matters.
+
+## Heavy Hangar 0.1.0 (written, not yet built; user asked for no builds while playing)
+User: the B-52 is too big for the stock hangars; wants a hangar big enough for it and future aircraft.
+- Stock hangar_med (largest land hangar): 80 x 45 m, door ~46 m x 8 m (two 23 m leaves). B-52: 56.4 x 48.5 x 12.4 m.
+- Game facts used (decompile): Hangar.CanSpawnAircraft only checks availableAircraft; Airbase.TrySpawnAircraft
+  takes the first hangar in priority order that accepts. A Building joins an airbase via SetAirbase /
+  OnStartClient -> ClientAddBuildingToAirbase, and any building with a Hangar component becomes a spawn point.
+  Spawner.SpawnBuilding(prefab, pos, rot, HQ, airbase, name, capturable, null) is the runtime path missions use.
+  MissionRunner.OnMissionStart runs on the server only, after mission units spawn. Terrain = collider
+  sharedMaterial == GameAssets.i.terrainMaterial (as LandingGear uses). Blueprinter registers BuildingDefinitions.
+- Model: tools/blender_hangar.py (114 x 78 m, 84 x 17 m door, 6 telescoping leaves), textures from
+  tools/make_hangar_textures.py. Checked with a workbench render: a B-52-sized box fits with the doors open.
+- Prefab: HangarBuilder.cs clones hangar_med's root components and door UnitParts, MeshCollider on the body.
+- Plugin HeavyHangar.dll: routing (oversize -> heavy), heavy list = union of the airbase's hangars, outside-door
+  fallback when a base has no heavy hangar, auto-placement with site checks and retries. Compiles.
+- install.sh now picks the B-52 .nobp by name (it took the newest .nobp in build/, which would be the hangar's).
