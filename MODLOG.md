@@ -157,3 +157,7 @@ are well within the elevators' ±20°.
 - Fix: MassSync keeps rb.mass = sum of attached UnitPart.mass (structure + fuel + stores) every FixedUpdate and
   pins rb.centerOfMass to the root CoM transform.
 - Gotcha 11: a locally simulated aircraft held in simple physics must manage its own rigidbody mass.
+- Fuselage step (user screenshot): the root mesh (centre fuselage) sat 1.26 m above the front/rear sections.
+  blender_export.py reset the root object to identity without baking its offset (origin z -1.26) into the
+  mesh; children were placed by world matrix so only the root moved. Fixed by baking the root's world matrix
+  into its mesh. Prefab bounds now: B52 centre y -0.6, fuselage_F -0.6, fuselage_R -0.6.

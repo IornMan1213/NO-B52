@@ -16,7 +16,8 @@ for o in order:                                   # parents first
 for o in order:
     if o.parent: o.matrix_world = worlds[o.name]
     else:
-        if o.type == 'MESH': o.data.transform(R)
+        # bake the root's own offset into its mesh, or the centre fuselage rides 1.26 m above the other sections
+        if o.type == 'MESH': o.data.transform(worlds[o.name])
         o.matrix_world = Matrix.Identity(4)
     bpy.context.view_layer.update()
 # copy textures beside the FBX and point images at them
