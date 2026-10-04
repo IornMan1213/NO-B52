@@ -20,6 +20,12 @@ more).
 `B52Systems.dll` keeps the airframe rigid and holds the B-52's runtime fixes. Its options are in
 `BepInEx/config/com.ironman1213.b52systems.cfg`.
 
+## Heavy Aircraft Hangar (companion mod)
+
+The B-52 doesn't fit through stock hangar doors. The Heavy Hangar mod in this repo adds an 84 m-door hangar,
+places one beside long runways automatically, and sends oversize aircraft (any mod, not just the B-52) to it.
+Without it, the B-52 spawns just outside a stock hangar instead. See [HANGAR.md](HANGAR.md).
+
 ## Building from source
 Run `bash tools/build_all.sh`, then `bash tools/install.sh`. See [MODLOG.md](MODLOG.md) for the pipeline, and
 [LOADOUTS.md](LOADOUTS.md) for the weapons.
