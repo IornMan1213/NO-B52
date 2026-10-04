@@ -74,6 +74,7 @@ namespace B52Systems
         }
 
         private void Event(string e) => Row(e);
+        internal void Note(string e) => Event(e);              // other systems (drag chute) log events here
 
         private void Row(string ev = "")
         {

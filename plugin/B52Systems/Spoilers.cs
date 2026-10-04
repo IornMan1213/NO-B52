@@ -6,13 +6,17 @@ namespace B52Systems
     /// <summary>
     /// The B-52H/J rolls with spoilers only (no ailerons), and spoilers only ever rise. The game's ControlSurface
     /// swings both ways, so the aero surface (spoilers_X_visible) stays hidden and drives the lift, while a separate
-    /// visible panel set (spoilerPanels_X) copies only the upward part of its deflection.
+    /// visible panel set (spoilerPanels_X) copies only the upward part of its deflection. When the airbrake is open
+    /// (throttle at idle) both sides rise together, as the B-52 uses its spoilers as speedbrakes.
     /// </summary>
     public class SpoilerDriver : MonoBehaviour
     {
         private Transform[] aero = new Transform[2];
         private Transform[] panels = new Transform[2];
         private Renderer[] panelRenderers = new Renderer[2];
+        private Airbrake airbrake;
+        private static readonly AccessTools.FieldRef<Airbrake, float> OpenAmount = AccessTools.FieldRefAccess<Airbrake, float>("openAmount");
+        private const float SpeedbrakeAngle = 60f;
 
         private void Start()
         {
@@ -23,6 +27,7 @@ namespace B52Systems
                 panels[i] = FindDeep(transform, "spoilerPanels_" + sides[i]);
                 if (panels[i]) panelRenderers[i] = panels[i].GetComponent<Renderer>();
             }
+            airbrake = GetComponent<Airbrake>();
         }
 
         private void LateUpdate()
@@ -33,6 +38,7 @@ namespace B52Systems
                 float a = aero[i].localEulerAngles.x;
                 if (a > 180f) a -= 360f;
                 float up = Mathf.Max(0f, a);              // + about the hinge raises the trailing edge
+                if (airbrake) up = Mathf.Max(up, OpenAmount(airbrake) * SpeedbrakeAngle);   // speedbrake: both sides up
                 panels[i].localRotation = Quaternion.AngleAxis(up, Vector3.right);
                 if (panelRenderers[i]) panelRenderers[i].enabled = up > 1f;
             }

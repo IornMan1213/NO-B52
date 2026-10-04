@@ -281,3 +281,15 @@ Takeoff, nose held level (no rotation): 38 s / 1,482 m to lift-off at 173 kt (ra
 real procedure (rotate ~6 deg at ~145 kt) the checker gives 143 kt / ~900 m.
 Status: hull + flight model done per the user's priority. Next candidates: landing test, weapons release test,
 MALD/MALD-J, single-atlas livery, gear doors.
+
+## 0.3.4: speedbrakes and drag chute
+Landing test (175 t T/O, bombs 44/44 released OK): came in at 400+ kt at idle, touched down at 309 kt with flaps
+up (they retract > 253 kt), 1,280 fpm, no damage; could not stop. Idle decel from 400 kt only ~2 kt/s.
+"Airbrake does nothing": in Nuclear Option the airbrake (Airbrake component) opens when throttle == 0 and adds
+dragAmount * rho * V^2; the brake key is wheel brakes. ControlSurface.brakeRange is stored but never used by the
+job. FastBomber1 has no Airbrake, so the B-52 had none.
+- Airbrake on the root: dragAmount 8 (CdA ~16 m2, ~230 kN at 300 kt; idle decel ~5 kt/s from 300 kt), no
+  transforms; SpoilerDriver raises both wings' spoiler panels to 60 deg x open amount.
+- DragChute (plugin): on the ground, idle, wheel brakes > 0.3, < 165 kt -> 13.4 m canopy, Cd 0.55, drag at the
+  tail along -velocity, 1.5 s inflation; jettison < 10 m/s or throttle > 0.3; one per landing. Procedural
+  canopy + riser. Telemetry events CHUTE deployed/jettisoned.

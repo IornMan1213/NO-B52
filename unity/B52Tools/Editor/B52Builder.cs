@@ -119,6 +119,7 @@ namespace B52Tools
                 WireControlSurfaces();
                 WireCockpit();
                 TuneFlyByWire();
+                AddAirbrake();
                 ApplyPhysics();
                 WireJoints();
                 AddColliders();
@@ -679,6 +680,26 @@ namespace B52Tools
             Note($"Fly-by-wire tuned for a bomber ({all.Length} filter)");
         }
 
+        /// <summary>Nuclear Option's airbrake (Airbrake component) opens whenever the throttle is at zero and adds a drag
+        /// force dragAmount * rho * V^2. FastBomber1 has none, so idle did nothing. The B-52 uses its 14 spoiler panels as
+        /// speedbrakes: CdA ~16 m2 -> dragAmount 8 (~200 kN at 300 kt). No transforms: B52Systems.SpoilerDriver raises
+        /// the visible spoiler panels from the airbrake's open amount.</summary>
+        static void AddAirbrake()
+        {
+            var ab = ourRoot.gameObject.AddComponent(T("Airbrake"));
+            var so = SO(ab);
+            so.FindProperty("transforms").arraySize = 0;
+            so.FindProperty("constraints").arraySize = 0;
+            so.FindProperty("dragAmount").floatValue = 8f;
+            so.FindProperty("maxAngle").floatValue = 60f;
+            so.FindProperty("openSpeed").floatValue = 0.7f;
+            so.FindProperty("part").objectReferenceValue = ourRoot.GetComponent(T("UnitPart"));
+            so.FindProperty("aircraft").objectReferenceValue = ourRoot.GetComponent(T("Aircraft"));
+            so.FindProperty("volumeMultiplier").floatValue = 0.7f;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            Note("Airbrake: dragAmount 8, opens at idle");
+        }
+
         static void WireCockpit()
         {
             var ci = Find(ourRoot, "cockpit_int");
@@ -1189,7 +1210,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.3.3";
+        public const string Version = "0.3.4";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()
