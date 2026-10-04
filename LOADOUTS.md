@@ -51,8 +51,14 @@ and counts are the real ones, and rack mass uses the real weapon weights. Genera
 | Mk 62 Quickstrike | 250 kg bomb | 32 | 24 | 80 |
 | Mk 63 / Mk 65 Quickstrike | 500 kg bomb | 8 | 5 | 18 |
 
-Not built yet: **ADM-160 MALD / MALD-J**. The game has no decoy munition to borrow, so these need a custom
-missile (planned for v0.3).
+| ADM-160B MALD | decoy (custom) | 0 | 8 | 16 |
+| ADM-160C MALD-J | decoy + jammer (custom) | 0 | 8 | 16 |
+
+**MALD / MALD-J** are custom missiles (v0.3.7), made from the game's ALM-C450 cruise missile: 2.85 m, 115 kg,
+subsonic, ~600+ km, no warhead. Both show enemy radar the radar size of a B-52J (0.1), so they draw tracking and
+SAM fire. MALD-J also jams every emitting enemy radar within 30 km of its path (B52Systems.MaldJammer, using the
+game's own jamming: 0.8 at the decoy, fading to 0 at 30 km). Fire them at an aimpoint along the route you want
+the defences to look at. Preset: "JASSM-ER x8 + MALD-J x16 (SEAD)".
 
 Where the source list gives a range, the build uses the top of the range that fits the 70,000 lb (31,750 kg)
 payload limit. For example, Mk 84 is 12 in the bay plus 9 per pylon, so 30.

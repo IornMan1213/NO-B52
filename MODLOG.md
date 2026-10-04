@@ -312,3 +312,13 @@ Outriggers have none (they fold under the wingtip pods). Verified with B52Inspec
   "<name>_visible"). SetLiveryTargets lists every skin renderer per part (30 on 26 parts), swapping the skin to
   slot 0 where needed (none needed). Atlas imported at 4096.
 - docs/livery_template.png + docs/LIVERIES.md for painting new liveries. Verified with B52Inspect.RenderExterior.
+
+## 0.3.7: ADM-160 MALD / MALD-J
+- Game facts: radar signal ~ RCS^0.25 (RadarParams.GetSignalStrength); a unit's RCS = definition.radarSize
+  (Unit.Awake). Jamming = Unit.Jam(JamEventArgs{jammingUnit, jamAmount}) every 0.2 s, server side
+  (JammingPod: power 13, falloff 1 -> 0 over 80 km). Missile top speed = sqrt(thrust/(0.5 Cd rho finArea)).
+- B52Weapons.MakeDecoy clones the ALM-C450 (CruiseMissile1) into MissileDefinition + WeaponInfo + prefab:
+  scale 0.45, mass 115, finArea x0.2 and thrust x0.2 (same top speed), fuel 45 kg / 2,400 s, radarSize 0.1
+  (= B-52J), blast 0. Pylon racks of 8 (HSAB), MountedMissile.info and WeaponMount.info -> the decoy info.
+- B52Systems.MaldJammer (Missile.Awake postfix, jsonKey B52_ADM160C): jams emitting enemy radars within
+  30 km, 0.8 x (1 - d/30 km). Preset "JASSM-ER x8 + MALD-J x16 (SEAD)".

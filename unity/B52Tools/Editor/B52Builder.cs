@@ -1299,7 +1299,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.3.6";
+        public const string Version = "0.3.7";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()
@@ -1343,6 +1343,7 @@ namespace B52Tools
             {
                 ("Mk 82 x51", "MK82", "MK82", 0.7f),
                 ("JASSM-ER x20", "AGM158B", "AGM158B", 0.85f),
+                ("JASSM-ER x8 + MALD-J x16 (SEAD)", "AGM158B", "ADM160C", 0.85f),
                 ("LRASM x20 (anti-ship)", "AGM158C", "AGM158C", 0.85f),
                 ("GBU-31 JDAM x24", "GBU31", "GBU31", 0.7f),
                 ("GBU-38 JDAM x80", "GBU38", "GBU38", 0.7f),

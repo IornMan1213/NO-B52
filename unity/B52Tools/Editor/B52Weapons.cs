@@ -28,7 +28,15 @@ namespace B52Tools
             { "cruise", "CruiseMissile1_internalx6" },        { "cruise_nuke", "CruiseMissile20kt_internalx2" },
             { "ashm1", "AShM1_internalx6" },                  { "ashm2", "AShM2_internalx4" },
             { "agm_heavy", "AGM_heavy_internalx8" },          { "tbm_nuke", "BallisticMissile1_tacNuke_internalx2" },
+            { "mald", "CruiseMissile1_internalx6" },          { "mald_j", "CruiseMissile1_internalx6" },
         };
+
+        // ADM-160 MALD / MALD-J: custom missiles made from the game's ALM-C450 cruise missile (B52Systems.Decoys adds
+        // the jamming). Scaled 0.45 (6.3 m -> 2.85 m); 115 kg; thrust/finArea kept at the donor's ratio, so the same
+        // subsonic top speed (top speed = sqrt(thrust / (0.5 Cd rho finArea))); 2,400 s burn for ~600+ km.
+        // radarSize 0.1 = the B-52J's: enemy radar sees a bomber (signal ~ RCS^0.25).
+        const float DecoyScale = 0.45f;
+        static readonly Dictionary<string, Object> DecoyInfo = new Dictionary<string, Object>();
 
         public class W
         {
@@ -80,6 +88,9 @@ namespace B52Tools
             new W("CBU103",  "CBU-103 WCMD",       "bomb_cluster1", 16, 7, 430),
             new W("CBU104",  "CBU-104 WCMD",       "bomb_cluster1", 16, 7, 322),
             new W("CBU105",  "CBU-105 WCMD",       "bomb_cluster1", 16, 7, 417),
+            // Decoys (custom missiles, see MakeDecoy)
+            new W("ADM160B", "ADM-160B MALD",      "mald",   0, 8, 115),
+            new W("ADM160C", "ADM-160C MALD-J",    "mald_j", 0, 8, 115),
             // Naval mines
             new W("MK56",    "Mk 56 Quickstrike",  "bomb_500",    8, 6, 909),
             new W("MK62",    "Mk 62 Quickstrike",  "bomb_250",    32, 24, 227),
@@ -94,6 +105,12 @@ namespace B52Tools
         {
             if (!AssetDatabase.IsValidFolder(Dir)) AssetDatabase.CreateFolder("Assets/Blueprinter/Mods/B52", "Weapons");
             var bay = new List<ScriptableObject>(); var pylon = new List<ScriptableObject>();
+            DecoyInfo.Clear();
+            DecoyInfo["mald"] = MakeDecoy("ADM160B", "ADM-160B MALD", "MALD",
+                "Miniature Air-Launched Decoy. No warhead: flies the route to its aimpoint with the radar signature of a B-52, " +
+                "drawing radars and SAMs away from the bombers.", log);
+            DecoyInfo["mald_j"] = MakeDecoy("ADM160C", "ADM-160C MALD-J", "MALD-J",
+                "MALD with a jammer: looks like a B-52 on radar and jams enemy radars within ~30 km of its path.", log);
             foreach (var w in Table)
             {
                 var donor = AssetDatabase.LoadAssetAtPath<ScriptableObject>(DoNotShip + Donor[w.family] + "_PLACEHOLDER.asset");
@@ -121,6 +138,8 @@ namespace B52Tools
             Object.DestroyImmediate(probe);
             float len = Mathf.Max(1f, b.size.z), dia = Mathf.Max(0.25f, Mathf.Max(b.size.x, b.size.y));
 
+            DecoyInfo.TryGetValue(w.family, out var decoyInfo);
+            if (decoyInfo) { len *= DecoyScale; dia *= DecoyScale; }
             var root = new GameObject(key);
             var positions = internalBay ? BayLayout(count, len, dia, w.family) : PylonLayout(count, len, dia);
             for (int i = 0; i < count; i++)
@@ -129,6 +148,12 @@ namespace B52Tools
                 m.name = $"{w.code}_{i + 1}";
                 m.transform.localPosition = positions[i];
                 m.transform.localRotation = Quaternion.identity;
+                if (decoyInfo)
+                {
+                    m.transform.localScale = Vector3.one * DecoyScale;
+                    var mm = new SerializedObject(m.GetComponent(T("MountedMissile")));
+                    mm.FindProperty("info").objectReferenceValue = decoyInfo; mm.ApplyModifiedPropertiesWithoutUndo();
+                }
             }
             var prefabPath = $"{Dir}/{key}.prefab";
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
@@ -149,11 +174,76 @@ namespace B52Tools
             so.FindProperty("emptyDrag").floatValue = internalBay ? 0f : 0.1f;
             so.FindProperty("RCS").floatValue = internalBay ? 0f : 0.05f * count;
             so.FindProperty("disabled").boolValue = false;
+            if (decoyInfo) so.FindProperty("info").objectReferenceValue = decoyInfo;
             so.ApplyModifiedPropertiesWithoutUndo();
             var path = $"{Dir}/{key}.asset";
             AssetDatabase.DeleteAsset(path);
             AssetDatabase.CreateAsset(mount, path);
             return mount;
+        }
+
+        /// <summary>A decoy missile: MissileDefinition + WeaponInfo + missile prefab, cloned from the ALM-C450.</summary>
+        static Object MakeDecoy(string code, string name, string shortName, string description, Action<string> log)
+        {
+            const string Src = "Assets/Blueprinter/_donotship/";
+            var srcDef = AssetDatabase.LoadAssetAtPath<ScriptableObject>(Src + "MonoBehaviour/CruiseMissile1_PLACEHOLDER.asset");
+            var srcInfo = AssetDatabase.LoadAssetAtPath<ScriptableObject>(Src + "MonoBehaviour/info_CruiseMissile1_PLACEHOLDER.asset");
+            var srcPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(Src + "GameObject/CruiseMissile1_PLACEHOLDER.prefab");
+            if (!srcDef || !srcInfo || !srcPrefab) { log("  ! decoy donor missing"); return null; }
+            string key = "B52_" + code;
+
+            var def = ScriptableObject.CreateInstance(srcDef.GetType()); EditorUtility.CopySerialized(srcDef, def); def.name = key;
+            var info = ScriptableObject.CreateInstance(srcInfo.GetType()); EditorUtility.CopySerialized(srcInfo, info); info.name = "info_" + key;
+            var defPath = $"{Dir}/{key}.asset"; var infoPath = $"{Dir}/info_{key}.asset";
+            AssetDatabase.DeleteAsset(defPath); AssetDatabase.CreateAsset(def, defPath);
+            AssetDatabase.DeleteAsset(infoPath); AssetDatabase.CreateAsset(info, infoPath);
+
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(srcPrefab);
+            PrefabUtility.UnpackPrefabInstance(go, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+            go.name = key;
+            go.transform.localScale = Vector3.one * DecoyScale;
+            var missile = go.GetComponent(T("Missile"));
+            var ms = new SerializedObject(missile);
+            ms.FindProperty("definition").objectReferenceValue = def;
+            ms.FindProperty("info").objectReferenceValue = info;
+            ms.FindProperty("mass").floatValue = 115f;
+            float donorFin = ms.FindProperty("finArea").floatValue;
+            ms.FindProperty("finArea").floatValue = donorFin * 0.2f;
+            var motors = ms.FindProperty("motors");
+            for (int i = 0; i < motors.arraySize; i++)
+            {
+                var m = motors.GetArrayElementAtIndex(i);
+                m.FindPropertyRelative("thrust").floatValue *= 0.2f;              // same thrust / finArea as the donor
+                m.FindPropertyRelative("fuelMass").floatValue = 45f;
+                m.FindPropertyRelative("burnTime").floatValue = 2400f;
+            }
+            ms.ApplyModifiedPropertiesWithoutUndo();
+            var prefabPath = $"{Dir}/{key}.prefab";
+            var prefab = PrefabUtility.SaveAsPrefabAsset(go, prefabPath);
+            Object.DestroyImmediate(go);
+
+            var ds = new SerializedObject(def);
+            ds.FindProperty("jsonKey").stringValue = key;
+            ds.FindProperty("unitName").stringValue = name;
+            ds.FindProperty("code").stringValue = shortName;
+            ds.FindProperty("description").stringValue = description;
+            ds.FindProperty("radarSize").floatValue = 0.1f;
+            ds.FindProperty("mass").floatValue = 115f;
+            ds.FindProperty("value").floatValue = 0.3f;
+            ds.FindProperty("unitPrefab").objectReferenceValue = prefab;
+            ds.ApplyModifiedPropertiesWithoutUndo();
+            var isx = new SerializedObject(info);
+            isx.FindProperty("weaponName").stringValue = name;
+            isx.FindProperty("shortName").stringValue = shortName;
+            isx.FindProperty("description").stringValue = description;
+            isx.FindProperty("blastDamage").floatValue = 0f;
+            isx.FindProperty("pierceDamage").floatValue = 0f;
+            isx.FindProperty("costPerRound").floatValue = 0.3f;
+            isx.FindProperty("weaponPrefab").objectReferenceValue = prefab;
+            isx.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(def); EditorUtility.SetDirty(info);
+            log($"  decoy {name}: 115 kg, fin area {donorFin * 0.2f:F2}, radar size 0.1");
+            return info;
         }
 
         // Bay: 10.3 m long x 1.7 m wide x 1.8 m tall. Cruise missiles go on an 8-round rotary launcher; bombs on
