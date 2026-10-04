@@ -205,3 +205,11 @@ User: the B-52 is too big for the stock hangars; wants a hangar big enough for i
 - Plugin HeavyHangar.dll: routing (oversize -> heavy), heavy list = union of the airbase's hangars, outside-door
   fallback when a base has no heavy hangar, auto-placement with site checks and retries. Compiles.
 - install.sh now picks the B-52 .nobp by name (it took the newest .nobp in build/, which would be the hangar's).
+
+## 0.2.9 (plugin; written, not yet built)
+- Telemetry for a full-game test: pilot inputs (pitch/roll/yaw/brake), peak and minimum g per row (FixedUpdate
+  differentiation), flap position (HighLiftDevice.position), most-damaged part; events LOADOUT, FIRED <weapon>
+  (WeaponManager.OnStationFired), DAMAGE <part> when a part falls below 50 hp and 0 hp, DISABLED, LIFTOFF with
+  speed and mass, TOUCHDOWN with sink rate; summary adds g range and release count.
+- Checked: bay hardpoint has both bay doors (MountedMissile.Launch -> Hardpoint.SpringOpenBayDoors, 2.5 s).
+- tools/build_and_install.sh: build_all + build_hangar + install, refuses to run while the game is open.

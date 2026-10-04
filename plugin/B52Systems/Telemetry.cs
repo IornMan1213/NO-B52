@@ -8,9 +8,10 @@ using UnityEngine;
 namespace B52Systems
 {
     /// <summary>
-    /// Flight recorder for B-52J test flights. Every 0.5 s it writes one CSV row, and it logs events (part
-    /// detached, gear state change, lift-off, touchdown) to BepInEx/B52_telemetry/&lt;time&gt;_&lt;aircraft&gt;.csv.
-    /// Config: [Telemetry] Enabled.
+    /// Flight recorder for B-52J test flights. Every 0.5 s it writes one CSV row (state, pilot inputs, peak g over
+    /// the interval, flap position, most-damaged part), and it logs events (loadout, part damaged or detached, gear,
+    /// lift-off, touchdown with sink rate, weapon released, aircraft disabled) to
+    /// BepInEx/B52_telemetry/&lt;time&gt;_&lt;aircraft&gt;.csv. Config: [Telemetry] Enabled.
     /// </summary>
     public class Telemetry : MonoBehaviour
     {
@@ -23,6 +24,12 @@ namespace B52Systems
         private LandingGear.GearState lastGear;
         private bool wasAirborne;
         private float maxKts, maxAltFt;
+        private Vector3 vPrev; private float gHi = 1f, gLo = 1f, gMaxAll = 1f, gMinAll = 1f;
+        private readonly Dictionary<UnitPart, int> hpBand = new Dictionary<UnitPart, int>();
+        private HighLiftDevice[] flaps;
+        private bool wasDisabled;
+        private int fired;
+        private static readonly AccessTools.FieldRef<HighLiftDevice, float> FlapPos = AccessTools.FieldRefAccess<HighLiftDevice, float>("position");
 
         private void Start()
         {
@@ -34,9 +41,36 @@ namespace B52Systems
             Directory.CreateDirectory(dir);
             var file = Path.Combine(dir, $"{DateTime.Now:yyyyMMdd_HHmmss}_{GetInstanceID()}.csv");
             w = new StreamWriter(file) { AutoFlush = true };
-            w.WriteLine("t_s,kts,alt_ft,radar_alt_ft,vs_fpm,pitch_deg,roll_deg,aoa_deg,throttle,gear,fuel_frac,mass_kg,event");
+            w.WriteLine("t_s,kts,alt_ft,radar_alt_ft,vs_fpm,pitch_deg,roll_deg,aoa_deg,throttle,gear,fuel_frac,mass_kg," +
+                        "pitch_in,roll_in,yaw_in,brake,g_max,g_min,flaps,hp_min,hp_min_part,event");
             t0 = Time.time;
+            flaps = GetComponentsInChildren<HighLiftDevice>(true);
+            foreach (var p in parts) hpBand[p] = 2;
+            var wm = aircraft.weaponManager;
+            if (wm != null)
+            {
+                wm.OnStationFired += OnFired;
+                var loadout = new List<string>();
+                foreach (var st in aircraft.weaponStations)
+                    if (st != null && st.WeaponInfo != null) loadout.Add($"{st.WeaponInfo.weaponName} x{st.Ammo}");
+                Event("LOADOUT " + (loadout.Count > 0 ? string.Join(" + ", loadout) : "empty"));
+            }
             Plugin.Log.LogInfo("B-52J telemetry -> " + file);
+        }
+
+        private void OnFired()
+        {
+            fired++;
+            var st = aircraft ? aircraft.weaponManager.currentWeaponStation : null;
+            Event(st != null && st.WeaponInfo != null ? $"FIRED {st.WeaponInfo.weaponName} ({st.Ammo} left)" : "FIRED");
+        }
+
+        private void FixedUpdate()
+        {
+            if (!rb || w == null) return;
+            var a = (rb.velocity - vPrev) / Time.fixedDeltaTime; vPrev = rb.velocity;
+            float g = Vector3.Dot(a + Vector3.up * 9.81f, transform.up) / 9.81f;
+            gHi = Mathf.Max(gHi, g); gLo = Mathf.Min(gLo, g);
         }
 
         private void Event(string e) => Row(e);
@@ -48,6 +82,9 @@ namespace B52Systems
             float pitch = -(e.x > 180f ? e.x - 360f : e.x);                  // + = nose up
             float roll = -(e.z > 180f ? e.z - 360f : e.z);                   // + = right wing down
             Vector3 v = rb ? rb.velocity : Vector3.zero;
+            var inp = aircraft.GetInputs();
+            float flap = 0f; foreach (var f in flaps) if (f) flap = Mathf.Max(flap, FlapPos(f));
+            UnitPart worst = null; foreach (var p in parts) if (p && !detached.Contains(p) && (!worst || p.hitPoints < worst.hitPoints)) worst = p;
             Vector3 vl = aircraft.transform.InverseTransformDirection(v);
             float aoa = vl.sqrMagnitude > 1f ? Mathf.Atan2(-vl.y, vl.z) * Mathf.Rad2Deg : 0f;
             float kts = aircraft.speed * 1.94384f;
@@ -59,25 +96,44 @@ namespace B52Systems
                 (aircraft.radarAlt * 3.28084f).ToString("F0"), (v.y * 196.85f).ToString("F0"),
                 pitch.ToString("F1"), roll.ToString("F1"), aoa.ToString("F1"),
                 aircraft.GetInputs().throttle.ToString("F2"), aircraft.gearState.ToString(),
-                aircraft.GetFuelLevel().ToString("F2"), (rb ? rb.mass : 0f).ToString("F0"), ev
+                aircraft.GetFuelLevel().ToString("F2"), (rb ? rb.mass : 0f).ToString("F0"),
+                inp.pitch.ToString("F2"), inp.roll.ToString("F2"), inp.yaw.ToString("F2"), inp.brake.ToString("F2"),
+                gHi.ToString("F2"), gLo.ToString("F2"), flap.ToString("F2"),
+                worst ? worst.hitPoints.ToString("F0") : "", worst ? worst.name : "", ev
             }));
+            gMaxAll = Mathf.Max(gMaxAll, gHi); gMinAll = Mathf.Min(gMinAll, gLo);
+            if (ev == "") { gHi = gLo = 1f; }
         }
 
         private void Update()
         {
             if (!aircraft || w == null) return;
             foreach (var p in parts)
-                if (p && !detached.Contains(p) && p.IsDetached()) { detached.Add(p); Event("DETACHED " + p.name); }
+            {
+                if (!p || detached.Contains(p)) continue;
+                if (p.IsDetached()) { detached.Add(p); Event("DETACHED " + p.name); continue; }
+                int band = p.hitPoints <= 0f ? 0 : p.hitPoints < 50f ? 1 : 2;
+                if (band < hpBand[p]) { hpBand[p] = band; Event($"DAMAGE {p.name} {p.hitPoints:F0} hp"); }
+            }
+            if (aircraft.disabled && !wasDisabled) { wasDisabled = true; Event("DISABLED"); }
             if (aircraft.gearState != lastGear) { Event("GEAR " + aircraft.gearState); lastGear = aircraft.gearState; }
             bool air = aircraft.radarAlt > 3f;
-            if (air != wasAirborne) { Event(air ? "LIFTOFF" : "TOUCHDOWN"); wasAirborne = air; }
+            if (air != wasAirborne)
+            {
+                float sink = rb ? -rb.velocity.y * 196.85f : 0f;
+                Event(air ? $"LIFTOFF {aircraft.speed * 1.94384f:F0} kt {(rb ? rb.mass / 1000f : 0f):F0} t"
+                          : $"TOUCHDOWN {aircraft.speed * 1.94384f:F0} kt sink {sink:F0} fpm");
+                wasAirborne = air;
+            }
             if (Time.time >= next) { next = Time.time + 0.5f; Row(); }
         }
 
         private void OnDestroy()
         {
             if (w == null) return;
-            w.WriteLine($"# summary: max {maxKts:F0} kt, max {maxAltFt:F0} ft, {detached.Count} parts detached");
+            if (aircraft && aircraft.weaponManager != null) aircraft.weaponManager.OnStationFired -= OnFired;
+            w.WriteLine($"# summary: max {maxKts:F0} kt, max {maxAltFt:F0} ft, g {gMinAll:F1}..{gMaxAll:F1}, " +
+                        $"{fired} releases, {detached.Count} parts detached");
             w.Dispose(); w = null;
         }
     }
