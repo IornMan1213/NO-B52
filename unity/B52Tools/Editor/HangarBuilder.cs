@@ -139,7 +139,7 @@ namespace B52Tools
                     p.FindPropertyRelative("pierceArmor").floatValue = 60f;     // steel frame, 30 % tougher than hangar_med
                     p.FindPropertyRelative("blastArmor").floatValue = 40f;
                 });
-                var tb = ours.GetComponent(T("TerrainHeightMapBlocker"));
+                var tb = ours.GetComponents<Component>().FirstOrDefault(c => c && c.GetType().Name == "TerrainHeightMapBlocker");   // namespaced type
                 if (tb) Set(tb, "Renderers", p =>
                 {
                     p.arraySize = 1;
