@@ -293,3 +293,11 @@ job. FastBomber1 has no Airbrake, so the B-52 had none.
 - DragChute (plugin): on the ground, idle, wheel brakes > 0.3, < 165 kt -> 13.4 m canopy, Cd 0.55, drag at the
   tail along -velocity, 1.5 s inflation; jettison < 10 m/s or throttle > 0.3; one per landing. Procedural
   canopy + riser. Telemetry events CHUTE deployed/jettisoned.
+
+## 0.3.5: main gear doors
+LandingGear.gearDoors: doors open over 1 s before extension, stay open while down, close over 1 s after
+retraction, then localEulerAngles = 0 (so a pivot's closed rotation must be identity). One door per main truck:
+0.8 x 3.0 m, hinged inboard at x +-0.55 on the belly (skin y found from part vertices: -2.60), opens 100 deg
+(past vertical: free edge at x 0.41, clear of the inner wheel, ~0.24 m above the runway). Gray spoiler material.
+Outriggers have none (they fold under the wingtip pods). Verified with B52Inspect.RenderDoors
+(renders/gear_doors_open.png).

@@ -497,8 +497,49 @@ namespace B52Tools
                 SetF(lg, "steeringSpeed", 30f);                 // the main-gear donor has 0, which locks the trucks
                 SetF(lg, "aligningStrength", 2f);
                 SetF(lg, "differentialBrakeFactor", 0f);        // all trucks are on the centreline; the donor's value braked every truck on any rudder input
+                if (!outrigger) AddGearDoor(lg, k, parent.GetComponentInParent(T("AeroPart")).transform, unsprung.position);
                 Note($"Gear {k}: travel {travel:F2} m, wheel r {wheelR}");
             }
+        }
+
+        /// <summary>One belly door per main truck: 0.8 m x 3.0 m, hinged on its inboard edge, flush under the skin when
+        /// closed, swinging 100 deg down (past vertical, tucked toward the centreline) when the gear is down (clear of the wheels at x 0.8-1.7,
+        /// ~0.3 m above the runway). LandingGear opens the doors before extending and closes them after retracting,
+        /// then sets the door transform's localEulerAngles to zero, so the pivot's closed rotation is identity.</summary>
+        static void AddGearDoor(Component lg, string k, Transform part, Vector3 truck)
+        {
+            float sgn = k[1] == 'R' ? 1f : -1f;
+            const float hingeX = 0.55f, width = 0.8f, length = 3.0f, openDeg = 100f;   // past vertical: free edge at x 0.41, clear of the inner wheel
+            // Belly height under the door: lowest skin vertex of the part near the door's middle.
+            float midX = sgn * (hingeX + width * 0.5f);
+            float bottom = float.MaxValue;
+            var mf = part.GetComponent<MeshFilter>();
+            if (mf && mf.sharedMesh)
+                foreach (var v in mf.sharedMesh.vertices)
+                {
+                    var w = part.TransformPoint(v);
+                    if (Mathf.Abs(w.x - midX) < 0.35f && Mathf.Abs(w.z - truck.z) < 1.6f) bottom = Mathf.Min(bottom, w.y);
+                }
+            if (bottom == float.MaxValue) bottom = truck.y + 0.9f;
+            var pivot = Child(part, "gearDoor_" + k, new Vector3(sgn * hingeX, bottom - 0.02f, truck.z), part.rotation);
+            var panel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            panel.name = "gearDoor_" + k + "_panel";
+            Object.DestroyImmediate(panel.GetComponent<Collider>());
+            panel.transform.SetParent(pivot, false);
+            panel.transform.localPosition = new Vector3(sgn * width * 0.5f, -0.03f, 0f);
+            panel.transform.localScale = new Vector3(width, 0.05f, length);
+            var gray = ourRoot.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials)
+                              .FirstOrDefault(m => m && m.name.Contains("SpoilerGray"));
+            if (gray) panel.GetComponent<Renderer>().sharedMaterial = gray;
+            Set(lg, "gearDoors", p =>
+            {
+                p.arraySize = 1;
+                var e = p.GetArrayElementAtIndex(0);
+                e.FindPropertyRelative("transform").objectReferenceValue = pivot;
+                e.FindPropertyRelative("closedAngle").vector3Value = Vector3.zero;
+                e.FindPropertyRelative("openAngle").vector3Value = new Vector3(0f, 0f, -sgn * openDeg);   // inboard edge stays, outer edge swings down
+            });
+            Note($"  door {k}: hinge x {sgn * hingeX:F2}, belly y {bottom:F2}, z {truck.z:F2}{(gray ? "" : " (no gray material)")}");
         }
 
         static void BuildBayDoors()
@@ -1210,7 +1251,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.3.4";
+        public const string Version = "0.3.5";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()

@@ -71,5 +71,32 @@ namespace B52Tools
             System.IO.File.WriteAllText("B52LiftFrames.log", sb.ToString());
             PrefabUtility.UnloadPrefabContents(root);
         }
+        /// Renders the built prefab with gear doors open (as on the ground) from a few low angles to B52Doors_*.png.
+        public static void RenderDoors()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Blueprinter/Mods/B52/B52.prefab");
+            var go = (GameObject)Object.Instantiate(prefab);
+            foreach (var t in go.GetComponentsInChildren<Transform>(true))
+                if (t.name.StartsWith("gearDoor_") && !t.name.EndsWith("_panel"))
+                    t.localEulerAngles = new Vector3(0, 0, t.name.EndsWith("R") ? -100f : 100f);
+            var lightGo = new GameObject("sun"); var l = lightGo.AddComponent<Light>(); l.type = LightType.Directional; l.intensity = 1.3f;
+            lightGo.transform.rotation = Quaternion.Euler(30, 40, 0);
+            var camGo = new GameObject("cam"); var cam = camGo.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0.55f, 0.62f, 0.7f); cam.fieldOfView = 40;
+            var rt = new RenderTexture(1280, 720, 24); cam.targetTexture = rt;
+            var views = new (string, Vector3, Vector3)[] {
+                ("front_trucks_side", new Vector3(9, -3.2f, 14.3f), new Vector3(0, -2.9f, 14.3f)),
+                ("front_trucks_nose", new Vector3(0, -3.0f, 26f), new Vector3(0, -2.9f, 14.3f)),
+                ("belly_low", new Vector3(14, -4.5f, 4f), new Vector3(0, -2.6f, 6f)) };
+            foreach (var (n, pos, tgt) in views)
+            {
+                camGo.transform.position = pos; camGo.transform.LookAt(tgt);
+                cam.Render(); RenderTexture.active = rt;
+                var tex = new Texture2D(1280, 720, TextureFormat.RGB24, false); tex.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0); tex.Apply();
+                System.IO.File.WriteAllBytes("B52Doors_" + n + ".png", tex.EncodeToPNG());
+            }
+            RenderTexture.active = null;
+            Object.DestroyImmediate(go); Object.DestroyImmediate(camGo); Object.DestroyImmediate(lightGo);
+        }
     }
 }
