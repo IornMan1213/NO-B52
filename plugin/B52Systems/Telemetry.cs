@@ -42,7 +42,7 @@ namespace B52Systems
             var file = Path.Combine(dir, $"{DateTime.Now:yyyyMMdd_HHmmss}_{GetInstanceID()}.csv");
             w = new StreamWriter(file) { AutoFlush = true };
             w.WriteLine("t_s,kts,alt_ft,radar_alt_ft,vs_fpm,pitch_deg,roll_deg,aoa_deg,throttle,gear,fuel_frac,mass_kg," +
-                        "pitch_in,roll_in,yaw_in,brake,g_max,g_min,flaps,hp_min,hp_min_part,event");
+                        "pitch_in,roll_in,yaw_in,brake,g_max,g_min,flaps,hp_min,hp_min_part,beta_deg,yaw_rate_dps,roll_rate_dps,event");
             t0 = Time.time;
             flaps = GetComponentsInChildren<HighLiftDevice>(true);
             foreach (var p in parts) hpBand[p] = 2;
@@ -99,7 +99,10 @@ namespace B52Systems
                 aircraft.GetFuelLevel().ToString("F2"), (rb ? rb.mass : 0f).ToString("F0"),
                 inp.pitch.ToString("F2"), inp.roll.ToString("F2"), inp.yaw.ToString("F2"), inp.brake.ToString("F2"),
                 gHi.ToString("F2"), gLo.ToString("F2"), flap.ToString("F2"),
-                worst ? worst.hitPoints.ToString("F0") : "", worst ? worst.name : "", ev
+                worst ? worst.hitPoints.ToString("F0") : "", worst ? worst.name : "",
+                (vl.sqrMagnitude > 1f ? Mathf.Atan2(vl.x, vl.z) * Mathf.Rad2Deg : 0f).ToString("F1"),   // + = air from the left
+                (rb ? aircraft.transform.InverseTransformDirection(rb.angularVelocity).y * Mathf.Rad2Deg : 0f).ToString("F1"),
+                (rb ? -aircraft.transform.InverseTransformDirection(rb.angularVelocity).z * Mathf.Rad2Deg : 0f).ToString("F1"), ev
             }));
             gMaxAll = Mathf.Max(gMaxAll, gHi); gMinAll = Mathf.Min(gMinAll, gLo);
             if (ev == "") { gHi = gLo = 1f; }

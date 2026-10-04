@@ -54,5 +54,22 @@ namespace B52Tools
             }
             System.IO.File.WriteAllText("B52Surfaces.log", sb.ToString());
         }
+        /// For every AeroPart: its lift frame's forward (must point roughly +Z into the airflow, or the part sees ~180 deg
+        /// angle of attack and makes no lift), and its lift-normal direction.
+        public static void LiftFrames()
+        {
+            var root = PrefabUtility.LoadPrefabContents("Assets/Blueprinter/Mods/B52/B52.prefab");
+            var sb = new StringBuilder();
+            foreach (var mb in root.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                if (!mb || mb.GetType().Name != "AeroPart") continue;
+                var ln = new SerializedObject(mb).FindProperty("liftNormal").objectReferenceValue as Transform;
+                var t = ln ? ln : mb.transform;
+                float fz = Vector3.Dot(t.forward, Vector3.forward);
+                sb.AppendLine($"{mb.name,-14} frame {t.name,-24} fwd{t.forward:F2} up{t.up:F2} right{t.right:F2}  {(fz < 0.5f ? "BAD FORWARD" : "ok")}");
+            }
+            System.IO.File.WriteAllText("B52LiftFrames.log", sb.ToString());
+            PrefabUtility.UnloadPrefabContents(root);
+        }
     }
 }

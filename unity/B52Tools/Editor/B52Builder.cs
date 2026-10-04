@@ -264,8 +264,11 @@ namespace B52Tools
                 Vector3 Lead(IEnumerable<Vector3> vs) => vs.OrderByDescending(v => v.z).First();
                 var bot = Lead(w.Where(v => v.y < y0 + band)); var top = Lead(w.Where(v => v.y > y1 - band));
                 var hingeAxis = (top - bot).normalized;
-                var side = Vector3.ProjectOnPlane(Vector3.right, hingeAxis).normalized;
-                var rudRot = Quaternion.LookRotation(Vector3.Cross(hingeAxis, side), side);
+                // Lift frame like the fin's tail_liftNormal: forward into the airflow (perpendicular to the hinge), lift
+                // normal to the left, local X = cross(left, forward) = up the hinge. An earlier frame had forward pointing
+                // aft, so the game saw ~180 deg angle of attack and the rudder made no force at all.
+                var fwd = Vector3.ProjectOnPlane(Vector3.forward, hingeAxis).normalized;
+                var rudRot = Quaternion.LookRotation(fwd, Vector3.left);
                 ReFrame(rud, rudRot, (bot + top) * 0.5f);
                 Note($"Rudder hinge {bot:F2} -> {top:F2}, sweep {Vector3.Angle(hingeAxis, Vector3.up):F0} deg");
             }
@@ -1186,7 +1189,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.3.2";
+        public const string Version = "0.3.3";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()

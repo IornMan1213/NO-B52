@@ -258,3 +258,16 @@ New: gLimitPositive 2.5, maxPitchAngularVel 0.15, takeoffSpeed 80, alphaLimiter 
 dFactorFast 1, maxRollAngularVel 0.35, rollTightness 4, rollTrimRate 0.02 / limit 0.05, yawTightness 2.
 MassSync now logs the rigidbody inertia tensor for later roll/yaw tuning.
 Note for reading logs: pitch_in/roll_in/yaw_in are post-FBW surface commands, not raw stick.
+
+## 0.3.3: the rudder never worked
+User video (0.3.2): wings rock left/right, heading wanders 81-107 deg with an 8-10 s period. Telemetry: hands
+off, the FBW held ~+0.4 rudder for 30 s while the aircraft sat in a steady 2 deg bank.
+- B52Inspect.LiftFrames: every AeroPart's lift frame must have forward ~ +Z. The rudder's was (0,-0.26,-0.97):
+  forward pointed aft, so AeroJob saw ~180 deg AoA, where the lift curve is 0. The rudder has made no force since
+  0.1.x (both LookRotation(back, right) and the 0.2.8 swept-hinge frame). No yaw damping, no coordination, so the
+  Dutch roll ran free and the FBW yaw loop pushed a dead surface.
+- Fixed: rudder frame = LookRotation(forward projected off the hinge, left), like tail_liftNormal; local X is still
+  the hinge, so the visual swing and the +yaw = TE right convention are unchanged.
+- Telemetry: added sideslip (beta), yaw rate and roll rate columns.
+- Inertia logged in game (152 t): Ixx 17.2e6, Iyy 36.1e6, Izz 19.3e6 kg m2.
+- Gotcha 14: check every lift frame's forward after building (B52Inspect.LiftFrames); a backwards frame fails silently.
