@@ -213,3 +213,21 @@ User: the B-52 is too big for the stock hangars; wants a hangar big enough for i
   speed and mass, TOUCHDOWN with sink rate; summary adds g range and release count.
 - Checked: bay hardpoint has both bay doors (MountedMissile.Launch -> Hardpoint.SpringOpenBayDoors, 2.5 s).
 - tools/build_and_install.sh: build_all + build_hangar + install, refuses to run while the game is open.
+
+## 0.3.0: real lever arms on the rigid airframe
+Test of 0.2.9 (223 t): lift-off 185 kt (checker 179), then with the stick held at +1 (= push; Autopilot's hover
+PID damps with -angularVelocity.x, and +x rotation is nose-down) the nose rose 6 -> 78 deg and it flipped over.
+- Cause (decompile, AeroJob_Math): part forces are applied with rb.AddForce (through the CoM) plus a torque from
+  AeroPart.centerOfLift, a serialized offset (ours inherited FastBomber values). With every part on one rigidbody
+  (RigidAirframe), wings, tail and elevator had no real leverage. AeroPart.UpdateJobFields also sets
+  velocity = rb.velocity, so rotation never changed any part's AoA (no damping). Thrust is fine
+  (JetNozzle: AddForceAtPosition).
+- Fix: B52Systems.AeroCentres, a postfix on UpdateJobFields: centerOfLift = lift-frame vector from the CoM to the
+  part's aerodynamic centre (quarter chord at mid-span for thin surfaces, centroid for bodies),
+  velocity = rb.GetPointVelocity(that point).
+- tools/aero_centres.py (same rule, Blender) + tools/trim_check.py: neutral point z 1.8 vs CoM 5.8 (stable).
+  Flap camber on wingroot (AC z 11.8, 6 m ahead of the CoM) needed > 40 deg of TE-down elevator to trim with
+  flaps. Camber moved to wing1/wing2: every phase trims within +-7 deg, full nose-down elevator beats a 5 deg
+  over-rotation by 3.5-10 MN.m. Hands-off lift-off 157 kt at 150 t, 173 kt at 180 t, 191 kt at 221 t.
+- Roll: with real arms the 4 m2 spoilers gave ~3.6 deg/s steady roll at 150 m/s; 12 m2 gives ~11 deg/s.
+- Gotcha 13: simple physics ignores part positions for aero moments; any rigid-airframe aircraft must supply them.

@@ -38,7 +38,7 @@ FLAP_OWN = 10.0    # extra camber on the flap panels
 PARTS = {
     'B52': (36, 0.55, 0, False), 'fuselage_F': (4, 0.45, 0, False), 'cockpit': (1, 0.30, 0, False),
     'fuselage_R': (3, 0.35, 0, False), 'hstab': (60, 0.06, 0, False), 'elevator': (24, 0, 0, False),
-    'wingroot': (116, 0.10, INC, True), 'wing1': (84, 0.08, INC, True), 'wing2': (54, 0.06, INC, False),
+    'wingroot': (116, 0.10, INC, False), 'wing1': (84, 0.08, INC, True), 'wing2': (54, 0.06, INC, True),
     'wingtip': (24, 0.24, INC, False), 'flaps': (42, 0, INC, None), 'spoilers': (8, 0, 0, False),
     'pods': (0, 1.40, 0, False),
 }

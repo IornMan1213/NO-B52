@@ -7,12 +7,14 @@ using UnityEngine;
 namespace B52Systems
 {
     /// <summary>Runtime systems for the B-52J Stratofortress mod (B-52J Stratofortress_x.y.z.nobp).</summary>
-    [BepInPlugin("com.ironman1213.b52systems", "B-52J Systems", "0.2.9")]
+    [BepInPlugin("com.ironman1213.b52systems", "B-52J Systems", "0.3.0")]
     public class Plugin : BaseUnityPlugin
     {
         internal static ManualLogSource Log;
         internal static ConfigEntry<bool> RigidAirframe;
         internal static ConfigEntry<bool> TelemetryEnabled;
+        internal static ConfigEntry<bool> VerboseAeroCfg;
+        internal static bool VerboseAero => VerboseAeroCfg != null && VerboseAeroCfg.Value;
         public const string JsonKey = "B52J";
 
         private void Awake()
@@ -23,6 +25,8 @@ namespace B52Systems
                 "Turn off to use per-part jointed physics, which lets the long wings and fuselage flex visibly.");
             TelemetryEnabled = Config.Bind("Telemetry", "Enabled", true,
                 "Write a CSV flight log for each B-52J to BepInEx/B52_telemetry (speed, altitude, attitude, events).");
+            VerboseAeroCfg = Config.Bind("Debug", "LogAeroCentres", true,
+                "Log each part's aerodynamic centre (aircraft frame) when a B-52J first flies.");
             new Harmony("com.ironman1213.b52systems").PatchAll();
             Log.LogInfo("B-52J Systems loaded");
         }

@@ -57,7 +57,7 @@ namespace B52Tools
                 { "wingtip_L",  (1200, 12, 0.12f, 2140) },  { "wingtip_R", (1200, 12, 0.12f, 2140) },
                 { "flap1_L",    (800, 10, 0, 0) }, { "flap1_R", (800, 10, 0, 0) },
                 { "flap2_L",    (900, 11, 0, 0) }, { "flap2_R", (900, 11, 0, 0) },
-                { "spoilers_L", (700, 4, 0, 0) },  { "spoilers_R", (700, 4, 0, 0) },
+                { "spoilers_L", (700, 12, 0, 0) },  { "spoilers_R", (700, 12, 0, 0) },   // 7 panels a side; ~11 deg/s roll at 150 m/s
                 { "pod1_L",     (4600, 0, 0.35f, 0) }, { "pod1_R", (4600, 0, 0.35f, 0) },
                 { "pod2_L",     (4600, 0, 0.35f, 0) }, { "pod2_R", (4600, 0, 0.35f, 0) },
             };
@@ -581,7 +581,9 @@ namespace B52Tools
                 SetF(hld, "deployedArea", Phys[f].area * 1.0f);     // Fowler flaps slide aft: about double the area
                 SetF(hld, "speedDeployed", 105f);                    // fully down below 204 kt (heavy lift-off ~180 kt)
                 SetF(hld, "speedRetracted", 130f);                   // fully up by 253 kt
-                var wingOf = f.StartsWith("flap1") ? "wingroot" + f.Substring(5) : "wing1" + f.Substring(5);
+                // Camber the wing section aft of the CoM-ish line that each flap really sits on. The wing root's
+                // aerodynamic centre is 6 m ahead of the CoM, so cambering it pitched the nose up (tools/trim_check.py).
+                var wingOf = f.StartsWith("flap1") ? "wing1" + f.Substring(5) : "wing2" + f.Substring(5);
                 var flapLn = Find(t, f + "_liftNormal");
                 var wingLn = Find(Find(ourRoot, wingOf), wingOf + "_liftNormal");
                 Set(hld, "movingParts", p =>
@@ -1136,7 +1138,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.2.9";
+        public const string Version = "0.3.0";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()
