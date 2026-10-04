@@ -482,6 +482,7 @@ namespace B52Tools
                 SetF(lg, "springRate", outrigger ? 1500000f : 3200000f);
                 SetF(lg, "dampingRate", outrigger ? 300000f : 750000f);
                 SetF(lg, "mass", outrigger ? 300f : 1500f);
+                SetF(lg, "rollingResistance", 0.015f);          // heavily loaded bomber tyres on concrete
                 SetF(lg, "foldDegrees", outrigger ? 90f : 90f);
                 // Mains fold forward and rise into the belly; outriggers fold flat under the wingtip.
                 Set(lg, "hingeFoldMotion", q => q.vector3Value = outrigger ? Vector3.zero : new Vector3(0f, 1.2f, 0f));
@@ -552,6 +553,25 @@ namespace B52Tools
                 SetF(cs, "servoSpeed", name.StartsWith("spoiler") ? 60f : 30f);
                 SetRef(t.GetComponent(T("AeroPart")), "liftNormal", vis);
             }
+            // Moving horizontal stabilizer (the real B-52 trims the whole tailplane): each hstab gets a pitch-only
+            // ControlSurface at 0.4x the elevator angle. It turns an empty lift frame, not the mesh, so the elevator
+            // hinge stays put visually. Lets a 221 t B-52 rotate from ~159 kt (tools/trim_check.py, STAB_RATIO).
+            var elevCS = Find(ourRoot, "elevator_L").GetComponent(T("ControlSurface"));
+            foreach (var sd in new[] { "L", "R" })
+            {
+                var hs = Find(ourRoot, "hstab_" + sd);
+                if (!hs || !elevCS) continue;
+                var trimFrame = Child(hs, "hstab_" + sd + "_trim", hs.position, hs.rotation);
+                var cs = CopyComponent(elevCS, hs.gameObject);
+                Remap.Remove(elevCS);          // our own elevator, not a template object: references to it must stay
+                SetRef(cs, "visibleMesh", trimFrame.gameObject);
+                SetRef(cs, "attachedSurface", hs.GetComponent(T("UnitPart")));
+                SetF(cs, "pitchRange", -8f); SetF(cs, "rollRange", 0); SetF(cs, "yawRange", 0);
+                SetF(cs, "brakeRange", 0); SetF(cs, "maxSplit", 0);
+                SetF(cs, "servoSpeed", 12f);
+                SetRef(hs.GetComponent(T("AeroPart")), "liftNormal", trimFrame);
+            }
+
             // Fin and rudder: lift acts sideways, so the fin needs a lift normal rotated onto the Y-Z plane.
             var tail = Find(ourRoot, "tail");
             var ln = Child(tail, "tail_liftNormal", tail.position, ourRoot.rotation * Quaternion.Euler(0, 0, 90));
@@ -626,7 +646,7 @@ namespace B52Tools
                                                   0.10f, 0.022f, 0.20f, 0.06f, 0.30f, 0.13f, 1.49f, 0.6f, 3f, 0);
         // Rolls-Royce F130 (high bypass): lapse with altitude and airspeed.
         static AnimationCurve F130Altitude() => Linear(0, 1.0f, 3000, 0.80f, 6000, 0.62f, 9000, 0.47f, 12000, 0.33f, 15000, 0.21f, 17500, 0.12f);
-        static AnimationCurve F130Speed() => Linear(0, 1.0f, 50, 0.93f, 100, 0.86f, 150, 0.80f, 200, 0.74f, 250, 0.70f, 280, 0.66f, 300, 0.58f, 340, 0.30f);
+        static AnimationCurve F130Speed() => Linear(0, 1.0f, 50, 0.88f, 100, 0.77f, 150, 0.73f, 200, 0.70f, 250, 0.69f, 280, 0.66f, 300, 0.58f, 340, 0.30f);
 
         static void WireCockpit()
         {
@@ -1138,7 +1158,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.3.0";
+        public const string Version = "0.3.1";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()

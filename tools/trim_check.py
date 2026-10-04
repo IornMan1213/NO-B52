@@ -13,8 +13,9 @@ CG = (5.8, 0.3)                     # (z, y) of the CoM transform
 ENG_Y = -0.4                        # mean nozzle height (inboard -0.6, outboard -0.2)
 INC = fm.INC
 FLAP_PARTS = ('flap1', 'flap2')     # get FLAP_OWN camber and doubled area
-CAMBER_PARTS = tuple(os.environ.get('CAMBER_PARTS', 'wingroot,wing1').split(','))   # get FLAP_INNER camber
+CAMBER_PARTS = tuple(os.environ.get('CAMBER_PARTS', 'wing1,wing2').split(','))   # get FLAP_INNER camber
 ELEV_MAX = 20.0
+STAB_RATIO = float(os.environ.get('STAB_RATIO', '0.4'))   # moving stabilizer: deflects STAB_RATIO x the elevator angle
 
 
 def part_alpha(name, alpha, flaps, delta):
@@ -25,6 +26,7 @@ def part_alpha(name, alpha, flaps, delta):
     if flaps and base in CAMBER_PARTS: a += fm.FLAP_INNER
     if flaps and base in FLAP_PARTS: a += fm.FLAP_OWN
     if base == 'elevator': a += delta
+    if base == 'hstab': a += delta * STAB_RATIO
     return a
 
 
@@ -84,3 +86,34 @@ if __name__ == '__main__':
         _, _, Mdn, _ = forces(V, alt, a + 5, ELEV_MAX, flaps, tf)
         ok = 'OK' if abs(d) <= ELEV_MAX * 0.75 and Mdn < 0 else 'PROBLEM'
         print(f'{label:38s} alpha {a:5.1f}  elevator {d:+6.1f} deg (TE down +)  nose-down moment at +5 deg: {Mdn/1e6:+6.2f} MN.m  {ok}')
+
+
+# LandingGear.extendedDrag replaces its part's dragArea while the gear is down (game formula D = 0.25 rho V^2 A):
+# main trucks on B52 + fuselage_F (0.55, 0.45 -> 5 each), outriggers on the wingtips (0.12 -> 1 each).
+GEAR_DRAG_AREA = float(os.environ.get('GEAR_DRAG_AREA', (5 - 0.55) + (5 - 0.45) + 2 * (1 - 0.12)))
+
+
+def takeoff(mass, rotate_to=6.0, rot_margin_kt=6.0, mu=0.015, dt=0.1, flaps=True):
+    """Ground run as the game simulates it: full thrust, drag, tyre rolling resistance on the weight not yet carried
+    by the wings, rotation to `rotate_to` deg at (lift-off speed at that attitude - rot_margin_kt), 1.5 deg/s.
+    Returns (lift-off kt, ground run m, seconds)."""
+    W = mass * 9.81
+    vlof = next(V for V in range(30, 160) if forces(V, 0, rotate_to, 0, flaps, 1.0)[0] >= W)
+    vr = vlof - rot_margin_kt / 1.944
+    v = x = t = 0.0; pitch = 0.0
+    while True:
+        if v >= vr: pitch = min(rotate_to, pitch + 1.5 * dt)
+        L, D, _, T = forces(max(v, 0.1), 0, pitch, 0, flaps, 1.0)
+        D += 0.25 * 1.225 * v * v * GEAR_DRAG_AREA
+        if L >= W: return v * 1.944, x, t
+        a = (T - D - mu * (W - L)) / mass
+        v += a * dt; x += v * dt; t += dt
+        if t > 300: return None, x, t
+
+
+def takeoff_table():
+    tc_parts = CAMBER_PARTS
+    print(f'takeoff (flaps, rotate to 6 deg), camber on {tc_parts}')
+    for m in (130000, 150000, 180000, 200000, 221350):
+        vk, x, t = takeoff(m)
+        print(f'  {m/1000:5.0f} t  lift-off {vk:5.0f} kt  ground run {x:6.0f} m ({x*3.281:5.0f} ft)  {t:4.0f} s')

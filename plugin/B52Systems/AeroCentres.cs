@@ -30,6 +30,8 @@ namespace B52Systems
         // Aerodynamic centre in the part's own transform space (the part transform doesn't move; surfaces rotate a child).
         private static readonly Dictionary<AeroPart, Vector3?> localAC = new Dictionary<AeroPart, Vector3?>();
 
+        private const float MaxArm = 40f;   // no part of a 56 m x 49 m aircraft is further than this from its origin
+
         internal static void Apply(AeroPart part)
         {
             var rb = part.rb;
@@ -37,6 +39,11 @@ namespace B52Systems
             if (!localAC.TryGetValue(part, out var ac))
             {
                 ac = Compute(part);
+                if (ac.HasValue && ac.Value.magnitude > MaxArm)
+                {
+                    Plugin.Log.LogWarning($"B-52J AC {part.name}: {ac.Value} is implausible, using the part origin");
+                    ac = Vector3.zero;
+                }
                 localAC[part] = ac;
                 if (ac.HasValue && Plugin.VerboseAero)
                     Plugin.Log.LogInfo($"B-52J AC {part.name}: {a.transform.InverseTransformPoint(part.transform.TransformPoint(ac.Value)):F2}");
@@ -60,13 +67,16 @@ namespace B52Systems
             var t = part.transform;
             var ln = LiftNormal(part) ?? t;
             var verts = new List<Vector3>();
+            // Only the part's own skin: its own mesh and its "<name>_visible" control-surface copy. Everything else under
+            // a part (cockpit interior, displays, crew, effects) can sit anywhere: on the cockpit it put the "centre"
+            // 764 m to the right, and that 1 m2 of lift and its drag rolled the B-52 left and yawed it right.
             foreach (var mf in part.GetComponentsInChildren<MeshFilter>(true))
             {
-                if (!mf.sharedMesh || mf.GetComponentInParent<UnitPart>() != part) continue;   // child parts own their meshes
-                if (!mf.sharedMesh.isReadable) continue;
+                if (!mf.sharedMesh || !mf.sharedMesh.isReadable) continue;
+                if (mf.transform != t && mf.name != part.name + "_visible") continue;
                 foreach (var v in mf.sharedMesh.vertices) verts.Add(t.InverseTransformPoint(mf.transform.TransformPoint(v)));
             }
-            if (verts.Count == 0) return null;
+            if (verts.Count == 0) return Vector3.zero;                                      // the part's own origin
 
             Vector3 s = t.InverseTransformDirection(ln.right), c = t.InverseTransformDirection(ln.forward), n = t.InverseTransformDirection(ln.up);
             float sMin = float.MaxValue, sMax = float.MinValue, nMin = float.MaxValue, nMax = float.MinValue;

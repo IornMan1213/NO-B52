@@ -231,3 +231,20 @@ PID damps with -angularVelocity.x, and +x rotation is nose-down) the nose rose 6
   over-rotation by 3.5-10 MN.m. Hands-off lift-off 157 kt at 150 t, 173 kt at 180 t, 191 kt at 221 t.
 - Roll: with real arms the 4 m2 spoilers gave ~3.6 deg/s steady roll at 150 m/s; 12 m2 gives ~11 deg/s.
 - Gotcha 13: simple physics ignores part positions for aero moments; any rigid-airframe aircraft must supply them.
+
+## 0.3.1: left list, takeoff calibration
+Test of 0.3.0 (152 t): it flew, but rolled left; pilot held ~-0.48 rudder and +0.5 (push) all climb.
+- Cause: AeroCentres put the cockpit's centre at (764, 1168, 1325) m: it averaged every mesh under the part
+  (interior, displays). 1 m2 of lift and 0.3 of drag at that arm rolled left, yawed right, pitched up.
+  Now only the part's own mesh and its "<name>_visible" copy count, and anything > 40 m falls back to the origin.
+- Takeoff reference (Fairchild 1994 docket, AF data): B-52H at 488,000 lb, flaps down, 8 engines, takeoff
+  thrust: ~8,000 ft (2,440 m) ground run. AOPA: rotate 5-10 kt before lift-off, lift off at 5-7 deg nose up,
+  climb at 180 kt to 1,000 ft. Implies ~170-175 kt lift-off at MTOW.
+- tools/trim_check.py takeoff(): game forces + gear drag (LandingGear.extendedDrag *replaces* its part's
+  dragArea while down) + tyre rolling resistance, rotation to 6 deg. Matches the 152 t game log segment
+  71->111 kt (6.2 s sim vs 6.3 s game), ~10 % optimistic above 140 kt.
+- The elevator alone could not lift the nose of a 221 t B-52 until ~176 kt. Added the real B-52's moving
+  stabilizer: hstab lift frames trim at 0.4x elevator (+-8 deg), mesh unchanged. Rotation possible from 159 kt.
+- F130 low-speed thrust lapse steeper (0.77 at 100 m/s), tyre rollingResistance 0.015.
+  Result: 221 t lift-off 169 kt, ground run 2,080 m sim (~2,250-2,350 m in game with spool-up) vs 2,440 m real.
+  180 t: 155 kt / 1,330 m. 150 t: 142 kt / 890 m.
