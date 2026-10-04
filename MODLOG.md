@@ -174,3 +174,18 @@ In-game report on 0.2.6: one piece now, but bounces, can't steer, outriggers fra
   stability, and 0.8° roll is 0.3 m at the tip. Now 1.5 MN/m, 300k damping, 1.2 m maxCompression. A broken
   gear stops its wheels, which was the "doesn't roll".
 - Gotcha 12: LandingGear copied from a donor keeps steering/brake settings meant for that donor's position.
+
+## 0.2.8
+In-game report on 0.2.7: steers now; rudder swings sideways about its bottom; won't lift off; pitch inverted.
+Telemetry: 237 t (100% fuel, over MTOW), 180 kt at 67 s, nose went -2.3 deg when the pilot pulled, then left
+the runway (172 -> 128 kt in 0.6 s) and settled at 112 kt.
+- Pitch: B52Inspect.Surfaces compares trailing-edge motion per +input with the template. FastBomber elevators
+  move the TE down for +pitch; ours moved it up. pitchRange 20 -> -20.
+- Rudder: NormalizeFrames forced local X straight up, through the rudder's bottom corner; the swept rudder's top
+  sits metres aft, so it swung like a wiper. Hinge now from the forward-most vertex of the bottom and top 12 %
+  height bands (forward-most overall bunches at the root), pivot at its midpoint; ReFrame can now move the pivot.
+- Lift: the flap panels were at 6 + 20 = 26 deg, past the 17 deg CLmax of the airfoil, and flaps began
+  retracting at 194 kt, below the heavy lift-off speed. Camber 10/10 deg (16 deg total), deployedArea = 1.0 x
+  flap area (Fowler), flaps down below 105 m/s, up by 130 m/s. Checker: 161 kt at 181 t, 179 kt at 221 t.
+- The B-52 can't usefully rotate (tail strike ~3 deg, 15 m elevator arm vs 237 t on the rear trucks), so
+  hands-off lift-off speed is the number that matters.

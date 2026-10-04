@@ -253,17 +253,32 @@ namespace B52Tools
                 mf.sharedMesh = m;
             }
             Note("Normalized " + all.Length + " frames");
-            // Rudder: hinge runs up the fin, so local X = up and local Y (lift normal) = sideways.
-            ReFrame(Find(ourRoot, "rudder"), Quaternion.LookRotation(Vector3.back, Vector3.right));
+            // Rudder: the hinge is the swept leading edge running up the fin (local X), lift normal sideways (local Y).
+            // A vertical axis made the top of the rudder, metres aft of it, swing sideways like a wiper.
+            var rud = Find(ourRoot, "rudder");
+            if (rud && rud.GetComponent<MeshFilter>())
+            {
+                var w = rud.GetComponent<MeshFilter>().sharedMesh.vertices.Select(v => rud.TransformPoint(v)).ToList();
+                float y0 = w.Min(v => v.y), y1 = w.Max(v => v.y), band = (y1 - y0) * 0.12f;
+                Vector3 Lead(IEnumerable<Vector3> vs) => vs.OrderByDescending(v => v.z).First();
+                var bot = Lead(w.Where(v => v.y < y0 + band)); var top = Lead(w.Where(v => v.y > y1 - band));
+                var hingeAxis = (top - bot).normalized;
+                var side = Vector3.ProjectOnPlane(Vector3.right, hingeAxis).normalized;
+                var rudRot = Quaternion.LookRotation(Vector3.Cross(hingeAxis, side), side);
+                ReFrame(rud, rudRot, (bot + top) * 0.5f);
+                Note($"Rudder hinge {bot:F2} -> {top:F2}, sweep {Vector3.Angle(hingeAxis, Vector3.up):F0} deg");
+            }
         }
 
         /// <summary>Give t a new world rotation without moving its mesh or children in world space.</summary>
-        static void ReFrame(Transform t, Quaternion newRot)
+        static void ReFrame(Transform t, Quaternion newRot, Vector3? newPos = null)
         {
             if (!t) return;
             var kids = t.Cast<Transform>().Select(c => (c, c.position, c.rotation)).ToList();
             var mf = t.GetComponent<MeshFilter>();
-            var delta = Matrix4x4.Rotate(Quaternion.Inverse(newRot) * t.rotation);
+            var pos = newPos ?? t.position;
+            // vertex: old local -> world -> new local
+            var delta = Matrix4x4.TRS(pos, newRot, Vector3.one).inverse * Matrix4x4.TRS(t.position, t.rotation, Vector3.one);
             if (mf && mf.sharedMesh)
             {
                 var m = mf.sharedMesh;
@@ -273,7 +288,7 @@ namespace B52Tools
                 m.vertices = v; m.normals = n; m.RecalculateTangents(); m.RecalculateBounds();
                 EditorUtility.SetDirty(m);
             }
-            t.rotation = newRot;
+            t.SetPositionAndRotation(pos, newRot);
             foreach (var (c, p, r) in kids) c.SetPositionAndRotation(p, r);
         }
 
@@ -504,7 +519,7 @@ namespace B52Tools
             // hinge-aligned transform, so a child "visible" pivot is inserted and the mesh moved under it.
             foreach (var (name, pitch, roll, yaw) in new[]
             {
-                ("elevator_L", 20f, 0f, 0f), ("elevator_R", 20f, 0f, 0f),
+                ("elevator_L", -20f, 0f, 0f), ("elevator_R", -20f, 0f, 0f),   // +pitch input moves the trailing edge down, like the donor
                 ("rudder", 0f, 0f, -25f),
                 ("spoilers_L", 0f, -45f, 0f), ("spoilers_R", 0f, 45f, 0f),
             })
@@ -563,7 +578,9 @@ namespace B52Tools
                 }
                 SetRef(hld, "aeroPart", t.GetComponent(T("AeroPart")));
                 SetRef(hld, "swingWingController", null);
-                SetF(hld, "deployedArea", Phys[f].area * 0.6f);
+                SetF(hld, "deployedArea", Phys[f].area * 1.0f);     // Fowler flaps slide aft: about double the area
+                SetF(hld, "speedDeployed", 105f);                    // fully down below 204 kt (heavy lift-off ~180 kt)
+                SetF(hld, "speedRetracted", 130f);                   // fully up by 253 kt
                 var wingOf = f.StartsWith("flap1") ? "wingroot" + f.Substring(5) : "wing1" + f.Substring(5);
                 var flapLn = Find(t, f + "_liftNormal");
                 var wingLn = Find(Find(ourRoot, wingOf), wingOf + "_liftNormal");
@@ -585,7 +602,7 @@ namespace B52Tools
         }
 
         const float WingIncidence = 6f;
-        const float FlapInnerCamber = 8f, FlapOwnCamber = 20f;
+        const float FlapInnerCamber = 10f, FlapOwnCamber = 10f;   // 6 + 10 = 16 deg, just under the 17 deg CLmax
 
         static AnimationCurve Linear(params float[] kv)
         {
@@ -1119,7 +1136,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.2.7";
+        public const string Version = "0.2.8";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()

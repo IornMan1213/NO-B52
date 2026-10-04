@@ -31,8 +31,8 @@ F130_SPD = [(0, 1.0), (50, 0.93), (100, 0.86), (150, 0.80), (200, 0.74), (250, 0
 STATIC = 75600.0 * 8
 
 INC = 6.0          # wing incidence, degrees
-FLAP_INNER = 8.0   # extra camber on the inner wing when the flaps are down
-FLAP_OWN = 20.0    # extra camber on the flap panels
+FLAP_INNER = 10.0   # extra camber on the inner wing when the flaps are down
+FLAP_OWN = 10.0    # extra camber on the flap panels
 
 # name: (wingArea, dragArea, incidence_deg, inner_wing)  - B52Builder.Phys
 PARTS = {
@@ -52,7 +52,7 @@ def forces(V, alt, pitch_deg, flaps):
         a_deg = pitch_deg + inc
         if flaps and inner: a_deg += FLAP_INNER
         if name == 'flaps':
-            S = S * 1.6 if flaps else S
+            S = S * 2.0 if flaps else S
             if flaps: a_deg += FLAP_OWN
         a = math.radians(a_deg)
         L += interp(B52_CL, a) * q * S

@@ -24,5 +24,35 @@ namespace B52Tools
             System.IO.File.WriteAllText("B52Inspect.log", sb.ToString());
             PrefabUtility.UnloadPrefabContents(root);
         }
+        /// For every ControlSurface in the template and in ours: which way the trailing edge moves for +1 input on each axis.
+        public static void Surfaces()
+        {
+            var sb = new StringBuilder();
+            foreach (var path in new[] { "Assets/Blueprinter/_donotship/GameObject/FastBomber1_PLACEHOLDER.prefab", "Assets/Blueprinter/Mods/B52/B52.prefab" })
+            {
+                var root = PrefabUtility.LoadPrefabContents(path);
+                sb.AppendLine("== " + path);
+                foreach (var mb in root.GetComponentsInChildren<MonoBehaviour>(true))
+                {
+                    if (!mb || mb.GetType().Name != "ControlSurface") continue;
+                    var so = new SerializedObject(mb);
+                    var vis = so.FindProperty("visibleMesh").objectReferenceValue as GameObject;
+                    if (!vis) { sb.AppendLine(mb.name + " no visible"); continue; }
+                    var rs = vis.GetComponentsInChildren<Renderer>(true);
+                    if (rs.Length == 0) { sb.AppendLine(mb.name + " no renderer"); continue; }
+                    var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
+                    var t = vis.transform;
+                    var arm = b.center - t.position;
+                    // trailing edge: the far aft point of the bounds along the arm
+                    var te = new Vector3(b.center.x, b.center.y, b.min.z) - t.position;
+                    Vector3 Move(float deg) => Quaternion.AngleAxis(deg, t.right) * te - te;
+                    float pr = so.FindProperty("pitchRange").floatValue, rr = so.FindProperty("rollRange").floatValue, yr = so.FindProperty("yawRange").floatValue;
+                    sb.AppendLine($"{mb.name,-14} axisX{t.right:F2} te{te:F1} pitch{pr} roll{rr} yaw{yr}  " +
+                        $"TE move: +pitch{Move(pr * 0.5f):F2} +roll{Move(rr * 0.5f):F2} +yaw{Move(yr * 0.5f):F2}");
+                }
+                PrefabUtility.UnloadPrefabContents(root);
+            }
+            System.IO.File.WriteAllText("B52Surfaces.log", sb.ToString());
+        }
     }
 }

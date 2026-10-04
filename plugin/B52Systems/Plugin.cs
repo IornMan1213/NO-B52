@@ -7,7 +7,7 @@ using UnityEngine;
 namespace B52Systems
 {
     /// <summary>Runtime systems for the B-52J Stratofortress mod (B-52J Stratofortress_x.y.z.nobp).</summary>
-    [BepInPlugin("com.ironman1213.b52systems", "B-52J Systems", "0.2.7")]
+    [BepInPlugin("com.ironman1213.b52systems", "B-52J Systems", "0.2.8")]
     public class Plugin : BaseUnityPlugin
     {
         internal static ManualLogSource Log;
