@@ -248,3 +248,13 @@ Test of 0.3.0 (152 t): it flew, but rolled left; pilot held ~-0.48 rudder and +0
 - F130 low-speed thrust lapse steeper (0.77 at 100 m/s), tyre rollingResistance 0.015.
   Result: 221 t lift-off 169 kt, ground run 2,080 m sim (~2,250-2,350 m in game with spool-up) vs 2,440 m real.
   180 t: 155 kt / 1,330 m. 150 t: 142 kt / 890 m.
+
+## 0.3.2: fly-by-wire retuned for a bomber
+Test of 0.3.1: rolls left and right. Aero centres now symmetric (cockpit fixed). Telemetry inputs are the
+ControlsFilter *output*: FastBomber1's FlyByWire was on with fighter gains. Roll demand = stick x 6 rad/s
+x 0.5..1 (the B-52 rolls ~0.19 rad/s), so any stick saturated the spoilers; rate feedback gain 0.3 was too weak
+-> bang-bang roll, over-bank both ways. Also 8 g limit, pFactor 10.
+New: gLimitPositive 2.5, maxPitchAngularVel 0.15, takeoffSpeed 80, alphaLimiter 10 (0.15), pFactorFast 4,
+dFactorFast 1, maxRollAngularVel 0.35, rollTightness 4, rollTrimRate 0.02 / limit 0.05, yawTightness 2.
+MassSync now logs the rigidbody inertia tensor for later roll/yaw tuning.
+Note for reading logs: pitch_in/roll_in/yaw_in are post-FBW surface commands, not raw stick.

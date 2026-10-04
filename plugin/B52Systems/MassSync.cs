@@ -23,7 +23,8 @@ namespace B52Systems
             com = root ? root.CenterOfMass : null;
             if (!rb) { Destroy(this); return; }
             Sync();
-            Plugin.Log.LogInfo($"B-52J {name}: rigid airframe mass {rb.mass:F0} kg");
+            Plugin.Log.LogInfo($"B-52J {name}: rigid airframe mass {rb.mass:F0} kg, inertia {rb.inertiaTensor:F0} " +
+                               $"(rot {rb.inertiaTensorRotation.eulerAngles:F0}), CoM {rb.centerOfMass:F2}");
         }
 
         private void FixedUpdate() => Sync();

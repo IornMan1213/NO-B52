@@ -118,6 +118,7 @@ namespace B52Tools
                 BuildBayDoors();
                 WireControlSurfaces();
                 WireCockpit();
+                TuneFlyByWire();
                 ApplyPhysics();
                 WireJoints();
                 AddColliders();
@@ -648,6 +649,33 @@ namespace B52Tools
         static AnimationCurve F130Altitude() => Linear(0, 1.0f, 3000, 0.80f, 6000, 0.62f, 9000, 0.47f, 12000, 0.33f, 15000, 0.21f, 17500, 0.12f);
         static AnimationCurve F130Speed() => Linear(0, 1.0f, 50, 0.88f, 100, 0.77f, 150, 0.73f, 200, 0.70f, 250, 0.69f, 280, 0.66f, 300, 0.58f, 340, 0.30f);
 
+        /// <summary>The ControlsFilter fly-by-wire came from FastBomber1 with fighter gains: 8 g, a 6 rad/s roll-rate demand
+        /// (the B-52 rolls ~0.19 rad/s, so any stick slammed the spoilers fully over and it swung left and right), and a
+        /// weak roll-rate gain. Bomber values: ~20 deg/s roll demand with real rate feedback, 2.5 g, gentler pitch loop.</summary>
+        static void TuneFlyByWire()
+        {
+            var all = ourRoot.GetComponentsInChildren(T("ControlsFilter"), true);
+            if (all.Length == 0) { Note("  ! no ControlsFilter"); return; }
+            foreach (var cf in all) Set(cf, "flyByWire", f =>
+            {
+                void F(string n, float v) { var q = f.FindPropertyRelative(n); if (q != null) q.floatValue = v; else Note("  ! flyByWire." + n); }
+                F("gLimitPositive", 2.5f);
+                F("maxPitchAngularVel", 0.15f);
+                F("takeoffSpeed", 80f);
+                F("alphaLimiter", 10f);
+                F("alphaLimiterStrength", 0.15f);
+                F("pFactorFast", 4f);
+                F("iFactor", 0.1f);
+                F("dFactorFast", 1f);
+                F("maxRollAngularVel", 0.35f);
+                F("rollTightness", 4f);
+                F("rollTrimRate", 0.02f);
+                F("rollTrimLimit", 0.05f);
+                F("yawTightness", 2f);
+            });
+            Note($"Fly-by-wire tuned for a bomber ({all.Length} filter)");
+        }
+
         static void WireCockpit()
         {
             var ci = Find(ourRoot, "cockpit_int");
@@ -1158,7 +1186,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.3.1";
+        public const string Version = "0.3.2";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()
