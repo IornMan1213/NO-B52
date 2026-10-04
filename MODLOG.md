@@ -271,3 +271,13 @@ off, the FBW held ~+0.4 rudder for 30 s while the aircraft sat in a steady 2 deg
 - Telemetry: added sideslip (beta), yaw rate and roll rate columns.
 - Inertia logged in game (152 t): Ixx 17.2e6, Iyy 36.1e6, Izz 19.3e6 kg m2.
 - Gotcha 14: check every lift frame's forward after building (B52Inspect.LiftFrames); a backwards frame fails silently.
+
+## 0.3.3 verified in game (2026-10-04)
+User: "flies straight as an arrow". Telemetry, 152 t, airborne 193-263 kt, climb at full throttle, hands off:
+sideslip -0.3..+0.2 deg (sd 0.08), yaw rate sd 0.13 deg/s, roll -1..+6 deg, roll rate sd 0.9 deg/s, FBW yaw
+output 0.00 (no rudder needed), pitch_in +0.22 mean (FBW trim at full power), g 0.9-1.2.
+Takeoff, nose held level (no rotation): 38 s / 1,482 m to lift-off at 173 kt (ra > 3 ft; wheels unloading from
+~165 kt). Model hands-off 157 kt: game ~8-10 kt later (~10 % less lift than the checker) - acceptable; with the
+real procedure (rotate ~6 deg at ~145 kt) the checker gives 143 kt / ~900 m.
+Status: hull + flight model done per the user's priority. Next candidates: landing test, weapons release test,
+MALD/MALD-J, single-atlas livery, gear doors.
