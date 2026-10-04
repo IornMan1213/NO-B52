@@ -161,3 +161,16 @@ are well within the elevators' ±20°.
   blender_export.py reset the root object to identity without baking its offset (origin z -1.26) into the
   mesh; children were placed by world matrix so only the root moved. Fixed by baking the root's world matrix
   into its mesh. Prefab bounds now: B52 centre y -0.6, fuselage_F -0.6, fuselage_R -0.6.
+
+## 0.2.7
+In-game report on 0.2.6: one piece now, but bounces, can't steer, outriggers fragile and don't roll, stuck ~30 kt.
+- Bounce: telemetry showed rb.mass flicking 237 t -> 14.8 t. Fuel burn's ModifyMass ran after MassSync in some
+  frames, so the solver saw a 15 t body on 237 t springs. Harmony postfix on UnitPart.ModifyMass re-syncs at once.
+  Main damping 450k -> 750k N·s/m (~0.85 critical per truck at MTOW).
+- Steering: forward trucks copied the FastBomber main gear (steeringSpeed 0, aligningStrength 0). Now 30 °/s, 2, lock 25°.
+- ~30 kt: every truck copied gear_L's differentialBrakeFactor, so any rudder input under 30 m/s braked all four
+  trucks. Set to 0 (all trucks are on the centreline).
+- Outriggers: 400 kN/m spring broke at 0.35 m; the 2.5 m-wide main track means the outriggers carry all roll
+  stability, and 0.8° roll is 0.3 m at the tip. Now 1.5 MN/m, 300k damping, 1.2 m maxCompression. A broken
+  gear stops its wheels, which was the "doesn't roll".
+- Gotcha 12: LandingGear copied from a donor keeps steering/brake settings meant for that donor's position.

@@ -28,7 +28,7 @@ namespace B52Systems
 
         private void FixedUpdate() => Sync();
 
-        private void Sync()
+        internal void Sync()
         {
             if (!rb) return;
             float m = 0f;
@@ -44,6 +44,22 @@ namespace B52Systems
                 var local = rb.transform.InverseTransformPoint(com.position);
                 if ((rb.centerOfMass - local).sqrMagnitude > 1e-4f) rb.centerOfMass = local;
             }
+        }
+    }
+
+    /// <summary>
+    /// Fuel burns every frame, and FixedUpdate order isn't guaranteed, so without this the physics step could still
+    /// run with one part's mass (237 t of suspension springs launching a 15 t body: the B-52 bounced on its gear).
+    /// Correcting right after each ModifyMass means the wrong value never reaches the solver.
+    /// </summary>
+    [HarmonyPatch(typeof(UnitPart), nameof(UnitPart.ModifyMass))]
+    internal static class CorrectModifyMass
+    {
+        private static void Postfix(UnitPart __instance)
+        {
+            if (!(__instance.parentUnit is Aircraft a) || __instance.rb != a.rb) return;
+            var sync = a.GetComponent<MassSync>();
+            if (sync) sync.Sync();
         }
     }
 

@@ -461,17 +461,21 @@ namespace B52Tools
                 Set(lg, "gearDoors", p => p.arraySize = 0);
                 SetF(lg, "wheelRadius", wheelR);
                 SetF(lg, "suspensionTravel", travel);
-                SetF(lg, "maxCompression", outrigger ? 0.35f : 0.45f);
-                // B-52: ~25 t per main truck at MTOW; outriggers only touch when the wing rolls.
-                SetF(lg, "springRate", outrigger ? 400000f : 3200000f);
-                SetF(lg, "dampingRate", outrigger ? 60000f : 450000f);
+                // B-52: ~60 t per main truck at MTOW. The trucks are only 2.5 m apart, so the outriggers hold the
+                // wings level: stiff enough to stop the roll, with a long stroke so they don't snap off.
+                SetF(lg, "maxCompression", outrigger ? 1.2f : 0.65f);
+                SetF(lg, "springRate", outrigger ? 1500000f : 3200000f);
+                SetF(lg, "dampingRate", outrigger ? 300000f : 750000f);
                 SetF(lg, "mass", outrigger ? 300f : 1500f);
                 SetF(lg, "foldDegrees", outrigger ? 90f : 90f);
                 // Mains fold forward and rise into the belly; outriggers fold flat under the wingtip.
                 Set(lg, "hingeFoldMotion", q => q.vector3Value = outrigger ? Vector3.zero : new Vector3(0f, 1.2f, 0f));
                 Set(lg, "steering", p => p.boolValue = k[0] == 'F');   // the forward trucks steer
                 Set(lg, "braked", p => p.boolValue = !outrigger);
-                SetF(lg, "steeringLock", 30f);
+                SetF(lg, "steeringLock", 25f);
+                SetF(lg, "steeringSpeed", 30f);                 // the main-gear donor has 0, which locks the trucks
+                SetF(lg, "aligningStrength", 2f);
+                SetF(lg, "differentialBrakeFactor", 0f);        // all trucks are on the centreline; the donor's value braked every truck on any rudder input
                 Note($"Gear {k}: travel {travel:F2} m, wheel r {wheelR}");
             }
         }
@@ -1115,7 +1119,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.2.6";
+        public const string Version = "0.2.7";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()
