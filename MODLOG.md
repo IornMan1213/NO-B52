@@ -301,3 +301,14 @@ retraction, then localEulerAngles = 0 (so a pivot's closed rotation must be iden
 (past vertical: free edge at x 0.41, clear of the inner wheel, ~0.24 m above the runway). Gray spoiler material.
 Outriggers have none (they fold under the wingtip pods). Verified with B52Inspect.RenderDoors
 (renders/gear_doors_open.png).
+
+## 0.3.6: single exterior atlas (liveries + damage shading)
+- bohmerang's exterior used ~20 textures (10 x 1024, 4 x 512, 6 x 256) + 4 plain colours, UVs all in 0..1.
+  tools/blender_atlas.py packs them at full resolution into a 4096 atlas (13 of 16 1024-cells), 8 px edge bleed
+  per cell (make_atlas.py), remaps 17,138 faces, one material B52_Skin. Packed .blend images are written out
+  with their original bytes (blender/out/atlas_src).
+- Livery: LiveryData texture = the atlas. UnitPart.SetLivery / _HitPoints touch material slot 0 of each
+  damageMaterial renderer, and a part only auto-lists its own renderer (control surfaces keep theirs on
+  "<name>_visible"). SetLiveryTargets lists every skin renderer per part (30 on 26 parts), swapping the skin to
+  slot 0 where needed (none needed). Atlas imported at 4096.
+- docs/livery_template.png + docs/LIVERIES.md for painting new liveries. Verified with B52Inspect.RenderExterior.

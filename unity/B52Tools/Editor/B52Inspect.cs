@@ -98,5 +98,26 @@ namespace B52Tools
             RenderTexture.active = null;
             Object.DestroyImmediate(go); Object.DestroyImmediate(camGo); Object.DestroyImmediate(lightGo);
         }
+        /// Renders the built prefab from four angles to B52Ext_*.png (atlas / livery check).
+        public static void RenderExterior()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Blueprinter/Mods/B52/B52.prefab");
+            var go = (GameObject)Object.Instantiate(prefab);
+            var lightGo = new GameObject("sun"); var l = lightGo.AddComponent<Light>(); l.type = LightType.Directional; l.intensity = 1.2f;
+            lightGo.transform.rotation = Quaternion.Euler(45, 30, 0);
+            var camGo = new GameObject("cam"); var cam = camGo.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0.6f, 0.68f, 0.76f); cam.fieldOfView = 35;
+            var rt = new RenderTexture(1600, 900, 24); cam.targetTexture = rt;
+            foreach (var (n, pos) in new[] { ("side", new Vector3(75, 2, 3)), ("top", new Vector3(0, 95, 2)),
+                                              ("front34", new Vector3(45, 18, 60)), ("rear34", new Vector3(-45, 15, -55)) })
+            {
+                camGo.transform.position = pos; camGo.transform.LookAt(new Vector3(0, 0, 3));
+                cam.Render(); RenderTexture.active = rt;
+                var tex = new Texture2D(1600, 900, TextureFormat.RGB24, false); tex.ReadPixels(new Rect(0, 0, 1600, 900), 0, 0); tex.Apply();
+                System.IO.File.WriteAllBytes("B52Ext_" + n + ".png", tex.EncodeToPNG());
+            }
+            RenderTexture.active = null;
+            Object.DestroyImmediate(go); Object.DestroyImmediate(camGo); Object.DestroyImmediate(lightGo);
+        }
     }
 }

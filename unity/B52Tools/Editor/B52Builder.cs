@@ -129,6 +129,7 @@ namespace B52Tools
                 Object.DestroyImmediate(tmplRoot.gameObject);
 
                 ConvertMaterials();
+                SetLiveryTargets();
                 var prefabPath = ModDir + "/B52.prefab";
                 var prefab = PrefabUtility.SaveAsPrefabAsset(ourRoot.gameObject, prefabPath);
                 Note("Saved " + prefabPath);
@@ -224,6 +225,12 @@ namespace B52Tools
             imp.bakeAxisConversion = true;
             imp.materialImportMode = ModelImporterMaterialImportMode.ImportViaMaterialDescription;
             imp.SaveAndReimport();
+            // The exterior atlas (and livery template) is 4096 px; Unity would import it at 2048.
+            if (AssetImporter.GetAtPath(ModDir + "/Textures/B52_atlas.png") is TextureImporter ti)
+            {
+                ti.maxTextureSize = 4096; ti.textureCompression = TextureImporterCompression.CompressedHQ;
+                ti.mipmapEnabled = true; ti.isReadable = false; ti.SaveAndReimport();
+            }
         }
 
         /// <summary>The FBX nodes arrive with a +90 deg X axis-conversion rotation on every frame. Bake it into
@@ -1236,6 +1243,47 @@ namespace B52Tools
             if (lod) Object.DestroyImmediate(lod);
         }
 
+        /// <summary>The exterior is one atlas (tools/blender_atlas.py), so every part can take the livery and show damage.
+        /// UnitPart.SetLivery and the _HitPoints damage shading only touch material slot 0 of each listed renderer, and a
+        /// part only lists its own renderer by default (control surfaces keep theirs on a "_visible" child). Each part
+        /// lists every skin renderer it owns, with the skin moved to slot 0 (its triangles too).</summary>
+        static void SetLiveryTargets()
+        {
+            var skin = MatCache.Values.FirstOrDefault(m => m && m.name.EndsWith("B52_Skin"));
+            if (!skin) { Note("  ! no B52_Skin material: liveries disabled"); return; }
+            var interior = Find(ourRoot, "cockpit_int");
+            var upType = T("UnitPart");
+            int parts = 0, rends = 0, swapped = 0;
+            foreach (var up in ourRoot.GetComponentsInChildren(upType, true))
+            {
+                var list = new List<Object>();
+                foreach (var r in up.GetComponentsInChildren<MeshRenderer>(true))
+                {
+                    if (interior && r.transform.IsChildOf(interior)) continue;
+                    if (r.GetComponentInParent(upType) != up) continue;          // belongs to a child part
+                    var mats = r.sharedMaterials;
+                    int k = System.Array.IndexOf(mats, skin);
+                    if (k < 0) continue;
+                    if (k > 0)
+                    {
+                        var mf = r.GetComponent<MeshFilter>(); var mesh = mf ? mf.sharedMesh : null;
+                        if (mesh && mesh.subMeshCount > k && AssetDatabase.Contains(mesh) && AssetDatabase.GetAssetPath(mesh).StartsWith(Gen))
+                        {
+                            var t0 = mesh.GetTriangles(0); var tk = mesh.GetTriangles(k);
+                            mesh.SetTriangles(tk, 0); mesh.SetTriangles(t0, k);
+                            (mats[0], mats[k]) = (mats[k], mats[0]);
+                            r.sharedMaterials = mats; EditorUtility.SetDirty(mesh); swapped++;
+                        }
+                        else continue;                                             // can't reorder: leave it out
+                    }
+                    list.Add(r); rends++;
+                }
+                SetRefArray(up, "damageMaterial.renderers", list);
+                if (list.Count > 0) parts++;
+            }
+            Note($"Livery targets: {rends} renderers on {parts} parts ({swapped} reordered so the skin is slot 0)");
+        }
+
         static void MakeOps()
         {
             // Spawn from medium hangars (the ones that host the Darkreach); shelters are too small for a 56 m span.
@@ -1251,7 +1299,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.3.5";
+        public const string Version = "0.3.6";
         const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
 
         public static void BuildMod()
@@ -1321,7 +1369,7 @@ namespace B52Tools
             AssetDatabase.DeleteAsset(livPath);
             var liv = ScriptableObject.CreateInstance(T("LiveryData")); liv.name = "B52_USAF_livery";
             var ls = SO(liv);
-            ls.FindProperty("Texture").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/middle_fuselage_png.png");
+            ls.FindProperty("Texture").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/B52_atlas.png");
             ls.FindProperty("Glossiness").floatValue = 0.35f;
             ls.ApplyModifiedPropertiesWithoutUndo();
             AssetDatabase.CreateAsset(liv, livPath);
