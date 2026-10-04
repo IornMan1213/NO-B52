@@ -148,3 +148,12 @@ are well within the elevators' ±20°.
 - [ ] MALD / MALD-J custom decoy
 - [ ] Single-texture atlas so liveries work
 - [ ] Animate the gear retraction properly (B-52 trucks swivel 90° then fold)
+
+## 0.2.6 (plugin only)
+- In-game telemetry of 0.2.5 showed rb.mass 28,450 kg at spawn, then ~14,780 kg. Cause: with RigidAirframe the
+  aircraft never goes through Aircraft.SetSimplePhysics, and UnitPart.ModifyMass (fuel burn, stores) sets
+  `rb.mass = part.mass` (that one part only). The game only expects simple physics on remote aircraft, where
+  fuel never changes mass.
+- Fix: MassSync keeps rb.mass = sum of attached UnitPart.mass (structure + fuel + stores) every FixedUpdate and
+  pins rb.centerOfMass to the root CoM transform.
+- Gotcha 11: a locally simulated aircraft held in simple physics must manage its own rigidbody mass.
