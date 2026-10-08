@@ -106,6 +106,11 @@ covers setting up a headless Blueprinter pipeline. [SPEC.md](SPEC.md) has the fl
 - Built with help from Claude (AI).
 
 ## License
-Code, scripts and original artwork: MIT (see [LICENSE](LICENSE) and [NOTICE](NOTICE)). The B-52 airframe model and its textures:
-CC BY 4.0, bohmerang. Nuclear Option belongs to Shockfront Studios, and this repository contains none of the
-game's files.
+- **B-52 airframe model and exterior textures:** a modified version of "Boeing B-52 Stratofortress" by
+  [bohmerang](https://sketchfab.com/bohmerang)
+  ([original](https://sketchfab.com/3d-models/boeing-b-52-stratofortress-38b0c64bd552431394efa8625d7f5144)),
+  licensed [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). The full text is in
+  [LICENSES/CC-BY-4.0.txt](LICENSES/CC-BY-4.0.txt), and the changes are listed in [NOTICE](NOTICE).
+- **Everything else** (code, scripts, plugins and original artwork): MIT, see [LICENSE](LICENSE).
+
+Nuclear Option belongs to Shockfront Studios. This repository and its releases contain none of the game's files.

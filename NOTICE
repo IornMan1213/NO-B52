@@ -1,9 +1,32 @@
-NOTICE
-The MIT licence in LICENSE covers this repository's code, scripts and original artwork (the cockpit, landing gear,
-gear doors, instrument textures and the Heavy Hangar).
+NOTICE: B-52J Stratofortress for Nuclear Option
+==============================================
 
-The B-52 airframe model and its exterior textures are a modified version of "Boeing B-52 Stratofortress" by
-bohmerang (https://sketchfab.com/3d-models/boeing-b-52-stratofortress-38b0c64bd552431394efa8625d7f5144),
-licensed under CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/). See CREDITS-bohmerang-B52.txt.
+This project contains material under two licences.
 
-Nuclear Option and its assets belong to Shockfront Studios. This repository contains none of the game's files.
+1. The B-52 airframe model and its exterior textures: CC BY 4.0
+----------------------------------------------------------------
+This work is based on "Boeing B-52 Stratofortress"
+(https://sketchfab.com/3d-models/boeing-b-52-stratofortress-38b0c64bd552431394efa8625d7f5144)
+by bohmerang (https://sketchfab.com/bohmerang),
+licensed under CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/).
+The full licence text is in LICENSES/CC-BY-4.0.txt.
+
+This version has been modified:
+  - split into separate parts (fuselage sections, wings, control surfaces, engine pods, bay doors) and re-pivoted;
+  - rescaled to the real B-52H dimensions and re-oriented for Unity / Nuclear Option;
+  - the exterior textures packed into a single 4096 x 4096 texture atlas, with the UVs remapped;
+  - the cockpit interior pulled inside the hull where it showed through;
+  - new parts added that are not in the original: landing gear, gear-well doors, spoiler panels, bomb-bay interior
+    and the flight-deck interior.
+
+The original model is provided by its author as-is, without warranties (CC BY 4.0, Section 5).
+These modifications are not endorsed by bohmerang.
+
+2. Everything else: MIT
+-----------------------
+The code, scripts, plugins and original artwork in this repository (the flight-deck interior, landing gear, gear
+doors, instrument textures and the Heavy Hangar) are under the MIT licence in LICENSE.
+The MIT licence does not apply to bohmerang's model or textures, which remain under CC BY 4.0.
+
+Nuclear Option and its assets belong to Shockfront Studios. This repository and its releases contain none of the
+game's files.
