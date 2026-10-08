@@ -106,6 +106,6 @@ covers setting up a headless Blueprinter pipeline. [SPEC.md](SPEC.md) has the fl
 - Built with help from Claude (AI).
 
 ## License
-Code, scripts and original artwork: MIT (see [LICENSE](LICENSE)). The B-52 airframe model and its textures:
+Code, scripts and original artwork: MIT (see [LICENSE](LICENSE) and [NOTICE](NOTICE)). The B-52 airframe model and its textures:
 CC BY 4.0, bohmerang. Nuclear Option belongs to Shockfront Studios, and this repository contains none of the
 game's files.
