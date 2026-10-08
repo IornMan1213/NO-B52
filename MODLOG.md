@@ -322,3 +322,25 @@ Outriggers have none (they fold under the wingtip pods). Verified with B52Inspec
   (= B-52J), blast 0. Pylon racks of 8 (HSAB), MountedMissile.info and WeaponMount.info -> the decoy info.
 - B52Systems.MaldJammer (Missile.Awake postfix, jsonKey B52_ADM160C): jams emitting enemy radars within
   30 km, 0.8 x (1 - d/30 km). Preset "JASSM-ER x8 + MALD-J x16 (SEAD)".
+
+## Flights of 2026-10-05 (0.3.7)
+- Bombing at altitude works: PAB-250LR x80 released from 39,500 ft at 397 kt TAS, all 80 over ~25 s, mass
+  155 -> 133 t. Climb to 42,800 ft at full power, cruise 400-420 kt TAS (Mach 0.70-0.73).
+- After the drop the aircraft was pushed into a dive (pitch input +0.2 to +0.6 = nose down, g 0.4..-1.4, never
+  pulled). It reached 849 kt TAS at 3,400 ft, about Mach 1.3, and hit the ground at -65 deg. The game's only
+  compressibility term (AeroJob_Math) adds at most +15 % drag around Mach 0.8-1.2: nothing stops a B-52 going
+  supersonic.
+- The other flight (ALND-4 x12 + MALD-J x16): an aborted takeoff at 57 kt (the chute deployed, as designed), then
+  a second takeoff run from mid-runway. Still on the ground at 160 kt (156 t needs ~175 kt), rudder at full
+  deflection in pulses, then a 137 deg/s yaw and 70 hp of damage: most likely off the runway end.
+- Telemetry: WeaponManager.OnStationFired is raised for every trigger pull, including when nothing is released
+  (on the ground, before the bay doors open). One flight logged 7,751 FIRED rows with the count unchanged.
+
+## 0.3.8: transonic drag, telemetry cleanup (plugin only; the .nobp stays 0.3.7)
+- B52Systems.MachDrag: Lock's fourth-power wave drag, dCd = 50 (M - 0.80)^4 on S = 371 m2, capped at 0.10, applied
+  at the CoM along -V. Cruise Mach 0.84: +0.0001. Drag divergence (dCd 0.002) at Mach 0.88, the real B-52's limit
+  is Mmo 0.90. Estimated top speeds at 132 t (existing CdS ~13.6 m2, fitted from the Oct 5 dive): 30 deg dive
+  Mach 0.98, 65 deg dive at 5,000 ft Mach 0.96, vertical ~Mach 1.0. Airframe buffet (Aircraft.ShakeAircraft)
+  above Mach 0.88.
+- Telemetry: a FIRED row only when a station's count drops ("FIRED name xN (left)"); pulls that release nothing
+  are summed into one "NO RELEASE" row. New column `mach` (before `event`).

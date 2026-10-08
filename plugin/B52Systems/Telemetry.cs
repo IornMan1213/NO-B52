@@ -42,7 +42,7 @@ namespace B52Systems
             var file = Path.Combine(dir, $"{DateTime.Now:yyyyMMdd_HHmmss}_{GetInstanceID()}.csv");
             w = new StreamWriter(file) { AutoFlush = true };
             w.WriteLine("t_s,kts,alt_ft,radar_alt_ft,vs_fpm,pitch_deg,roll_deg,aoa_deg,throttle,gear,fuel_frac,mass_kg," +
-                        "pitch_in,roll_in,yaw_in,brake,g_max,g_min,flaps,hp_min,hp_min_part,beta_deg,yaw_rate_dps,roll_rate_dps,event");
+                        "pitch_in,roll_in,yaw_in,brake,g_max,g_min,flaps,hp_min,hp_min_part,beta_deg,yaw_rate_dps,roll_rate_dps,mach,event");
             t0 = Time.time;
             flaps = GetComponentsInChildren<HighLiftDevice>(true);
             foreach (var p in parts) hpBand[p] = 2;
@@ -52,17 +52,36 @@ namespace B52Systems
                 wm.OnStationFired += OnFired;
                 var loadout = new List<string>();
                 foreach (var st in aircraft.weaponStations)
-                    if (st != null && st.WeaponInfo != null) loadout.Add($"{st.WeaponInfo.weaponName} x{st.Ammo}");
+                    if (st != null && st.WeaponInfo != null) { loadout.Add($"{st.WeaponInfo.weaponName} x{st.Ammo}"); ammoSeen[st] = st.Ammo; }
                 Event("LOADOUT " + (loadout.Count > 0 ? string.Join(" + ", loadout) : "empty"));
             }
             Plugin.Log.LogInfo("B-52J telemetry -> " + file);
         }
 
+        // OnStationFired is raised for every trigger pull, also when nothing leaves the aircraft (on the ground, bay doors
+        // still opening): one Oct 5 flight logged 7,751 of them with the count unchanged. Log a row only when a
+        // station's count drops (it has already dropped when the event fires); pulls that release nothing are summed
+        // into one NO RELEASE row, written before the next release or at the end of the flight.
+        private readonly Dictionary<WeaponStation, int> ammoSeen = new Dictionary<WeaponStation, int>();
+        private int heldPulls;
+        private string heldWeapon;
+
         private void OnFired()
         {
-            fired++;
             var st = aircraft ? aircraft.weaponManager.currentWeaponStation : null;
-            Event(st != null && st.WeaponInfo != null ? $"FIRED {st.WeaponInfo.weaponName} ({st.Ammo} left)" : "FIRED");
+            if (st == null || st.WeaponInfo == null) return;
+            int was = ammoSeen.TryGetValue(st, out var n) ? n : st.Ammo;
+            ammoSeen[st] = st.Ammo;
+            if (st.Ammo >= was) { heldPulls++; heldWeapon = st.WeaponInfo.weaponName; return; }
+            FlushHeld();
+            fired += was - st.Ammo;
+            Event($"FIRED {st.WeaponInfo.weaponName} x{was - st.Ammo} ({st.Ammo} left)");
+        }
+
+        private void FlushHeld()
+        {
+            if (heldPulls > 0) Event($"NO RELEASE {heldWeapon} x{heldPulls} trigger pulls");
+            heldPulls = 0;
         }
 
         private void FixedUpdate()
@@ -103,7 +122,8 @@ namespace B52Systems
                 worst ? worst.hitPoints.ToString("F0") : "", worst ? worst.name : "",
                 (vl.sqrMagnitude > 1f ? Mathf.Atan2(vl.x, vl.z) * Mathf.Rad2Deg : 0f).ToString("F1"),   // + = air from the left
                 (rb ? aircraft.transform.InverseTransformDirection(rb.angularVelocity).y * Mathf.Rad2Deg : 0f).ToString("F1"),
-                (rb ? -aircraft.transform.InverseTransformDirection(rb.angularVelocity).z * Mathf.Rad2Deg : 0f).ToString("F1"), ev
+                (rb ? -aircraft.transform.InverseTransformDirection(rb.angularVelocity).z * Mathf.Rad2Deg : 0f).ToString("F1"),
+                (aircraft.speed / LevelInfo.GetSpeedOfSound(aircraft.transform.position.GlobalY())).ToString("F2"), ev
             }));
             gMaxAll = Mathf.Max(gMaxAll, gHi); gMinAll = Mathf.Min(gMinAll, gLo);
             if (ev == "") { gHi = gLo = 1f; }
@@ -136,6 +156,7 @@ namespace B52Systems
         {
             if (w == null) return;
             if (aircraft && aircraft.weaponManager != null) aircraft.weaponManager.OnStationFired -= OnFired;
+            FlushHeld();
             w.WriteLine($"# summary: max {maxKts:F0} kt, max {maxAltFt:F0} ft, g {gMinAll:F1}..{gMaxAll:F1}, " +
                         $"{fired} releases, {detached.Count} parts detached");
             w.Dispose(); w = null;
