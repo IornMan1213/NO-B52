@@ -346,5 +346,36 @@ for side, sx in (('L', -0.55), ('R', 0.55)):
     mw = e.matrix_world.copy(); e.parent = root; e.matrix_world = mw
 
 bpy.context.view_layer.update()
+
+# Keep the interior inside the hull. The flight deck is laid out on a straight box, but the nose narrows and the
+# roof drops forward and aft of the windows, so the shell, consoles and panel poked through the skin as black slabs
+# (over the side windows and the nose art). Each interior vertex is tested along the ray from the cabin axis
+# (0, y, -0.6) through it; if it lies within 3 cm of the skin or outside it, it moves to 3 cm inside.
+from mathutils.bvhtree import BVHTree
+hull_bm = bmesh.new()
+for name in ('cockpit', 'fuselage_F'):
+    h = bpy.data.objects[name]
+    tmp = bmesh.new(); tmp.from_mesh(h.data); tmp.transform(h.matrix_world)
+    me_tmp = bpy.data.meshes.new('_hull'); tmp.to_mesh(me_tmp); tmp.free()
+    hull_bm.from_mesh(me_tmp); bpy.data.meshes.remove(me_tmp)
+hull = BVHTree.FromBMesh(hull_bm)
+MARGIN, AXIS_Z = 0.03, -0.6
+moved = 0
+stack = list(root.children)
+while stack:
+    o = stack.pop(); stack.extend(o.children)
+    if o.type != 'MESH': continue
+    mw, inv = o.matrix_world, o.matrix_world.inverted()
+    for v in o.data.vertices:
+        p = mw @ v.co
+        a = Vector((0.0, p.y, AXIS_Z))
+        d = p - a
+        if d.length < 0.05: continue
+        hit, _, _, dist = hull.ray_cast(a, d.normalized(), d.length + MARGIN)
+        if hit is not None and dist < d.length + MARGIN:
+            v.co = inv @ (a + d.normalized() * max(dist - MARGIN, 0.0)); moved += 1
+hull_bm.free()
+print('COCKPIT clamp: moved', moved, 'interior vertices inside the hull')
+
 bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath)
 print('COCKPIT OK', len([o for o in bpy.data.objects if o.parent == root]), 'objects under cockpit_int')

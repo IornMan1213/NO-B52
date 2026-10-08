@@ -344,3 +344,43 @@ Outriggers have none (they fold under the wingtip pods). Verified with B52Inspec
   above Mach 0.88.
 - Telemetry: a FIRED row only when a station's count drops ("FIRED name xN (left)"); pulls that release nothing
   are summed into one "NO RELEASE" row. New column `mach` (before `event`).
+
+## 0.4.0: landing gear rebuilt like the real one; model clean-up
+Clean-up:
+- Navigation lights: Move() reparented the donor's lights to our wingtips but kept the donor's world position, so
+  they floated as black boxes under the wing at x +-15.75. Now placed at the wingtip's outermost point (x +-28.2),
+  by the housing's bounds (its mesh is offset from its pivot).
+- Cockpit interior poked through the skin as black slabs over the side windows and nose art (the flight deck is a
+  straight box; the nose narrows and the roof drops). blender_cockpit.py now ray-casts each interior vertex from
+  the cabin axis against the cockpit + fuselage_F skin and pulls anything within 3 cm of it or outside back in
+  (366 vertices).
+- B52Inspect.RenderShots (cameras from B52Shots.txt, optional hide list; lists renderers < 1.5 m) and
+  RenderGearFolds (poses the gear as LandingGear.MoveGear does at given fold fractions).
+
+Gear (bohmerang's model has none; the previous gear was placeholder cylinders):
+- Real B-52G/H: four two-wheel trucks in tandem under the fuselage, a tip-protection outrigger near each wingtip
+  that retracts into the outer wing. To retract, each truck swivels ~90 deg and folds flat into its well, port
+  trucks forward and starboard aft. All four trucks can be turned up to 20 deg either way for crosswind landings
+  (crab-angle knob on the centre pedestal). Sources: aircraftinformation.info (XB-52 history: swivel, opposite fold
+  directions), Wikipedia "Crosswind landing" and "Undercarriage arrangements", migflug.com / simpleflying.com
+  (crab +-20 deg), reviews.ipmsusa.org (outrigger doors).
+- tools/blender_gear.py (after blender_prep.py): trunnion + bearings, oleo cylinder, chrome piston, gland nut,
+  yoke, axle, brake housings, 56x16 tyres with rounded shoulders, dished rims, hub caps and bolts, torque-link
+  scissor; outriggers: fore-aft trunnion, oleo, fork, single tyre. Pivots and names kept for the builder.
+- B52Builder.BuildGear: fold hinge at the trunnion; mains fold 90 deg (port -90 = forward, starboard +90 = aft),
+  swivel 90 deg (strutRotation, on a gear_<k>_swivel node of its own: steering writes the unsprung node every
+  frame) and slide to the centreline + 0.2 m up (hingeFoldMotion), wheels flat side by side; foldSpeed 25 deg/s.
+  Wells: FL 14.30..15.95, FR 12.65..14.30, RL -1.01..0.64, RR -2.66..-1.01 (clear of the bomb bay 1.16..12.16).
+  Outriggers: hinge under a mount turned 125 deg so the leg folds inboard along the 35-deg swept outer wing, pivot
+  raised into the wing's mid-plane; wheel ends flat at x +-19.2 inside the wing. Torque links are LandingGear IK
+  joints (follow the suspension).
+- Well doors: two clamshell panels per well, hinged at x +-0.78, opening 95 deg; each a curved panel cast onto the
+  belly by vertical rays against the fuselage skin, with the skin's atlas UVs (reads as belly, takes liveries),
+  dark inside.
+- B52Systems.GearSystem (plugin 0.4.0): closes the well doors once the gear is locked down and opens them for
+  retraction (LandingGear leaves them open while down and closes them after retracting). Unconfirmed for the real
+  B-52 (no source found either way); it is the usual heavy-jet arrangement. Crosswind crab: [ / ] turn all four
+  trucks 5 deg left/right (max 20), \ centres; trucks slew at 5 deg/s while the gear is down; the forward trucks
+  still steer on top. On-screen "GEAR CRAB" readout. Config section [Gear].
+- Verified with renders (renders/gear_v2): gear down doors flush; mid-fold doors open, trucks swivelling; retracted
+  belly and wing clean. Not yet flown.

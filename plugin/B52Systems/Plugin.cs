@@ -7,13 +7,14 @@ using UnityEngine;
 namespace B52Systems
 {
     /// <summary>Runtime systems for the B-52J Stratofortress mod (B-52J Stratofortress_x.y.z.nobp).</summary>
-    [BepInPlugin("com.ironman1213.b52systems", "B-52J Systems", "0.3.8")]
+    [BepInPlugin("com.ironman1213.b52systems", "B-52J Systems", "0.4.0")]
     public class Plugin : BaseUnityPlugin
     {
         internal static ManualLogSource Log;
         internal static ConfigEntry<bool> RigidAirframe;
         internal static ConfigEntry<bool> TelemetryEnabled;
         internal static ConfigEntry<bool> VerboseAeroCfg;
+        internal static ConfigEntry<KeyboardShortcut> CrabLeft, CrabRight, CrabCentre;
         internal static bool VerboseAero => VerboseAeroCfg != null && VerboseAeroCfg.Value;
         public const string JsonKey = "B52J";
 
@@ -27,6 +28,12 @@ namespace B52Systems
                 "Write a CSV flight log for each B-52J to BepInEx/B52_telemetry (speed, altitude, attitude, events).");
             VerboseAeroCfg = Config.Bind("Debug", "LogAeroCentres", true,
                 "Log each part's aerodynamic centre (aircraft frame) when a B-52J first flies.");
+            CrabLeft = Config.Bind("Gear", "CrabLeft", new KeyboardShortcut(KeyCode.LeftBracket),
+                "Crosswind crab: turn the main trucks 5 deg further left (max 20). For wind from the left, set crab left and fly the nose into the wind.");
+            CrabRight = Config.Bind("Gear", "CrabRight", new KeyboardShortcut(KeyCode.RightBracket),
+                "Crosswind crab: turn the main trucks 5 deg further right (max 20).");
+            CrabCentre = Config.Bind("Gear", "CrabCentre", new KeyboardShortcut(KeyCode.Backslash),
+                "Crosswind crab: trucks straight ahead.");
             new Harmony("com.ironman1213.b52systems").PatchAll();
             Log.LogInfo("B-52J Systems loaded");
         }

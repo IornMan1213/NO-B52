@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
@@ -98,6 +99,109 @@ namespace B52Tools
             RenderTexture.active = null;
             Object.DestroyImmediate(go); Object.DestroyImmediate(camGo); Object.DestroyImmediate(lightGo);
         }
+        /// Renders the built prefab from the cameras listed in B52Shots.txt (one per line:
+        /// "name px py pz tx ty tz [fov] [hide1,hide2]", world metres, prefab at the origin) to B52Shot_name.png, and lists every
+        /// renderer smaller than 1.5 m with its path and bounds in B52Smalls.log.
+        public static void RenderShots()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Blueprinter/Mods/B52/B52.prefab");
+            var go = (GameObject)Object.Instantiate(prefab);
+            var sb = new StringBuilder();
+            string PathOf(Transform t) => t.parent && t.parent != go.transform ? PathOf(t.parent) + "/" + t.name : t.name;
+            foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                if (r.bounds.size.magnitude < 1.5f)
+                    sb.AppendLine($"{PathOf(r.transform)}  c{r.bounds.center:F2} s{r.bounds.size:F2} {(r.enabled && r.gameObject.activeInHierarchy ? "" : "(hidden)")}");
+            System.IO.File.WriteAllText("B52Smalls.log", sb.ToString());
+            var lightGo = new GameObject("sun"); var l = lightGo.AddComponent<Light>(); l.type = LightType.Directional; l.intensity = 1.2f;
+            lightGo.transform.rotation = Quaternion.Euler(45, 30, 0);
+            var camGo = new GameObject("cam"); var cam = camGo.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0.6f, 0.68f, 0.76f); cam.nearClipPlane = 0.05f;
+            var rt = new RenderTexture(1280, 720, 24); cam.targetTexture = rt;
+            foreach (var line in System.IO.File.ReadAllLines("B52Shots.txt"))
+            {
+                var f = line.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+                if (f.Length < 7 || f[0].StartsWith("#")) continue;
+                float F(int i) => float.Parse(f[i], System.Globalization.CultureInfo.InvariantCulture);
+                cam.fieldOfView = f.Length > 7 ? F(7) : 35f;
+                var hidden = new System.Collections.Generic.List<Renderer>();          // optional 9th field: names to hide
+                if (f.Length > 8)
+                    foreach (var r in go.GetComponentsInChildren<Renderer>())
+                        foreach (var n in f[8].Split(','))
+                            if (r.transform.name == n || PathOf(r.transform).Contains(n + "/")) { r.enabled = false; hidden.Add(r); }
+                camGo.transform.position = new Vector3(F(1), F(2), F(3)); camGo.transform.LookAt(new Vector3(F(4), F(5), F(6)));
+                cam.Render(); RenderTexture.active = rt;
+                var tex = new Texture2D(1280, 720, TextureFormat.RGB24, false); tex.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0); tex.Apply();
+                System.IO.File.WriteAllBytes("B52Shot_" + f[0] + ".png", tex.EncodeToPNG());
+                foreach (var r in hidden) r.enabled = true;
+            }
+            RenderTexture.active = null;
+            Object.DestroyImmediate(go); Object.DestroyImmediate(camGo); Object.DestroyImmediate(lightGo);
+        }
+
+        /// Poses every LandingGear the way LandingGear.MoveGear does at fold fraction f (hinge about local X by
+        /// f * foldDegrees, hingeFoldMotion * f, strut swivel f * strutRotation; doors open while 0 < f, shut at 0 and 1
+        /// as GearSystem / LandingGear leave them), then renders the B52Shots.txt cameras for each f in
+        /// B52GearFolds.txt (one number per line) to B52Fold_<f>_<shot>.png.
+        public static void RenderGearFolds()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Blueprinter/Mods/B52/B52.prefab");
+            var go = (GameObject)Object.Instantiate(prefab);
+            var lgType = System.AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType("LandingGear")).First(t => t != null);
+            var gears = go.GetComponentsInChildren(lgType, true);
+            var basePose = gears.Select(g =>
+            {
+                var so = new SerializedObject(g);
+                var h = (Transform)so.FindProperty("gearHinge").objectReferenceValue;
+                return (so, h, h.localEulerAngles, h.localPosition);
+            }).ToList();
+            var lightGo = new GameObject("sun"); var l = lightGo.AddComponent<Light>(); l.type = LightType.Directional; l.intensity = 1.2f;
+            lightGo.transform.rotation = Quaternion.Euler(45, 30, 0);
+            var camGo = new GameObject("cam"); var cam = camGo.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0.6f, 0.68f, 0.76f); cam.nearClipPlane = 0.05f;
+            var rt = new RenderTexture(1280, 720, 24); cam.targetTexture = rt;
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var foldLog = new StringBuilder();
+            foreach (var fl in System.IO.File.ReadAllLines("B52GearFolds.txt"))
+            {
+                if (!float.TryParse(fl.Trim(), System.Globalization.NumberStyles.Float, inv, out float f)) continue;
+                foreach (var (so, h, e0, p0) in basePose)
+                {
+                    float fold = so.FindProperty("foldDegrees").floatValue;
+                    h.localEulerAngles = e0 + new Vector3(fold * f, 0f, 0f);
+                    h.localPosition = p0 + so.FindProperty("hingeFoldMotion").vector3Value * f;
+                    var sw = (Transform)so.FindProperty("strutRotationTransform").objectReferenceValue;
+                    if (sw) sw.localEulerAngles = new Vector3(0f, so.FindProperty("strutRotation").floatValue * f, 0f);
+                    var doors = so.FindProperty("gearDoors");
+                    for (int i = 0; i < doors.arraySize; i++)
+                    {
+                        var d = doors.GetArrayElementAtIndex(i);
+                        var t = (Transform)d.FindPropertyRelative("transform").objectReferenceValue;
+                        bool open = f > 0.001f && f < 0.999f;
+                        if (t) t.localEulerAngles = open ? d.FindPropertyRelative("openAngle").vector3Value : Vector3.zero;
+                    }
+                }
+                foreach (var (so, h, e0, p0) in basePose)
+                {
+                    var un = (GameObject)so.FindProperty("unsprung").objectReferenceValue;
+                    foldLog.AppendLine($"f {f:F2} {h.name}: hinge {h.position:F2} unsprung {un.transform.position:F2}");
+                }
+                foreach (var line in System.IO.File.ReadAllLines("B52Shots.txt"))
+                {
+                    var s = line.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+                    if (s.Length < 7 || s[0].StartsWith("#")) continue;
+                    float F(int i) => float.Parse(s[i], inv);
+                    cam.fieldOfView = s.Length > 7 ? F(7) : 35f;
+                    camGo.transform.position = new Vector3(F(1), F(2), F(3)); camGo.transform.LookAt(new Vector3(F(4), F(5), F(6)));
+                    cam.Render(); RenderTexture.active = rt;
+                    var tex = new Texture2D(1280, 720, TextureFormat.RGB24, false); tex.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0); tex.Apply();
+                    System.IO.File.WriteAllBytes($"B52Fold_{f.ToString("F2", inv)}_{s[0]}.png", tex.EncodeToPNG());
+                }
+            }
+            System.IO.File.WriteAllText("B52GearFolds.log", foldLog.ToString());
+            RenderTexture.active = null;
+            Object.DestroyImmediate(go); Object.DestroyImmediate(camGo); Object.DestroyImmediate(lightGo);
+        }
+
         /// Renders the built prefab from four angles to B52Ext_*.png (atlas / livery check).
         public static void RenderExterior()
         {
