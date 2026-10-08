@@ -1467,7 +1467,8 @@ namespace B52Tools
         }
 
         public const string Version = "0.4.0";
-        const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
+        // tools/build_all.sh sets B52_BUILD_DIR to the repo's build/ folder; otherwise build/ inside the Unity project.
+        static string BuildDir => System.Environment.GetEnvironmentVariable("B52_BUILD_DIR") ?? System.IO.Path.GetFullPath("build");
 
         public static void BuildMod()
         {

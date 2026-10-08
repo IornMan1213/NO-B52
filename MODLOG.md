@@ -5,7 +5,7 @@
   - Unity 2022.3.62f2 (Mono), no anti-cheat. BepInEx 5.4.23.5 installed. Assembly-CSharp.dll is dated
     2026-08-14.
   - Blueprinter (Nikkorap) is installed in `BepInEx/plugins` and loads `.nobp` files (UnityFS asset bundles).
-  - Saves: `C:\Users\jayea\AppData\LocalLow\Shockfront\NuclearOption`
+  - Saves: `%USERPROFILE%\AppData\LocalLow\Shockfront\NuclearOption`
 - Unity Editor 2022.3.62f2 is installed (matches the game). Blender 5.2 is installed.
 - Fresh decompile: `~/no-decomp-current` (ilspycmd, outside the repo; never commit it).
 - Vanilla weapon mount names: `BepInEx/LoadoutDiagnostics*.txt`.
@@ -54,11 +54,11 @@ the same tree with 4 pods × 2 Turbofan.
   WeaponManager) → Pilot/WSO (CapsuleCollider + Pilot), cockpit_int (Cockpit).
 
 ## Setup progress
-- AssetRipper 2.0.0 export → `C:/Users/jayea/no-ripped/NuclearOption/ExportedProject` (3.0 GB). Game version
+- AssetRipper 2.0.0 export → `~/no-ripped/NuclearOption/ExportedProject` (3.0 GB). Game version
   0.34.1 (from bundleVersion).
 - Driven headless over its HTTP API: `--headless --port 47110`, POST /Settings/Update
   (ScriptContentLevel=Level1, ScriptExportMode=Decompiled), /LoadFile, /Export/UnityProject.
-- Blueprinter project at `C:/Users/jayea/BlueprinterProject/Blueprinter-Editor`. The repo's `unity/B52Tools`
+- Blueprinter project at `~/BlueprinterProject/Blueprinter-Editor`. The repo's `unity/B52Tools`
   is junctioned into Assets/B52Tools. It's an editor asmdef, because a loose *.cs in Assets breaks Blueprinter
   (Assembly-CSharp is read-only).
 - Setup steps run headless: `Unity.exe -batchmode -nographics -quit -projectPath ... -executeMethod

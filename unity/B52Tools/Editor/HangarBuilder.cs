@@ -25,7 +25,8 @@ namespace B52Tools
         const string DoNotShip = "Assets/Blueprinter/_donotship";
         const string TemplatePrefab = DoNotShip + "/GameObject/hangar_med_PLACEHOLDER.prefab";
         const string TemplateDef = DoNotShip + "/MonoBehaviour/hangar_med_PLACEHOLDER.asset";
-        const string BuildDir = @"C:\Users\jayea\Documents\GitHub\NO-B52\build";
+        // tools/build_all.sh sets B52_BUILD_DIR to the repo's build/ folder; otherwise build/ inside the Unity project.
+        static string BuildDir => System.Environment.GetEnvironmentVariable("B52_BUILD_DIR") ?? System.IO.Path.GetFullPath("build");
         const int StaticsLayer = 6;                             // PhysicsLayers.Statics, as hangar_med
 
         // Door leaves (blender_hangar.py): three per side on parallel rails, sliding into 14 m pockets.

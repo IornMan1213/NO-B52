@@ -16,7 +16,7 @@ import bpy, bmesh, sys, os, math
 from mathutils import Vector, Matrix
 
 ARGS = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
-TEX = ARGS[0] if ARGS else r'C:\Users\jayea\Documents\GitHub\NO-B52\blender\tex'
+TEX = ARGS[0] if ARGS else os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'blender', 'tex')
 
 cockpit = bpy.data.objects['cockpit']
 root = bpy.data.objects.new('cockpit_int', None)

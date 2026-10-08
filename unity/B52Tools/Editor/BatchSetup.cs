@@ -10,7 +10,9 @@ namespace B52Tools
     public static class BatchSetup
     {
         const string GameExe = @"C:\Program Files (x86)\Steam\steamapps\common\Nuclear Option\NuclearOption.exe";
-        const string RippedAssets = @"C:\Users\jayea\no-ripped\NuclearOption\ExportedProject\Assets";
+        // The Assets folder of an AssetRipper export of NuclearOption.exe (see docs/FIELD_NOTE_*.md, step 1).
+        static string RippedAssets => System.Environment.GetEnvironmentVariable("NO_RIPPED_ASSETS")
+            ?? throw new Exception("Set NO_RIPPED_ASSETS to your AssetRipper ExportedProject/Assets folder");
         const string GameVersion = "0.34.1";
 
         public static void Step2ImportAssemblies()
