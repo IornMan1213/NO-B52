@@ -467,7 +467,7 @@ namespace B52Tools
         /// 90 deg on its strut (LandingGear.strutRotation, on its own gear_<k>_swivel node so steering, which writes
         /// the unsprung node every frame, can't fight it) and slides in to the centreline (hingeFoldMotion), so the
         /// wheels end up lying flat side by side in a well under the fuselage, each pair at its own station. Two
-        /// clamshell doors per well; B52Systems.GearSystem closes them once the gear is down and opens them for retraction.
+        /// One large door per truck, hinged on the fuselage side, open whenever the gear is down (as on the real aircraft).
         /// Outriggers fold inboard about a fore-aft axis into the outer wing (wheel flat). Torque links are IK joints.
         /// </summary>
         static void BuildGear()
@@ -545,8 +545,9 @@ namespace B52Tools
                 {
                     SetF(lg, "foldDegrees", sgn < 0 ? -90f : 90f);           // port forward, starboard aft
                     SetF(lg, "strutRotation", 90f);                            // truck swivels so the wheels lie flat
-                    // slide in to the centreline and up 0.2 m (hinge-parent local)
-                    var motion = parent.InverseTransformVector(new Vector3(-pivot.x, 0.2f, 0f));
+                    // tuck in to x +-0.75 and up 0.92 m (hinge-parent local): the flat wheel pair (D 1.42, 0.9 m
+                    // stack) then sits inside the lower fuselage on its own side, under its own door
+                    var motion = parent.InverseTransformVector(new Vector3(sgn * 0.75f - pivot.x, 0.92f, 0f));
                     Set(lg, "hingeFoldMotion", q => q.vector3Value = motion);
                 }
                 SetF(lg, "foldSpeed", outrigger ? 30f : 25f);                   // ~3.6 s fold for the mains
@@ -570,7 +571,10 @@ namespace B52Tools
                         return pv;
                     }
                     var h1 = Pivot(lu, swivel); var h2 = Pivot(ll, unsprung);
-                    le.SetParent(swivel, true); le.rotation = part.rotation;
+                    le.SetParent(swivel, true);
+                    var mid = (lu.position + ll.position) * 0.5f;
+                    var side = Vector3.ProjectOnPlane(le.position - mid, upDir).normalized;
+                    le.rotation = Quaternion.LookRotation(side, upDir);              // right = Cross(up, side)
                     Set(lg, "joints", p =>
                     {
                         p.arraySize = 1;
@@ -582,101 +586,186 @@ namespace B52Tools
                 }
                 else Set(lg, "joints", p => p.arraySize = 0);
 
-                if (!outrigger) AddWellDoors(lg, k, part, pivot, sgn);
+                if (!outrigger) AddMainDoor(lg, k, part, pivot, sgn);
+                else AddOutriggerDoor(lg, k, part, pivot, hinge, unsprung.position);
                 Note($"Gear {k}: travel {travel:F2} m, wheel r {wheelR}, fold {(outrigger ? "inboard" : sgn < 0 ? "forward" : "aft")}");
             }
         }
 
-        /// <summary>Two clamshell doors over the well a main truck folds into: centred on the fuselage centreline,
-        /// from the trunnion to 1.65 m forward (port) or aft (starboard), each 0.78 m wide, hinged at its outer edge
-        /// and hanging 95 deg open. Each door is a curved panel cast onto the belly (vertical rays against the fuselage
-        /// skin) carrying the skin's own atlas UVs, so closed it reads as part of the belly (and takes liveries); the
-        /// inside face is dark. LandingGear opens them before extending and closes them after retracting, then zeroes
-        /// their localEulerAngles, so closed = identity; GearSystem closes them again once the gear is down.</summary>
-        static void AddWellDoors(Component lg, string k, Transform part, Vector3 pivot, float sgn)
+        /// <summary>
+        /// The main-gear door, as on the B-52H (reference photos): one large door per truck, hinged along the lower
+        /// fuselage side (the chine, x +-1.46) and wrapping round under the belly to near the centreline when shut. Seen
+        /// from the side it is a trapezoid: 2.75 m along the hinge, narrowing to 0.4 m at its free edge, which lies
+        /// two-thirds of the way along (long sloping edge on the truck side). It sits over
+        /// the truck's well, so ahead of a port (forward-folding) truck and behind a starboard one. With the gear down
+        /// it hangs open, canted 35 deg outboard of the tyres; LandingGear opens it before extending and shuts it after
+        /// retracting. The panel is cast onto the skin (vertical rays) with the skin's atlas UVs, so shut it reads as
+        /// belly; a dark patch on the skin under it shows as the open well.
+        /// </summary>
+        static void AddMainDoor(Component lg, string k, Transform part, Vector3 pivot, float sgn)
         {
-            const float half = 0.78f, length = 1.65f, openDeg = 95f, gap = 0.012f;
-            const int nx = 8, nz = 6;
+            const float hingeX = 1.46f, innerX = 0.30f, cant = 35f;
+            const float s0Hinge = 0.15f, s1Hinge = 2.90f, s0Free = 1.85f, s1Free = 2.25f;   // along the fuselage from the trunnion;
+            // the free edge sits 2/3 of the way along, so the edge nearest the truck slopes down and away from it
+            const int nx = 10, ns = 10;
             float dir = sgn < 0 ? 1f : -1f;                                     // port wells ahead of the trunnion
-            float zc = pivot.z + dir * length * 0.5f;
             var skinMat = part.GetComponent<MeshRenderer>()?.sharedMaterials.FirstOrDefault(m => m && m.name.Contains("B52_Skin"));
-            var darkMat = ourRoot.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials)
-                                 .FirstOrDefault(m => m && m.name.Contains("GearDark"));
-            var doors = new List<(Transform t, float open)>();
-            foreach (float side in new[] { -1f, 1f })
+            var mats = ourRoot.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials).Where(m => m).ToList();
+            var darkMat = mats.FirstOrDefault(m => m.name.Contains("BayInterior")) ?? mats.FirstOrDefault(m => m.name.Contains("GearDark"));
+            var grayMat = mats.FirstOrDefault(m => m.name.Contains("SpoilerGray")) ?? skinMat;
+
+            // Skin points: row i runs from the hinge (i = 0) to the free edge (i = nx); column j along the fuselage.
+            var pts = new Vector3[nx + 1, ns + 1]; var uvs = new Vector2[nx + 1, ns + 1]; var nrm = new Vector3[nx + 1, ns + 1];
+            for (int i = 0; i <= nx; i++)
             {
-                // Sample the belly: grid from the hinge (outer edge) to the centreline.
-                var pts = new Vector3[nx + 1, nz + 1]; var uvs = new Vector2[nx + 1, nz + 1];
-                for (int i = 0; i <= nx; i++)
-                    for (int j = 0; j <= nz; j++)
-                    {
-                        float x = side * Mathf.Lerp(half, gap * 0.5f, i / (float)nx);
-                        float z = zc - length * 0.5f + length * j / nz;
-                        if (!BellyHit(x, z, pivot.y, out var y, out var uv)) { y = pivot.y - 0.37f; uv = Vector2.zero; }
-                        pts[i, j] = new Vector3(x, y - 0.006f, z); uvs[i, j] = uv;
-                    }
-                var hingePt = pts[0, nz / 2];
-                var pivotT = Child(part, "gearDoor_" + k + (side < 0 ? "L" : "R"), new Vector3(hingePt.x, hingePt.y, zc), part.rotation);
+                float u = i / (float)nx;
+                float x = sgn * Mathf.Lerp(hingeX, innerX, u);
+                float sa = Mathf.Lerp(s0Hinge, s0Free, u), sb = Mathf.Lerp(s1Hinge, s1Free, u);
+                for (int j = 0; j <= ns; j++)
+                {
+                    float z = pivot.z + dir * Mathf.Lerp(sa, sb, j / (float)ns);
+                    if (!BellyHit(x, z, pivot.y + 0.6f, out var y, out var uv)) { y = pivot.y - 0.3f; uv = Vector2.zero; }
+                    pts[i, j] = new Vector3(x, y, z); uvs[i, j] = uv;
+                    nrm[i, j] = new Vector3(x, y - (pivot.y + 0.8f), 0f).normalized;              // out from the fuselage axis
+                }
+            }
+            var hinge = new Vector3(sgn * hingeX, pts[0, ns / 2].y, pivot.z + dir * (s0Hinge + s1Hinge) * 0.5f);
+            var pivotT = Child(part, "gearDoor_" + k, hinge, part.rotation);
+
+            Mesh Panel(string name, float lift, float thick, bool withInner)
+            {
                 var verts = new List<Vector3>(); var uvList = new List<Vector2>(); var outer = new List<int>(); var inner = new List<int>();
-                int V(Vector3 w, Vector2 uv) { verts.Add(pivotT.InverseTransformPoint(w)); uvList.Add(uv); return verts.Count - 1; }
-                var o = new int[nx + 1, nz + 1]; var n = new int[nx + 1, nz + 1];
+                var o = new int[nx + 1, ns + 1]; var n = new int[nx + 1, ns + 1];
                 for (int i = 0; i <= nx; i++)
-                    for (int j = 0; j <= nz; j++)
+                    for (int j = 0; j <= ns; j++)
                     {
-                        o[i, j] = V(pts[i, j], uvs[i, j]);
-                        n[i, j] = V(pts[i, j] + Vector3.up * 0.035f, Vector2.zero);
+                        verts.Add(pivotT.InverseTransformPoint(pts[i, j] + nrm[i, j] * lift)); uvList.Add(uvs[i, j]); o[i, j] = verts.Count - 1;
+                        verts.Add(pivotT.InverseTransformPoint(pts[i, j] + nrm[i, j] * (lift - thick))); uvList.Add(uvs[i, j]); n[i, j] = verts.Count - 1;
                     }
-                bool flip = side > 0;                                          // keep the outer face pointing down
-                void Quad(List<int> l, int a, int b, int c, int d, bool f)
+                // winding: the outer face must face away from the fuselage axis
+                var a0 = pts[0, 0]; var e1 = pts[1, 0] - a0; var e2 = pts[0, 1] - a0;
+                bool flip = Vector3.Dot(Vector3.Cross(e1, e2), nrm[0, 0]) < 0f;
+                void Q(List<int> l, int a, int b, int c, int d, bool f)
                 {
                     if (f) l.AddRange(new[] { a, c, b, a, d, c }); else l.AddRange(new[] { a, b, c, a, c, d });
                 }
                 for (int i = 0; i < nx; i++)
-                    for (int j = 0; j < nz; j++)
+                    for (int j = 0; j < ns; j++)
                     {
-                        Quad(outer, o[i, j], o[i + 1, j], o[i + 1, j + 1], o[i, j + 1], flip);
-                        Quad(inner, n[i, j], n[i + 1, j], n[i + 1, j + 1], n[i, j + 1], !flip);
+                        Q(outer, o[i, j], o[i + 1, j], o[i + 1, j + 1], o[i, j + 1], flip);
+                        if (withInner) Q(inner, n[i, j], n[i + 1, j], n[i + 1, j + 1], n[i, j + 1], !flip);
                     }
-                for (int i = 0; i < nx; i++)                                    // fore and aft edges (both faces)
+                if (withInner)
                 {
                     foreach (bool f in new[] { true, false })
                     {
-                        Quad(inner, o[i, 0], o[i + 1, 0], n[i + 1, 0], n[i, 0], f);
-                        Quad(inner, o[i, nz], o[i + 1, nz], n[i + 1, nz], n[i, nz], f);
+                        for (int i = 0; i < nx; i++) { Q(inner, o[i, 0], o[i + 1, 0], n[i + 1, 0], n[i, 0], f); Q(inner, o[i, ns], o[i + 1, ns], n[i + 1, ns], n[i, ns], f); }
+                        for (int j = 0; j < ns; j++) { Q(inner, o[0, j], o[0, j + 1], n[0, j + 1], n[0, j], f); Q(inner, o[nx, j], o[nx, j + 1], n[nx, j + 1], n[nx, j], f); }
                     }
                 }
-                for (int j = 0; j < nz; j++)                                    // hinge and free edges
-                {
-                    foreach (bool f in new[] { true, false })
-                    {
-                        Quad(inner, o[0, j], o[0, j + 1], n[0, j + 1], n[0, j], f);
-                        Quad(inner, o[nx, j], o[nx, j + 1], n[nx, j + 1], n[nx, j], f);
-                    }
-                }
-                var mesh = new Mesh { name = pivotT.name + "_mesh" };
+                var mesh = new Mesh { name = name };
                 mesh.SetVertices(verts); mesh.SetUVs(0, uvList);
-                mesh.subMeshCount = 2; mesh.SetTriangles(outer, 0); mesh.SetTriangles(inner, 1);
+                mesh.subMeshCount = withInner ? 2 : 1; mesh.SetTriangles(outer, 0); if (withInner) mesh.SetTriangles(inner, 1);
                 mesh.RecalculateNormals(); mesh.RecalculateBounds();
-                var meshPath = $"{Gen}/{mesh.name}.asset";
-                AssetDatabase.DeleteAsset(meshPath); AssetDatabase.CreateAsset(mesh, meshPath);
-                var panel = new GameObject(pivotT.name + "_panel");
-                panel.transform.SetParent(pivotT, false);
-                panel.AddComponent<MeshFilter>().sharedMesh = mesh;
-                panel.AddComponent<MeshRenderer>().sharedMaterials = new[] { skinMat, darkMat ?? skinMat };
-                doors.Add((pivotT, side * openDeg));                             // free (inboard) edge swings down
+                var path = $"{Gen}/{name}.asset";
+                AssetDatabase.DeleteAsset(path); AssetDatabase.CreateAsset(mesh, path);
+                return mesh;
             }
+
+            // the door
+            var panel = new GameObject(pivotT.name + "_panel");
+            panel.transform.SetParent(pivotT, false);
+            panel.AddComponent<MeshFilter>().sharedMesh = Panel(pivotT.name + "_mesh", 0.012f, 0.03f, true);
+            panel.AddComponent<MeshRenderer>().sharedMaterials = new[] { skinMat, grayMat };
+            // the open well: a dark patch just outside the skin, under the shut door
+            var well = new GameObject("gearWell_" + k);
+            well.transform.SetParent(part, false);
+            well.transform.position = pivotT.position; well.transform.rotation = pivotT.rotation;
+            well.AddComponent<MeshFilter>().sharedMesh = Panel("gearWell_" + k + "_mesh", 0.004f, 0f, false);
+            well.AddComponent<MeshRenderer>().sharedMaterial = darkMat ?? grayMat;
+
+            // open angle: swing the free edge from its shut direction to hanging down, canted outboard
+            // in the door pivot's own frame (the fuselage parts are not all unrotated), about its local Z
+            var shut = pivotT.InverseTransformDirection(pts[nx, ns / 2] - hinge); shut.z = 0f;
+            var open = pivotT.InverseTransformDirection(new Vector3(sgn * Mathf.Sin(cant * Mathf.Deg2Rad), -Mathf.Cos(cant * Mathf.Deg2Rad), 0f)); open.z = 0f;
+            float ang = Mathf.Atan2(shut.x * open.y - shut.y * open.x, shut.x * open.x + shut.y * open.y) * Mathf.Rad2Deg;
             Set(lg, "gearDoors", p =>
             {
-                p.arraySize = doors.Count;
-                for (int i = 0; i < doors.Count; i++)
-                {
-                    var e = p.GetArrayElementAtIndex(i);
-                    e.FindPropertyRelative("transform").objectReferenceValue = doors[i].t;
-                    e.FindPropertyRelative("closedAngle").vector3Value = Vector3.zero;
-                    e.FindPropertyRelative("openAngle").vector3Value = new Vector3(0f, 0f, doors[i].open);
-                }
+                p.arraySize = 1;
+                var e = p.GetArrayElementAtIndex(0);
+                e.FindPropertyRelative("transform").objectReferenceValue = pivotT;
+                e.FindPropertyRelative("closedAngle").vector3Value = Vector3.zero;
+                e.FindPropertyRelative("openAngle").vector3Value = new Vector3(0f, 0f, ang);
             });
-            Note($"  well {k}: z {zc - length / 2:F2}..{zc + length / 2:F2}{(skinMat ? "" : " (no skin material)")}");
+            Note($"  door {k}: hinge {hinge:F2}, opens {ang:F0} deg, along z {pivot.z + dir * s0Hinge:F2}..{pivot.z + dir * s1Hinge:F2}{(skinMat ? "" : " (no skin material)")}");
+        }
+
+        /// <summary>
+        /// The tip-gear door, as on the real aircraft (reference photo: Commons "B-52B wingtip fuel tank and landing
+        /// gear"): a long narrow panel that hangs down beside the leg while the gear is down and shuts flush under the
+        /// wing over the stowed leg. It lies along the line the leg folds into (inboard along the swept span), 2.3 m long
+        /// and 0.38 m wide, hinged across its end at the leg, so it swings its full length down when it opens.
+        /// </summary>
+        static void AddOutriggerDoor(Component lg, string k, Transform part, Vector3 pivot, Transform hinge, Vector3 hub)
+        {
+            const float length = 2.3f, width = 0.38f;
+            var so = new SerializedObject(lg);
+            float fold = so.FindProperty("foldDegrees").floatValue;
+            var hp = hinge.parent;
+            var foldedDir = (hp.rotation * Quaternion.Euler(fold, 0f, 0f) * Quaternion.Inverse(hp.rotation) * (hub - pivot)).normalized;
+            var d = Vector3.ProjectOnPlane(foldedDir, Vector3.up).normalized;
+            var wing = part.GetComponentsInParent<Transform>().Concat(part.GetComponentsInChildren<Transform>())
+                           .Where(t => t.GetComponent<MeshFilter>() && t.name.StartsWith("wing")).Distinct().ToList();
+            float Bottom(Vector3 at) => WingBottom(wing, at.x, at.z, pivot.y) ?? pivot.y - 0.25f;
+            var p0 = pivot + d * 0.12f; p0.y = Bottom(p0) - 0.006f;
+            var p1 = pivot + d * (length + 0.12f); p1.y = Bottom(p1) - 0.006f;
+            // LandingGear animates the door's localEulerAngles from zero, so the angled frame is a parent mount and the
+            // animated door sits in it unrotated.
+            var mount = Child(part, "gearDoorMount_" + k, p0, Quaternion.LookRotation((p1 - p0).normalized, Vector3.up));
+            var pivotT = Child(mount, "gearDoor_" + k, p0, mount.rotation);
+            var panel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            panel.name = pivotT.name + "_panel";
+            Object.DestroyImmediate(panel.GetComponent<Collider>());
+            panel.transform.SetParent(pivotT, false);
+            panel.transform.localPosition = new Vector3(0f, -0.012f, (p1 - p0).magnitude * 0.5f);
+            panel.transform.localScale = new Vector3(width, 0.024f, (p1 - p0).magnitude);
+            var gray = ourRoot.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials)
+                              .FirstOrDefault(m => m && m.name.Contains("SpoilerGray"));
+            if (gray) panel.GetComponent<Renderer>().sharedMaterial = gray;
+            // +90 about local X swings the far (inboard) end straight down
+            Set(lg, "gearDoors", p =>
+            {
+                p.arraySize = 1;
+                var e = p.GetArrayElementAtIndex(0);
+                e.FindPropertyRelative("transform").objectReferenceValue = pivotT;
+                e.FindPropertyRelative("closedAngle").vector3Value = Vector3.zero;
+                e.FindPropertyRelative("openAngle").vector3Value = new Vector3(85f, 0f, 0f);
+            });
+            Note($"  door {k}: hinge {p0:F2} -> {p1:F2}, forward {pivotT.forward:F2}");
+        }
+
+        /// <summary>Lowest point of the given wing parts' skin straight below/above (x, z), under `below`.</summary>
+        static float? WingBottom(List<Transform> parts, float x, float z, float below)
+        {
+            float best = float.MaxValue;
+            foreach (var t in parts)
+            {
+                var m = t.GetComponent<MeshFilter>().sharedMesh; if (!m) continue;
+                var v = m.vertices; var tr = m.triangles;
+                for (int i = 0; i < tr.Length; i += 3)
+                {
+                    Vector3 a = t.TransformPoint(v[tr[i]]), b = t.TransformPoint(v[tr[i + 1]]), c = t.TransformPoint(v[tr[i + 2]]);
+                    float dd = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
+                    if (Mathf.Abs(dd) < 1e-9f) continue;
+                    float l1 = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / dd;
+                    float l2 = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / dd;
+                    float l3 = 1f - l1 - l2;
+                    if (l1 < -1e-4f || l2 < -1e-4f || l3 < -1e-4f) continue;
+                    float hy = l1 * a.y + l2 * b.y + l3 * c.y;
+                    if (hy < below && hy < best) best = hy;
+                }
+            }
+            return best == float.MaxValue ? (float?)null : best;
         }
 
         static List<(Vector3 a, Vector3 b, Vector3 c, Vector2 ua, Vector2 ub, Vector2 uc)> bellyTris;

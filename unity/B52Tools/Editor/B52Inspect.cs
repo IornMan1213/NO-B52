@@ -139,9 +139,9 @@ namespace B52Tools
         }
 
         /// Poses every LandingGear the way LandingGear.MoveGear does at fold fraction f (hinge about local X by
-        /// f * foldDegrees, hingeFoldMotion * f, strut swivel f * strutRotation; doors open while 0 < f, shut at 0 and 1
+        /// f * foldDegrees, hingeFoldMotion * f, strut swivel f * strutRotation; doors open unless stowed
         /// as GearSystem / LandingGear leave them), then renders the B52Shots.txt cameras for each f in
-        /// B52GearFolds.txt (one number per line) to B52Fold_<f>_<shot>.png.
+        /// B52GearFolds.txt (one number per line) to B52Fold_<f>_<shot>.png. Doors are open unless f = 1.
         public static void RenderGearFolds()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Blueprinter/Mods/B52/B52.prefab");
@@ -176,7 +176,7 @@ namespace B52Tools
                     {
                         var d = doors.GetArrayElementAtIndex(i);
                         var t = (Transform)d.FindPropertyRelative("transform").objectReferenceValue;
-                        bool open = f > 0.001f && f < 0.999f;
+                        bool open = f < 0.999f;                       // doors hang open whenever the gear is not stowed
                         if (t) t.localEulerAngles = open ? d.FindPropertyRelative("openAngle").vector3Value : Vector3.zero;
                     }
                 }
@@ -184,6 +184,13 @@ namespace B52Tools
                 {
                     var un = (GameObject)so.FindProperty("unsprung").objectReferenceValue;
                     foldLog.AppendLine($"f {f:F2} {h.name}: hinge {h.position:F2} unsprung {un.transform.position:F2}");
+                    var ds = so.FindProperty("gearDoors");
+                    for (int i = 0; i < ds.arraySize; i++)
+                    {
+                        var t = (Transform)ds.GetArrayElementAtIndex(i).FindPropertyRelative("transform").objectReferenceValue;
+                        var r = t ? t.GetComponentInChildren<Renderer>() : null;
+                        if (r) foldLog.AppendLine($"      door {t.name}: euler {t.localEulerAngles:F0} bounds c{r.bounds.center:F2} min{r.bounds.min:F2} max{r.bounds.max:F2}");
+                    }
                 }
                 foreach (var line in System.IO.File.ReadAllLines("B52Shots.txt"))
                 {

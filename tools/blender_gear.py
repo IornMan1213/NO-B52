@@ -33,10 +33,10 @@ def mat(name, rgb, metal, rough):
     return m
 
 
-M_STRUT = mat('B52_GearMetal', (0.55, 0.56, 0.58), 0.8, 0.35)
+M_STRUT = mat('B52_GearMetal', (0.80, 0.81, 0.82), 0.15, 0.5)       # white-painted legs
 M_CHROME = mat('B52_GearChrome', (0.85, 0.86, 0.88), 1.0, 0.12)
 M_RUBBER = mat('B52_Tyre', (0.03, 0.03, 0.03), 0.0, 0.9)
-M_RIM = mat('B52_GearRim', (0.70, 0.71, 0.72), 0.7, 0.3)
+M_RIM = mat('B52_GearRim', (0.88, 0.88, 0.87), 0.1, 0.45)          # white wheels and hub caps
 M_DARK = mat('B52_GearDark', (0.12, 0.12, 0.13), 0.5, 0.6)
 
 
@@ -75,7 +75,7 @@ class Geo:
         rot = d.to_track_quat('Z', 'X').to_matrix()
         self.box((p0 + p1) / 2, (w, h, d.length), m, rot)
 
-    def lathe(self, centre, axis, profile, m, seg=32):
+    def lathe(self, centre, axis, profile, m, seg=32, caps=True):
         """Surface of revolution around `axis` through `centre`; profile = [(offset along axis, radius), ...]."""
         c, a = Vector(centre), Vector(axis).normalized()
         u = a.orthogonal().normalized(); w = a.cross(u)
@@ -92,7 +92,7 @@ class Geo:
                 jj = (j + 1) % seg
                 f = self.bm.faces.new((rings[k][j], rings[k][jj], rings[k + 1][jj], rings[k + 1][j])); f.material_index = i
         for ring, flip in ((rings[0], True), (rings[-1], False)):            # caps
-            if profile[0 if flip else -1][1] > 1e-4:
+            if caps and profile[0 if flip else -1][1] > 1e-4:
                 f = self.bm.faces.new(list(reversed(ring)) if flip else ring); f.material_index = i
 
     def write(self, name, origin, parent, keep_world=True):
@@ -114,32 +114,39 @@ class Geo:
         return o
 
 
-def tyre(g, centre, r, w, rim_r, cap=True):
-    """Tyre with rounded shoulders, a rim recessed into it and a hub cap, axle along X."""
+def tyre(g, centre, r, w, rim_r, cap=True, grooves=4):
+    """Tyre with rounded shoulders and a ribbed tread, a dished wheel recessed into it, a bolt ring and a domed hub
+    cap; axle along X. Real 56x16 main tyres: rim about half the tyre diameter, tread with straight ribs."""
     h = w / 2
     sh = min(0.09, r * 0.15)                                    # shoulder radius
     prof = [(-h * 0.92, rim_r), (-h, rim_r + 0.03), (-h, r - sh)]
     for i in range(1, 5):                                       # shoulder arcs
         a = math.pi / 2 * i / 5
         prof.append((-h + sh - sh * math.cos(a), r - sh + sh * math.sin(a)))
-    prof += [(-h + sh, r), (h - sh, r)]
+    x0, x1 = -h + sh, h - sh
+    prof.append((x0, r))
+    for k in range(1, grooves + 1):                             # grooves between the ribs
+        gx = x0 + (x1 - x0) * k / (grooves + 1)
+        prof += [(gx - 0.011, r), (gx - 0.007, r - 0.014), (gx + 0.007, r - 0.014), (gx + 0.011, r)]
+    prof.append((x1, r))
     for i in range(1, 5):
         a = math.pi / 2 * i / 5
         prof.append((h - sh + sh * math.sin(a), r - sh * (1 - math.cos(a))))
     prof += [(h, r - sh), (h, rim_r + 0.03), (h * 0.92, rim_r)]
-    g.lathe(centre, (1, 0, 0), prof, M_RUBBER)
-    # rim: dished wheel inside the tyre bead
-    g.lathe(centre, (1, 0, 0), [(-h * 0.92, 0.0), (-h * 0.92, rim_r * 0.35), (-h * 0.75, rim_r * 0.55),
-                                (-h * 0.85, rim_r), (h * 0.85, rim_r), (h * 0.75, rim_r * 0.55),
-                                (h * 0.92, rim_r * 0.35), (h * 0.92, 0.0)], M_RIM, seg=24)
-    if cap:
-        for s in (-1, 1):
-            g.lathe(Vector(centre) + Vector((s * h * 0.92, 0, 0)), (s, 0, 0),
-                    [(0, 0.12), (0.035, 0.10), (0.05, 0.0)], M_RIM, seg=16)
-            for k in range(8):                                  # wheel bolts
-                b = 2 * math.pi * k / 8
-                p = Vector(centre) + Vector((s * h * 0.93, math.cos(b) * 0.17, math.sin(b) * 0.17))
-                g.cyl(p, p + Vector((s * 0.02, 0, 0)), 0.018, M_DARK, seg=6)
+    g.lathe(centre, (1, 0, 0), prof, M_RUBBER, seg=40, caps=False)     # open at the bead: the wheel fills it
+    # wheel: flat outer disc with a raised flange, dished centre
+    g.lathe(centre, (1, 0, 0), [(-h * 0.90, 0.0), (-h * 0.90, rim_r * 0.30), (-h * 0.80, rim_r * 0.55),
+                                (-h * 0.88, rim_r * 0.92), (-h * 0.95, rim_r), (h * 0.95, rim_r), (h * 0.88, rim_r * 0.92),
+                                (h * 0.80, rim_r * 0.55), (h * 0.90, rim_r * 0.30), (h * 0.90, 0.0)], M_RIM, seg=32)
+    for s_ in (-1, 1):
+        if cap:
+            g.lathe(Vector(centre) + Vector((s_ * h * 0.90, 0, 0)), (s_, 0, 0),
+                    [(0, 0.15), (0.03, 0.145), (0.065, 0.115), (0.085, 0.06), (0.09, 0.0)], M_RIM, seg=24)   # hub cap
+        n = 20 if cap else 10
+        for k in range(n):                                      # bolt ring
+            b = 2 * math.pi * k / n
+            p = Vector(centre) + Vector((s_ * h * 0.905, math.cos(b) * rim_r * 0.72, math.sin(b) * rim_r * 0.72))
+            g.cyl(p, p + Vector((s_ * 0.012, 0, 0)), 0.016, M_DARK, seg=6)
 
 
 def endpoints(name):
@@ -156,29 +163,39 @@ for k in MAIN:
     hub = bpy.data.objects[f'gear_unsprung_{k}'].matrix_world.translation.copy()
     pivot = Vector((c.x, c.y, ztop))
     sgn = 1 if k[1] == 'R' else -1
-    R, W, OFF, RIM = 0.71, 0.41, 0.24, 0.43
+    R, W, OFF, RIM = 0.71, 0.41, 0.24, 0.40
 
-    # sprung: trunnion, oleo cylinder, gland nut, upper torque link lug, side brace stub
+    # sprung (as on the B-52H, front view): a bulbous upper housing on the trunnion, a fat oleo body, a dark gland
+    # ring, and the twin steering-actuator cylinders across the front of the strut base; torque links at the back.
     g = Geo()
     g.cyl(pivot + Vector((-0.38, 0, 0)), pivot + Vector((0.38, 0, 0)), 0.11, M_STRUT)          # trunnion
     for s in (-1, 1):
         g.cyl(pivot + Vector((s * 0.38, 0, 0)), pivot + Vector((s * 0.46, 0, 0)), 0.14, M_DARK)  # trunnion bearings
-    cyl_bot = hub.z + 0.47
-    g.cyl(pivot + Vector((0, 0, 0.05)), Vector((pivot.x, pivot.y, cyl_bot)), 0.155, M_STRUT, seg=20)
-    g.cyl(Vector((pivot.x, pivot.y, cyl_bot + 0.06)), Vector((pivot.x, pivot.y, cyl_bot - 0.02)), 0.175, M_DARK, seg=20)
-    g.box((pivot.x, pivot.y + 0.17, cyl_bot + 0.04), (0.10, 0.09, 0.08), M_STRUT)               # torque-link lug
+    cyl_bot = hub.z + 0.40
+    top_h = pivot.z - 0.32
+    g.cyl(Vector((pivot.x, pivot.y, pivot.z + 0.10)), Vector((pivot.x, pivot.y, top_h)), 0.21, M_STRUT, seg=24)   # upper housing
+    g.cyl(Vector((pivot.x, pivot.y, pivot.z + 0.10)), Vector((pivot.x, pivot.y, pivot.z + 0.22)), 0.21, M_STRUT, seg=24, r1=0.12)
+    g.cyl(Vector((pivot.x, pivot.y, top_h + 0.02)), Vector((pivot.x, pivot.y, cyl_bot)), 0.165, M_STRUT, seg=24)  # oleo body
+    g.cyl(Vector((pivot.x, pivot.y, top_h + 0.03)), Vector((pivot.x, pivot.y, top_h - 0.03)), 0.215, M_DARK, seg=24)
+    g.cyl(Vector((pivot.x, pivot.y, cyl_bot + 0.05)), Vector((pivot.x, pivot.y, cyl_bot - 0.02)), 0.18, M_DARK, seg=24)
+    for s in (-1, 1):                                                                            # steering actuators
+        c0 = Vector((pivot.x + s * 0.125, pivot.y + 0.02, cyl_bot + 0.13))
+        g.cyl(c0, c0 + Vector((0, 0.30, 0)), 0.105, M_STRUT, seg=20)
+        g.cyl(c0 + Vector((0, 0.30, 0)), c0 + Vector((0, 0.32, 0)), 0.085, M_DARK, seg=20)
+    g.box((pivot.x, pivot.y - 0.18, cyl_bot + 0.04), (0.10, 0.09, 0.08), M_STRUT)               # torque-link lug
     g.bar(Vector((pivot.x, pivot.y, pivot.z - 0.18)), Vector((pivot.x - sgn * 0.55, pivot.y - 0.35, pivot.z + 0.10)),
           0.07, 0.07, M_STRUT)                                                                    # side-brace stub
     so = g.write(f'gear_{k}', pivot, parent)
 
-    # unsprung: chrome piston, yoke, axle beam, brake housings
+    # unsprung: chrome piston, axle housing with its jacking pad, axle, brake housings
     g = Geo()
-    g.cyl(Vector((hub.x, hub.y, hub.z + 0.14)), Vector((hub.x, hub.y, cyl_bot + 0.30)), 0.115, M_CHROME, seg=20)
-    g.box(hub + Vector((0, 0, 0.10)), (0.30, 0.26, 0.16), M_STRUT)                              # yoke
-    g.box(hub + Vector((0, 0.16, 0.07)), (0.10, 0.09, 0.07), M_STRUT)                            # lower link lug
-    g.cyl(hub + Vector((-0.48, 0, 0)), hub + Vector((0.48, 0, 0)), 0.085, M_STRUT)               # axle
+    g.cyl(Vector((hub.x, hub.y, hub.z + 0.20)), Vector((hub.x, hub.y, cyl_bot + 0.30)), 0.13, M_CHROME, seg=24)
+    g.box(hub + Vector((0, 0, 0.12)), (0.42, 0.34, 0.20), M_STRUT)                              # axle housing
+    g.box(hub + Vector((0, 0, -0.13)), (0.20, 0.20, 0.07), M_DARK)                               # jacking pad
+    g.box(hub + Vector((0, -0.18, 0.07)), (0.10, 0.09, 0.07), M_STRUT)                           # lower link lug
+    g.cyl(hub + Vector((-0.48, 0, 0)), hub + Vector((0.48, 0, 0)), 0.09, M_STRUT)                # axle
     for s in (-1, 1):                                                                            # brake housings
-        g.cyl(hub + Vector((s * (OFF - W * 0.3), 0, 0)), hub + Vector((s * (OFF + W * 0.05), 0, 0)), 0.30, M_DARK, seg=20)
+        g.cyl(hub + Vector((s * (OFF - W * 0.3), 0, 0)), hub + Vector((s * (OFF + W * 0.05), 0, 0)), 0.28, M_DARK, seg=24)
     uo = g.write(f'gear_unsprung_{k}', hub, so)
 
     for i, dx in enumerate((-OFF, OFF)):
@@ -186,10 +203,10 @@ for k in MAIN:
         tyre(g, centre, R, W, RIM)
         g.write(f'wheel_{k}{i + 1}', centre, uo)
 
-    # torque links (scissor): upper on the strut, lower on the piston, meeting at an elbow ahead of the strut
-    top = Vector((pivot.x, pivot.y + 0.17, cyl_bot + 0.04))
-    bot = hub + Vector((0, 0.16, 0.07))
-    elbow = (top + bot) / 2 + Vector((0, 0.24, 0))
+    # torque links (scissor) behind the strut: upper on the oleo body, lower on the axle housing
+    top = Vector((pivot.x, pivot.y - 0.18, cyl_bot + 0.04))
+    bot = hub + Vector((0, -0.18, 0.07))
+    elbow = (top + bot) / 2 + Vector((0, -0.22, 0))
     g = Geo(); g.bar(top, elbow, 0.07, 0.05, M_STRUT); g.cyl(elbow + Vector((-0.05, 0, 0)), elbow + Vector((0.05, 0, 0)), 0.035, M_DARK, seg=8)
     g.write(f'tlinkU_{k}', top, so)
     g = Geo(); g.bar(bot, elbow, 0.07, 0.05, M_STRUT)
@@ -210,21 +227,28 @@ for k in OUT:
     R, W, RIM = 0.405, 0.25, 0.22
     cyl_bot = hub.z + R + 0.55
 
+    # Real tip gear (reference photo: Commons "B-52B wingtip fuel tank and landing gear"): a straight oleo leg, then an
+    # arm angling forward from its foot to a stub axle, the single wheel on the outboard side of the arm (slightly ahead
+    # of the leg, which also keeps the stowed wheel inside the wing).
+    side = 1 if c.x > 0 else -1
+    wheel_c = hub + Vector((side * 0.17, 0.15, 0))             # ahead of and outboard of the leg axis
     g = Geo()
     g.cyl(pivot + Vector((0, -0.25, 0)), pivot + Vector((0, 0.25, 0)), 0.09, M_STRUT)             # fore-aft trunnion
-    g.cyl(pivot, Vector((pivot.x, pivot.y, cyl_bot)), 0.10, M_STRUT, seg=16)
+    g.cyl(pivot, Vector((pivot.x, pivot.y, cyl_bot)), 0.10, M_STRUT, seg=16)                     # oleo cylinder
     g.cyl(Vector((pivot.x, pivot.y, cyl_bot + 0.05)), Vector((pivot.x, pivot.y, cyl_bot - 0.02)), 0.12, M_DARK, seg=16)
     so = g.write(f'gear_{k}', pivot, parent)
 
     g = Geo()
-    g.cyl(Vector((hub.x, hub.y, hub.z + R + 0.08)), Vector((hub.x, hub.y, cyl_bot + 0.45)), 0.075, M_CHROME)
-    g.box(Vector((hub.x, hub.y, hub.z + R + 0.06)), (0.42, 0.16, 0.08), M_STRUT)                 # fork crown
-    for s in (-1, 1):                                                                             # fork legs
-        g.bar(Vector((hub.x + s * 0.18, hub.y, hub.z + R + 0.06)), Vector((hub.x + s * 0.18, hub.y, hub.z)), 0.05, 0.12, M_STRUT)
-    g.cyl(hub + Vector((-0.21, 0, 0)), hub + Vector((0.21, 0, 0)), 0.04, M_STRUT)
+    knee = Vector((hub.x, hub.y, hub.z + 0.42))
+    g.cyl(knee + Vector((0, 0, 0.02)), Vector((hub.x, hub.y, cyl_bot + 0.45)), 0.075, M_CHROME)   # piston
+    g.box(knee, (0.16, 0.18, 0.14), M_STRUT)                                                      # knee casting
+    arm_end = wheel_c + Vector((-side * 0.13, 0, 0))
+    g.bar(knee, arm_end, 0.08, 0.10, M_STRUT)                                                     # wheel arm
+    g.cyl(arm_end, wheel_c + Vector((side * 0.05, 0, 0)), 0.045, M_STRUT)                         # stub axle
+    g.box(knee + Vector((0, 0.11, 0.10)), (0.05, 0.04, 0.22), M_STRUT)                            # torque link
     uo = g.write(f'gear_unsprung_{k}', hub, so)
-    g = Geo(); tyre(g, hub, R, W, RIM, cap=False)
-    g.write(f'wheel_{k}', hub, uo)
+    g = Geo(); tyre(g, wheel_c, R, W, RIM, cap=False)
+    g.write(f'wheel_{k}', wheel_c, uo)
     report.append(f'{k}: pivot {tuple(round(x, 2) for x in pivot)} hub {tuple(round(x, 2) for x in hub)}')
 
 bpy.ops.wm.save_mainfile()

@@ -157,8 +157,9 @@ for s in (-1, 1):
     for py in (24.0, 24.45, 24.95):
         b.box((s * 1.13, py, 0.74), (0.05, 0.06, 0.62), M['wall'], rot=Matrix.Rotation(math.radians(-s * 18), 3, 'Y'))
 # ceiling with overhead panel
-b.box((0, (Y0 + 24.95) / 2, ROOF + 0.03), (2.3, 24.95 - Y0, 0.05), M['wall'])
-b.box((0, 24.5, ROOF - 0.04), (0.9, 0.85, 0.08), M['panelTex2'], rot=rx(-8))
+CEIL_END = 24.20                    # ceiling stops behind the pilots' heads: the eyebrow windows stay clear
+b.box((0, (Y0 + CEIL_END) / 2, ROOF + 0.03), (2.3, CEIL_END - Y0, 0.05), M['wall'])
+b.box((0, 23.80, ROOF - 0.04), (0.9, 0.70, 0.08), M['panelTex2'], rot=rx(-8))          # overhead panel
 # aft bulkhead with the crawlway door to the aft fuselage
 b.box((0, Y0, (FLOOR + ROOF) / 2), (2.7, 0.05, ROOF - FLOOR), M['wall'])
 b.box((0, Y0 + 0.03, FLOOR + 0.55), (0.55, 0.01, 1.0), M['black'])
@@ -193,8 +194,10 @@ b = Builder()
 PANEL_Y, PANEL_TILT = 25.55, 12        # panel face plane, leaning back 12 degrees
 panel_rot = rx(-PANEL_TILT)
 b.box((0, PANEL_Y + 0.05, -0.02), (2.1, 0.08, 0.72), M['panel'], rot=panel_rot)
-b.box((0, PANEL_Y - 0.04, 0.33), (1.9, 0.24, 0.04), M['glare'], rot=rx(4))          # glareshield
-b.box((0, PANEL_Y - 0.16, 0.31), (1.9, 0.03, 0.06), M['glare'])                       # glareshield lip
+b.box((0, PANEL_Y - 0.08, 0.34), (2.0, 0.36, 0.04), M['glare'], rot=rx(4))          # glareshield hood
+b.box((0, PANEL_Y - 0.26, 0.31), (2.0, 0.03, 0.08), M['glare'])                       # glareshield lip
+for sx in (-1, 1):
+    b.box((sx * 0.99, PANEL_Y - 0.08, 0.20), (0.03, 0.36, 0.26), M['glare'])             # hood cheeks
 # centre pedestal under the panel
 b.box((0, PANEL_Y - 0.1, -0.35), (0.42, 0.25, 0.32), M['panel'])
 
@@ -217,41 +220,70 @@ def screen(cx, cz, w, h, m, name):
     return s
 
 
-# CONECT layout: two 8x10 MFDs per pilot plus a large centre tactical display.
+# Real B-52 layout (reference photo: Commons "B-52 cockpit.jpg"): the engine instrument block (8 engines x 5 rows)
+# in the middle, a CRT screen either side of it (the left one shows the game's live tactical map), the flight
+# instruments outboard on each side, a small display under each CRT.
 screens = [
-    screen(-0.78, 0.02, 0.20, 0.25, M['pfd'], 'mfd_L1_screen'),
-    screen(-0.50, 0.02, 0.20, 0.25, M['eng'], 'mfd_L2_screen'),
-    screen(0.0, 0.02, 0.30, 0.30, M['tsd'], 'mfd_C_screen'),
-    screen(0.50, 0.02, 0.20, 0.25, M['eng'], 'mfd_R2_screen'),
-    screen(0.78, 0.02, 0.20, 0.25, M['pfd'], 'mfd_R1_screen'),
+    screen(-0.47, 0.10, 0.28, 0.22, M['tsd'], 'mfd_C_screen'),     # pilot's CRT: live tactical map (Unity)
+    screen(0.47, 0.10, 0.28, 0.22, M['eng'], 'mfd_R2_screen'),     # copilot's CRT
+    screen(-0.47, -0.17, 0.18, 0.13, M['pfd'], 'mfd_L1_screen'),
+    screen(0.47, -0.17, 0.18, 0.13, M['pfd'], 'mfd_R1_screen'),
 ]
-# Standby instruments (round) and switch strip under the displays
 off = panel_rot @ Vector((0, -1, 0))
 up_p = panel_rot @ Vector((0, 0, 1)); right_p = Vector((1, 0, 0))
-# Standby instruments: ASI and altimeter left of centre, ADI and VSI right. B52Systems.Instruments drives the
-# needle_* objects (rotation about the panel normal) and adi_card (roll about the normal, pitch along panel-up).
-for gx, gz, kind in ((-0.25, 0.10, 'asi'), (-0.25, -0.15, 'alt'), (0.25, 0.10, 'adi'), (0.25, -0.15, 'vsi')):
+
+
+def round_gauge(gx, gz, r, face_mat, needle=None):
     c = Vector((gx, PANEL_Y, gz)) + off * 0.02
-    b.cyl(c - off * 0.01, c + off * 0.025, 0.055, M['black'], 24)
-    face = c + off * 0.026
-    r = 0.047
-    if kind == 'adi':
-        # Card shows the middle half of the tall sky/ground texture; the plugin scrolls its UVs for pitch and
-        # rolls the card about the panel normal.
+    b.cyl(c - off * 0.01, c + off * 0.022, r + 0.008, M['black'], 20)
+    face = c + off * 0.023
+    b.quad([face - right_p * r - up_p * r, face + right_p * r - up_p * r,
+            face + right_p * r + up_p * r, face - right_p * r + up_p * r], face_mat)
+    if needle:
+        nd = obj('needle_' + needle, root, tuple(face + off * 0.002))
+        nb = Builder()
+        nb.box(face + off * 0.002 + up_p * r * 0.42, (0.004, 0.002, r * 0.85), M['needle'], rot=panel_rot)
+        nb.write(nd)
+    else:                                   # fixed pointer on decorative gauges
+        b.box(face + off * 0.002 + up_p * r * 0.35, (0.003, 0.002, r * 0.7), M['needle'], rot=panel_rot)
+    return face
+
+
+# engine instrument block: 8 columns (one per engine) x 5 rows (EPR, N1, EGT, N2, fuel flow)
+for col in range(8):
+    for row in range(5):
+        gx = -0.2275 + col * 0.065
+        gz = 0.245 - row * 0.068
+        round_gauge(gx, gz, 0.026, M['alt' if (row + col) % 2 else 'vsi'])
+b.box(Vector((0, PANEL_Y, 0.105)) + off * 0.012, (0.54, 0.01, 0.37), M['black'], rot=panel_rot)   # block backing
+
+# pilot's flight instruments (driven by B52Systems.Instruments) and the copilot's (decorative)
+for sx, live in ((-1, True), (1, False)):
+    gx_in, gx_out = sx * 0.76, sx * 0.93
+    if live:
+        c = Vector((gx_in, PANEL_Y, 0.12)) + off * 0.02
+        b.cyl(c - off * 0.01, c + off * 0.025, 0.063, M['black'], 24)
+        face = c + off * 0.026
+        r = 0.055
         card = obj('adi_card', root, tuple(face))
         cb = Builder()
         cb.quad([face - right_p * r - up_p * r, face + right_p * r - up_p * r,
                  face + right_p * r + up_p * r, face - right_p * r + up_p * r], M['adi'],
                 uv=((0, 0.25), (1, 0.25), (1, 0.75), (0, 0.75)))
         cb.write(card)
-        b.box(face + off * 0.004, (0.05, 0.003, 0.004), M['yellow'], rot=panel_rot)   # fixed aircraft symbol
+        b.box(face + off * 0.004, (0.06, 0.003, 0.004), M['yellow'], rot=panel_rot)   # fixed aircraft symbol
+        round_gauge(gx_out, 0.12, 0.048, M['asi'], 'asi')
+        round_gauge(gx_in, -0.07, 0.048, M['alt'], 'alt')
+        round_gauge(gx_out, -0.07, 0.048, M['vsi'], 'vsi')
     else:
-        b.quad([face - right_p * r - up_p * r, face + right_p * r - up_p * r,
-                face + right_p * r + up_p * r, face - right_p * r + up_p * r], M[kind])
-        nd = obj('needle_' + kind, root, tuple(face + off * 0.002))
-        nb = Builder()
-        nb.box(face + off * 0.002 + up_p * r * 0.42, (0.004, 0.002, r * 0.85), M['needle'], rot=panel_rot)
-        nb.write(nd)
+        round_gauge(gx_in, 0.12, 0.055, M['adi'])
+        round_gauge(gx_out, 0.12, 0.048, M['asi'])
+        round_gauge(gx_in, -0.07, 0.048, M['alt'])
+        round_gauge(gx_out, -0.07, 0.048, M['vsi'])
+    for k, gz in enumerate((-0.22, -0.30)):                                          # small lower gauges
+        round_gauge(sx * 0.70, gz, 0.03, M['alt'])
+        round_gauge(sx * 0.82, gz, 0.03, M['vsi'])
+        round_gauge(sx * 0.94, gz, 0.03, M['alt'])
 b.box(Vector((0, PANEL_Y, -0.27)) + off * 0.02, (1.9, 0.02, 0.14), M['panelTex'], rot=panel_rot)
 panelo = b.write(obj('cp_panel', root, (0, PANEL_Y, 0)))
 
@@ -260,19 +292,31 @@ b = Builder()
 for s in (-1, 1):
     b.box((s * 1.15, 24.35, -0.22), (0.38, 1.9, 0.56), M['panel'])
     b.box((s * 1.15, 24.35, 0.065), (0.38, 1.9, 0.02), M['panelTex' if s < 0 else 'panelTex2'])
-b.box((0, 24.75, -0.25), (0.40, 1.0, 0.50), M['panel'])
-b.box((0, 24.75, 0.005), (0.40, 1.0, 0.02), M['panelTex'])
-b.box((0, 24.58, 0.02), (0.30, 0.34, 0.02), M['black'])           # throttle quadrant slot plate
+b.box((0, 24.45, -0.25), (0.40, 0.66, 0.50), M['panel'])           # centre console between the seats
+b.box((0, 24.45, 0.005), (0.40, 0.66, 0.02), M['panelTex'])
 consoles = b.write(obj('cp_consoles', root, (0, 24.5, -0.2)))
 
-# Eight throttle levers in 4 pairs, pivot below the quadrant (rotate about local X).
+# Throttle pedestal under the engine block (as on the real aircraft), eight levers in four pairs on a curved
+# quadrant; the levers rotate about local X. The crosswind-crab knob and its placard sit at the pedestal's foot.
+qb = Builder()
+QY, QZ = 25.18, -0.30                                                  # quadrant pivot line
+qb.box((0, QY + 0.08, -0.43), (0.40, 0.42, 0.30), M['panel'])          # pedestal body
+qb.box((0, QY - 0.02, QZ + 0.02), (0.36, 0.30, 0.03), M['black'])      # quadrant top plate
+for sx in (-1, 1):
+    qb.box((sx * 0.19, QY, QZ + 0.06), (0.02, 0.32, 0.14), M['panel'])  # quadrant cheeks
+qb.box((0.24, QY - 0.02, QZ + 0.04), (0.03, 0.05, 0.16), M['black'])   # drag chute / air brake levers
+qb.box((-0.24, QY - 0.02, QZ + 0.04), (0.03, 0.05, 0.16), M['black'])
+crab = Vector((0, QY - 0.15, -0.47))
+qb.cyl(crab, crab + Vector((0, -0.04, 0)), 0.045, M['black'], 20)       # crosswind crab knob
+qb.box(crab + Vector((0, -0.02, -0.09)), (0.20, 0.005, 0.07), M['white'])   # crab pre-alignment placard
+qb.write(obj('cp_pedestal', root, (0, QY, QZ)))
 for i in range(8):
-    x = -0.13 + i * (0.26 / 7)
-    pivot = Vector((x, 24.55, -0.05))
+    x = -0.13 + i * (0.26 / 7) + (0.012 if i % 2 else -0.012)
+    pivot = Vector((x, QY, QZ))
     t = obj(f'throttle_{i + 1}', root, tuple(pivot))
     tb = Builder()
-    tb.box(pivot + Vector((0, 0.0, 0.13)), (0.012, 0.016, 0.26), M['metal'])
-    tb.box(pivot + Vector((0, -0.01, 0.27)), (0.022, 0.05, 0.028), M['black'])
+    tb.box(pivot + Vector((0, -0.03, 0.13)), (0.010, 0.014, 0.26), M['metal'], rot=rx(14))
+    tb.box(pivot + Vector((0, -0.07, 0.27)), (0.024, 0.045, 0.034), M['white'])      # white knobs, as in the photo
     tb.write(t)
 
 # ------------------------------------------------------------------ yokes (B-52 control wheels) and rudder pedals
@@ -291,7 +335,8 @@ for side, sx in (('L', -0.55), ('R', 0.55)):
     yb.cyl(hub + Vector((-0.16, -0.05, 0)), hub + Vector((0.16, -0.05, 0)), 0.012, M['black'])
     yb.box(hub + Vector((-0.17, -0.05, 0.05)), (0.03, 0.03, 0.06), M['black'])
     yb.box(hub + Vector((0.17, -0.05, 0.05)), (0.03, 0.03, 0.06), M['black'])
-    yb.box(hub + Vector((0, -0.07, 0.02)), (0.06, 0.01, 0.04), M['white'])
+    yb.cyl(hub + Vector((0, -0.05, 0)), hub + Vector((0, -0.075, 0)), 0.07, M['black'], 24)     # emblem hub
+    yb.torus(hub + Vector((0, -0.076, 0)), (0, 1, 0), 0.055, 0.004, M['white'], seg=24, rseg=4)  # emblem ring
     yb.write(y)
     pb = Builder()
     for px in (-0.13, 0.13):

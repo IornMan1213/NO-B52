@@ -5,10 +5,9 @@ using UnityEngine;
 namespace B52Systems
 {
     /// <summary>
-    /// B-52 landing gear behaviour the game's LandingGear doesn't have.
-    ///  - Well doors: LandingGear opens a gear's doors before extending and leaves them open while the gear is down.
-    ///    The B-52's main-gear well doors close again once the gear is locked down (the struts pass the door line
-    ///    outboard of them), and open for retraction while the trucks start to fold; LandingGear closes them after.
+    /// B-52 landing gear behaviour the game's LandingGear doesn't have. (The gear doors need nothing extra: like the
+    /// real aircraft's, they open before the gear extends, hang open while it is down and shut after it retracts,
+    /// which is LandingGear's own sequence.)
     ///  - Crosswind crab: on the real aircraft all four main trucks can be turned up to 20 deg either side of the
     ///    fuselage line (crab-angle knob on the centre pedestal), so it lands and takes off pointing into the wind
     ///    with the wheels running straight down the runway. Here: keys (default [ and ] in 5 deg steps, \ to centre)
@@ -17,9 +16,7 @@ namespace B52Systems
     /// </summary>
     public class GearSystem : MonoBehaviour
     {
-        private const float DoorCloseTime = 1.2f, DoorOpenTime = 0.6f, CrabMax = 20f, CrabStep = 5f, CrabSlew = 5f;
-        private static readonly AccessTools.FieldRef<LandingGear, List<LandingGear.GearDoor>> DoorsRef =
-            AccessTools.FieldRefAccess<LandingGear, List<LandingGear.GearDoor>>("gearDoors");
+        private const float CrabMax = 20f, CrabStep = 5f, CrabSlew = 5f;
         private static readonly AccessTools.FieldRef<LandingGear, Transform> SwivelRef =
             AccessTools.FieldRefAccess<LandingGear, Transform>("strutRotationTransform");
         private static readonly AccessTools.FieldRef<LandingGear, float> StrutRotRef =
@@ -29,10 +26,8 @@ namespace B52Systems
         private static float messageUntil;
 
         private Aircraft aircraft;
-        private readonly List<LandingGear.GearDoor> doors = new List<LandingGear.GearDoor>();
         private readonly List<Transform> swivels = new List<Transform>();
-        private LandingGear.GearState lastState = LandingGear.GearState.Uninitialized;
-        private float doorTimer = -1f, doorFrom, doorTo, crab;
+        private float crab;
 
         private void Start()
         {
@@ -40,8 +35,7 @@ namespace B52Systems
             if (!aircraft) { Destroy(this); return; }
             foreach (var lg in GetComponentsInChildren<LandingGear>(true))
             {
-                if (StrutRotRef(lg) == 0f) continue;            // outriggers: no well doors, no crab
-                doors.AddRange(DoorsRef(lg));
+                if (StrutRotRef(lg) == 0f) continue;            // outriggers don't crab
                 var sw = SwivelRef(lg);
                 if (sw) swivels.Add(sw);
             }
@@ -51,24 +45,6 @@ namespace B52Systems
         {
             if (!aircraft) return;
             var state = aircraft.gearState;
-            if (state != lastState)
-            {
-                if (state == LandingGear.GearState.LockedExtended)
-                    StartDoors(1f, 0f, lastState == LandingGear.GearState.Uninitialized ? 0.01f : DoorCloseTime);
-                else if (state == LandingGear.GearState.Retracting)
-                    StartDoors(0f, 1f, DoorOpenTime);
-                else doorTimer = -1f;                           // Extending / LockedRetracted: LandingGear drives the doors
-                lastState = state;
-            }
-            if (doorTimer >= 0f)
-            {
-                doorTimer += Time.deltaTime;
-                float t = Mathf.Clamp01(doorTimer / doorDuration);
-                float open = Mathf.Lerp(doorFrom, doorTo, Mathf.SmoothStep(0f, 1f, t));
-                foreach (var d in doors) d.Animate(open);
-                if (t >= 1f) doorTimer = -1f;
-            }
-
             if (GameManager.IsLocalAircraft(aircraft)) HandleCrabKeys();
             float target = GameManager.IsLocalAircraft(aircraft) ? CrabSelected : 0f;
             if (state == LandingGear.GearState.LockedExtended)
@@ -77,13 +53,6 @@ namespace B52Systems
                 foreach (var sw in swivels) if (sw) sw.localEulerAngles = new Vector3(0f, crab, 0f);
             }
             else crab = 0f;                                     // LandingGear owns the swivel while folding
-        }
-
-        private float doorDuration = 1f;
-
-        private void StartDoors(float from, float to, float duration)
-        {
-            doorFrom = from; doorTo = to; doorDuration = duration; doorTimer = 0f;
         }
 
         private static void HandleCrabKeys()
