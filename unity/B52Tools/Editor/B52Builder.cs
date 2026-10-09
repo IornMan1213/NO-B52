@@ -1482,7 +1482,7 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.4.0";
+        public const string Version = "0.4.1";
         // tools/build_all.sh sets B52_BUILD_DIR to the repo's build/ folder; otherwise build/ inside the Unity project.
         static string BuildDir => System.Environment.GetEnvironmentVariable("B52_BUILD_DIR") ?? System.IO.Path.GetFullPath("build");
 

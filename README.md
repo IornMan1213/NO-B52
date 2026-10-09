@@ -6,7 +6,7 @@ airframe numbers with the B-52J modernisation: F130 engines, an AESA radar and a
 
 ![B-52J](docs/images/hero.jpg)
 
-**Status:** work in progress, version 0.4.0. The airframe, flight model, takeoff and bombing have been tested in
+**Status:** work in progress, version 0.4.1. The airframe, flight model, takeoff and bombing have been tested in
 game. The new landing gear, gear doors, livery support and the MALD decoys are built but not yet fully tested in
 flight. Bugs are tracked in [MODLOG.md](MODLOG.md).
 
@@ -19,9 +19,11 @@ flight. Bugs are tracked in [MODLOG.md](MODLOG.md).
   - Fly-by-wire tuned for a bomber, not a fighter.
 - **Landing gear modelled on the B-52H.**
   - Four two-wheel main trucks and two wingtip outriggers.
-  - To retract, each truck swivels 90° and folds flat into its belly well, port trucks forward and starboard trucks
-    aft. The outriggers fold into the outer wing.
-  - Well doors are shaped to the belly and close once the gear is down.
+  - To retract, each truck swivels 90° and folds flat into its own well in the lower fuselage, port trucks forward
+    and starboard trucks aft. Each outrigger folds inboard into a slot in the outer wing, its wheel turning flat as
+    it goes.
+  - Real wells: the doors are the skin cut out of the hull and wing, so they close flush, and hang open while the
+    gear is down; the wells are lined inside.
   - **Crosswind crab:** turn all four trucks up to 20° left or right to land crabbed into the wind.
 - **Landing aids.**
   - Speedbrakes (spoilers) open at idle throttle.

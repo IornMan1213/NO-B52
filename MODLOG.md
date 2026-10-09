@@ -385,7 +385,7 @@ Gear (bohmerang's model has none; the previous gear was placeholder cylinders):
 - Verified with renders (renders/gear_v2): gear down doors flush; mid-fold doors open, trucks swivelling; retracted
   belly and wing clean. Not yet flown.
 
-## 0.4.0 (cont.): real gear wells
+## 0.4.1: real gear wells
 - Main wells (tools/blender_wells.py): each truck's well is cut out of the lower fuselage skin along the V-shaped
   door outline; the cut-out skin becomes the door (gearDoorPanel_<k>, flush and in the skin's paint when shut,
   hinged at the chine, hangs 35 deg outboard while the gear is down), and a dark well box sits behind it for the
