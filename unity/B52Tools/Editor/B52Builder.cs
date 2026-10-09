@@ -489,7 +489,8 @@ namespace B52Tools
 
                 // Outriggers fold inboard along the swept outer wing (~35 deg) and lie flat inside it. LandingGear folds
                 // about the hinge's local X and measures the fold from the hinge's forward vs its parent's forward, so
-                // the hinge sits unrotated under a mount turned 125 deg about Y (fold axis across the span).
+                // the hinge sits unrotated under a mount turned 125 deg about Y (fold axis across the span). The fold
+                // numbers are the ones tools/blender_wingwells.py cut the wing slot for (OutriggerFold etc.).
                 var hingeParent = parent;
                 if (outrigger) hingeParent = Child(parent, "gearMount_" + k, pivot, part.rotation * Quaternion.Euler(0f, sgn * 125f, 0f));
                 var hinge = Child(hingeParent, "gearHinge_" + k, pivot);
@@ -516,7 +517,7 @@ namespace B52Tools
                 SetRef(lg, "castPoint", bump);
                 SetRef(lg, "axle", axle);
                 SetRef(lg, "gearHinge", hinge);
-                SetRef(lg, "strutRotationTransform", outrigger ? unsprung : swivel);
+                SetRef(lg, "strutRotationTransform", swivel);
                 SetRefArray(lg, "wheels", wheels.Cast<Object>().ToList());
                 SetRefArray(lg, "movingParts", new Object[0]);
                 Set(lg, "gearDoors", p => p.arraySize = 0);
@@ -532,14 +533,20 @@ namespace B52Tools
 
                 if (outrigger)
                 {
-                    // Pick the fold sign that swings the wheel inboard.
+                    // Pick the fold sign that swings the wheel inboard, and the swivel sign that leaves its axle
+                    // vertical (wheel flat) when stowed: the 0.31 m deep outer wing only takes the wheel lying flat.
                     var down = unsprung.position - pivot;
-                    float fold = 90f;
-                    var test = hingeParent.rotation * Quaternion.Euler(fold, 0f, 0f) * Quaternion.Inverse(hingeParent.rotation) * down;
-                    if (Mathf.Abs((pivot + test).x) > Mathf.Abs(pivot.x)) fold = -90f;
+                    float fold = OutriggerFold;
+                    Quaternion Folded(float deg) => hingeParent.rotation * Quaternion.Euler(deg, 0f, 0f) * Quaternion.Inverse(hingeParent.rotation);
+                    if (Mathf.Abs((pivot + Folded(fold) * down).x) > Mathf.Abs(pivot.x)) fold = -fold;
+                    var wheelAxle = part.right;                                    // wheel axle (along the span when down)
+                    float swiv = OutriggerSwivel;
+                    if (Mathf.Abs((Folded(fold) * Quaternion.AngleAxis(-swiv, swivel.up) * wheelAxle).y) >
+                        Mathf.Abs((Folded(fold) * Quaternion.AngleAxis(swiv, swivel.up) * wheelAxle).y)) swiv = -swiv;
                     SetF(lg, "foldDegrees", fold);
-                    SetF(lg, "strutRotation", 0f);
-                    Set(lg, "hingeFoldMotion", q => q.vector3Value = new Vector3(0f, 0.05f, 0f));
+                    SetF(lg, "strutRotation", swiv);
+                    Set(lg, "hingeFoldMotion", q => q.vector3Value = new Vector3(0f, OutriggerLift, 0f));
+                    Note($"  {k}: fold {fold}, swivel {swiv}, stowed axle {(Folded(fold) * Quaternion.AngleAxis(swiv, swivel.up) * wheelAxle):F2}");
                 }
                 else
                 {
@@ -587,7 +594,7 @@ namespace B52Tools
                 else Set(lg, "joints", p => p.arraySize = 0);
 
                 if (!outrigger) AddMainDoor(lg, k, part, pivot, sgn);
-                else AddOutriggerDoor(lg, k, part, pivot, hinge, unsprung.position);
+                else AddOutriggerDoors(lg, k, part, pivot, hinge, unsprung.position);
                 Note($"Gear {k}: travel {travel:F2} m, wheel r {wheelR}, fold {(outrigger ? "inboard" : sgn < 0 ? "forward" : "aft")}");
             }
         }
@@ -631,72 +638,61 @@ namespace B52Tools
             Note($"  door {k}: hinge {hinge:F2}, free edge {free:F2}, opens {ang:F0} deg");
         }
 
+        const float OutriggerFold = 89.75f, OutriggerSwivel = 35f, OutriggerLift = -0.025f;   // = tools/blender_wingwells.py
+
         /// <summary>
-        /// The tip-gear door, as on the real aircraft (reference photo: Commons "B-52B wingtip fuel tank and landing
-        /// gear"): a long narrow panel that hangs down beside the leg while the gear is down and shuts flush under the
-        /// wing over the stowed leg. It lies along the line the leg folds into (inboard along the swept span), 2.3 m long
-        /// and 0.38 m wide, hinged across its end at the leg, so it swings its full length down when it opens.
+        /// The tip-gear doors. tools/blender_wingwells.py cut the slot the leg and wheel fold through out of the lower
+        /// wing skin and kept the cut-out skin as two doors, so both are exactly the slot's shape and flush in the skin's
+        /// paint when shut:
+        ///   outDoorStrut_<k>_<n>  over the leg: fixed to the gear hinge, so it folds with the leg and hangs outboard of
+        ///                         the oleo when the gear is down (as the real strut doors do);
+        ///   outDoorWheel_<k>_<n>  over the wide wheel end: hinged on its aft edge (along the stowed leg), hanging down
+        ///                         10 deg out from the slot whenever the gear is not stowed.
         /// </summary>
-        static void AddOutriggerDoor(Component lg, string k, Transform part, Vector3 pivot, Transform hinge, Vector3 hub)
+        static void AddOutriggerDoors(Component lg, string k, Transform part, Vector3 pivot, Transform hinge, Vector3 hub)
         {
-            const float length = 2.3f, width = 0.38f;
+            var all = ourRoot.GetComponentsInChildren<Transform>(true);
+            var strut = all.Where(t => t.name.StartsWith("outDoorStrut_" + k + "_")).ToList();
+            var wheel = all.Where(t => t.name.StartsWith("outDoorWheel_" + k + "_")).ToList();
+            if (strut.Count == 0 || wheel.Count == 0) { Note("  ! outDoor panels missing for " + k + " (run tools/blender_wingwells.py)"); return; }
             var so = new SerializedObject(lg);
             float fold = so.FindProperty("foldDegrees").floatValue;
+            var motion = so.FindProperty("hingeFoldMotion").vector3Value;
+
+            // strut door: shut in the stowed pose, so attach it to the hinge while the hinge is posed stowed
+            var e0 = hinge.localEulerAngles; var p0 = hinge.localPosition;
+            hinge.localEulerAngles = e0 + new Vector3(fold, 0f, 0f); hinge.localPosition = p0 + motion;
+            foreach (var t in strut) t.SetParent(hinge, true);
+            hinge.localEulerAngles = e0; hinge.localPosition = p0;
+
+            // wheel door: hinge line along the stowed leg on the slot's aft edge
             var hp = hinge.parent;
-            var foldedDir = (hp.rotation * Quaternion.Euler(fold, 0f, 0f) * Quaternion.Inverse(hp.rotation) * (hub - pivot)).normalized;
-            var d = Vector3.ProjectOnPlane(foldedDir, Vector3.up).normalized;
-            var wing = part.GetComponentsInParent<Transform>().Concat(part.GetComponentsInChildren<Transform>())
-                           .Where(t => t.GetComponent<MeshFilter>() && t.name.StartsWith("wing")).Distinct().ToList();
-            float Bottom(Vector3 at) => WingBottom(wing, at.x, at.z, pivot.y) ?? pivot.y - 0.25f;
-            var p0 = pivot + d * 0.12f; p0.y = Bottom(p0) - 0.006f;
-            var p1 = pivot + d * (length + 0.12f); p1.y = Bottom(p1) - 0.006f;
-            // LandingGear animates the door's localEulerAngles from zero, so the angled frame is a parent mount and the
-            // animated door sits in it unrotated.
-            var mount = Child(part, "gearDoorMount_" + k, p0, Quaternion.LookRotation((p1 - p0).normalized, Vector3.up));
-            var pivotT = Child(mount, "gearDoor_" + k, p0, mount.rotation);
-            var panel = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            panel.name = pivotT.name + "_panel";
-            Object.DestroyImmediate(panel.GetComponent<Collider>());
-            panel.transform.SetParent(pivotT, false);
-            panel.transform.localPosition = new Vector3(0f, -0.012f, (p1 - p0).magnitude * 0.5f);
-            panel.transform.localScale = new Vector3(width, 0.024f, (p1 - p0).magnitude);
-            var gray = ourRoot.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials)
-                              .FirstOrDefault(m => m && m.name.Contains("SpoilerGray"));
-            if (gray) panel.GetComponent<Renderer>().sharedMaterial = gray;
-            // +90 about local X swings the far (inboard) end straight down
+            var d = Vector3.ProjectOnPlane(hp.rotation * Quaternion.Euler(fold, 0f, 0f) * Quaternion.Inverse(hp.rotation) * (hub - pivot), Vector3.up).normalized;
+            var aft = Vector3.Cross(Vector3.up, d); if (aft.z > 0f) aft = -aft;
+            var verts = wheel.SelectMany(t => t.GetComponent<MeshFilter>().sharedMesh.vertices.Select(v => t.TransformPoint(v))).ToList();
+            float aMax = verts.Max(v => Vector3.Dot(v - pivot, aft)), aMin = verts.Min(v => Vector3.Dot(v - pivot, aft));
+            var hingeVs = verts.Where(v => Vector3.Dot(v - pivot, aft) > aMax - 0.04f).ToList();
+            var freeVs = verts.Where(v => Vector3.Dot(v - pivot, aft) < aMin + 0.04f).ToList();
+            var hingePt = hingeVs.OrderBy(v => Vector3.Dot(v - pivot, d)).First();
+            hingePt.y = hingeVs.Max(v => v.y);
+            var free = new Vector3(freeVs.Average(v => v.x), freeVs.Average(v => v.y), freeVs.Average(v => v.z));
+            // LandingGear animates the door's localEulerAngles from zero, so the hinge-line frame is a parent mount
+            var mount = Child(part, "gearDoorMount_" + k, hingePt, Quaternion.LookRotation(d, Vector3.up));
+            var door = Child(mount, "gearDoor_" + k, hingePt, mount.rotation);
+            foreach (var t in wheel) t.SetParent(door, true);
+            var shut = mount.InverseTransformDirection(free - hingePt); shut.z = 0f;
+            const float cant = 10f;
+            var open = mount.InverseTransformDirection(-Vector3.up * Mathf.Cos(cant * Mathf.Deg2Rad) + aft * Mathf.Sin(cant * Mathf.Deg2Rad)); open.z = 0f;
+            float ang = Mathf.Atan2(shut.x * open.y - shut.y * open.x, shut.x * open.x + shut.y * open.y) * Mathf.Rad2Deg;
             Set(lg, "gearDoors", p =>
             {
                 p.arraySize = 1;
                 var e = p.GetArrayElementAtIndex(0);
-                e.FindPropertyRelative("transform").objectReferenceValue = pivotT;
+                e.FindPropertyRelative("transform").objectReferenceValue = door;
                 e.FindPropertyRelative("closedAngle").vector3Value = Vector3.zero;
-                e.FindPropertyRelative("openAngle").vector3Value = new Vector3(85f, 0f, 0f);
+                e.FindPropertyRelative("openAngle").vector3Value = new Vector3(0f, 0f, ang);
             });
-            Note($"  door {k}: hinge {p0:F2} -> {p1:F2}, forward {pivotT.forward:F2}");
-        }
-
-        /// <summary>Lowest point of the given wing parts' skin straight below/above (x, z), under `below`.</summary>
-        static float? WingBottom(List<Transform> parts, float x, float z, float below)
-        {
-            float best = float.MaxValue;
-            foreach (var t in parts)
-            {
-                var m = t.GetComponent<MeshFilter>().sharedMesh; if (!m) continue;
-                var v = m.vertices; var tr = m.triangles;
-                for (int i = 0; i < tr.Length; i += 3)
-                {
-                    Vector3 a = t.TransformPoint(v[tr[i]]), b = t.TransformPoint(v[tr[i + 1]]), c = t.TransformPoint(v[tr[i + 2]]);
-                    float dd = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
-                    if (Mathf.Abs(dd) < 1e-9f) continue;
-                    float l1 = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / dd;
-                    float l2 = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / dd;
-                    float l3 = 1f - l1 - l2;
-                    if (l1 < -1e-4f || l2 < -1e-4f || l3 < -1e-4f) continue;
-                    float hy = l1 * a.y + l2 * b.y + l3 * c.y;
-                    if (hy < below && hy < best) best = hy;
-                }
-            }
-            return best == float.MaxValue ? (float?)null : best;
+            Note($"  doors {k}: {strut.Count} strut pieces on the hinge; wheel door hinge {hingePt:F2} along {d:F2}, opens {ang:F0} deg");
         }
 
         static List<(Vector3 a, Vector3 b, Vector3 c, Vector2 ua, Vector2 ub, Vector2 uc)> bellyTris;

@@ -384,3 +384,18 @@ Gear (bohmerang's model has none; the previous gear was placeholder cylinders):
   still steer on top. On-screen "GEAR CRAB" readout. Config section [Gear].
 - Verified with renders (renders/gear_v2): gear down doors flush; mid-fold doors open, trucks swivelling; retracted
   belly and wing clean. Not yet flown.
+
+## 0.4.0 (cont.): real gear wells
+- Main wells (tools/blender_wells.py): each truck's well is cut out of the lower fuselage skin along the V-shaped
+  door outline; the cut-out skin becomes the door (gearDoorPanel_<k>, flush and in the skin's paint when shut,
+  hinged at the chine, hangs 35 deg outboard while the gear is down), and a dark well box sits behind it for the
+  truck to fold into. The model's internal faces inside the well are removed.
+- Tip gear (tools/blender_wingwells.py): the outer wing is only 0.31 m deep at the outrigger, so the old fold
+  (wheel stowed tilted 35 deg) pushed the wheel and leg through both skins. Now the wheel swivels 35 deg on the leg
+  as it folds (strutRotation on the swivel node) and stows flat; fold 89.75 deg, 2.5 cm down (hingeFoldMotion); the
+  tyre is the real 32x8.8 width and the knee, arm and oleo are slimmed so the stowed gear clears both skins to
+  within a few mm. The trunnion now lies on the fold axis.
+  The fold is simulated and everything that passes through the lower skin, in plan, is the slot (convex hull + 3 cm):
+  4.7 m long, 0.25 m wide at the hinge to 0.8 m at the wheel. The cut-out skin becomes a strut door fixed to the
+  leg (folds with it, hangs outboard of the oleo when down) and a wheel door over the wide end, hinged on its aft
+  edge and hanging down 10 deg out. A dark well box under the upper skin closes the slot inside.

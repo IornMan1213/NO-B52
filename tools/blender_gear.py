@@ -224,28 +224,31 @@ for k in OUT:
     hub = bpy.data.objects[f'gear_unsprung_{k}'].matrix_world.translation.copy()
     # trunnion in the wing's mid-plane (lower skin 0.72, upper 1.18 at the tip) so the folded leg lies inside it
     pivot = Vector((c.x, c.y, ztop + 0.30))
-    R, W, RIM = 0.405, 0.25, 0.22
+    R, W, RIM = 0.405, 0.20, 0.22                              # 32x8.8 tyre
     cyl_bot = hub.z + R + 0.55
 
     # Real tip gear (reference photo: Commons "B-52B wingtip fuel tank and landing gear"): a straight oleo leg, then an
     # arm angling forward from its foot to a stub axle, the single wheel on the outboard side of the arm (slightly ahead
-    # of the leg, which also keeps the stowed wheel inside the wing).
+    # of the leg). It folds inboard along the swept span about an axis 35 deg off fore-aft (FOLD_AXIS, as the Unity
+    # builder's gear mount) while the wheel swivels 35 deg on the leg, so it stows flat in the 0.31 m deep outer wing:
+    # everything is kept thin in the axle direction, which ends up vertical.
     side = 1 if c.x > 0 else -1
-    wheel_c = hub + Vector((side * 0.17, 0.15, 0))             # ahead of and outboard of the leg axis
+    wheel_c = hub + Vector((side * 0.13, 0.15, 0))             # ahead of and outboard of the leg axis
+    fold_axis = Vector((-math.sin(math.radians(35)), -side * math.cos(math.radians(35)), 0))
     g = Geo()
-    g.cyl(pivot + Vector((0, -0.25, 0)), pivot + Vector((0, 0.25, 0)), 0.09, M_STRUT)             # fore-aft trunnion
-    g.cyl(pivot, Vector((pivot.x, pivot.y, cyl_bot)), 0.10, M_STRUT, seg=16)                     # oleo cylinder
-    g.cyl(Vector((pivot.x, pivot.y, cyl_bot + 0.05)), Vector((pivot.x, pivot.y, cyl_bot - 0.02)), 0.12, M_DARK, seg=16)
+    g.cyl(pivot - fold_axis * 0.08, pivot + fold_axis * 0.08, 0.05, M_STRUT)                    # trunnion on the fold axis
+    g.cyl(pivot, Vector((pivot.x, pivot.y, cyl_bot)), 0.07, M_STRUT, seg=16, r1=0.092)           # oleo cylinder, slim at the top
+    g.cyl(Vector((pivot.x, pivot.y, cyl_bot + 0.05)), Vector((pivot.x, pivot.y, cyl_bot - 0.02)), 0.096, M_DARK, seg=16)
     so = g.write(f'gear_{k}', pivot, parent)
 
     g = Geo()
     knee = Vector((hub.x, hub.y, hub.z + 0.42))
     g.cyl(knee + Vector((0, 0, 0.02)), Vector((hub.x, hub.y, cyl_bot + 0.45)), 0.075, M_CHROME)   # piston
-    g.box(knee, (0.16, 0.18, 0.14), M_STRUT)                                                      # knee casting
-    arm_end = wheel_c + Vector((-side * 0.13, 0, 0))
-    g.bar(knee, arm_end, 0.08, 0.10, M_STRUT)                                                     # wheel arm
-    g.cyl(arm_end, wheel_c + Vector((side * 0.05, 0, 0)), 0.045, M_STRUT)                         # stub axle
-    g.box(knee + Vector((0, 0.11, 0.10)), (0.05, 0.04, 0.22), M_STRUT)                            # torque link
+    g.box(knee, (0.10, 0.18, 0.14), M_STRUT)                                                      # knee casting
+    arm_end = wheel_c + Vector((-side * 0.10, 0, 0))
+    g.bar(knee, arm_end, 0.06, 0.10, M_STRUT)                                                     # wheel arm
+    g.cyl(arm_end, wheel_c + Vector((side * 0.04, 0, 0)), 0.045, M_STRUT)                         # stub axle
+    g.box(knee + Vector((0, 0.10, 0.10)), (0.04, 0.04, 0.22), M_STRUT)                            # torque link
     uo = g.write(f'gear_unsprung_{k}', hub, so)
     g = Geo(); tyre(g, wheel_c, R, W, RIM, cap=False)
     g.write(f'wheel_{k}', wheel_c, uo)

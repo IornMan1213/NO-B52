@@ -198,15 +198,38 @@ namespace B52Tools
                     if (s.Length < 7 || s[0].StartsWith("#")) continue;
                     float F(int i) => float.Parse(s[i], inv);
                     cam.fieldOfView = s.Length > 7 ? F(7) : 35f;
+                    var hidden = new System.Collections.Generic.List<Renderer>();      // optional 9th field: names to hide
+                    if (s.Length > 8)
+                        foreach (var r in go.GetComponentsInChildren<Renderer>())
+                            if (s[8].Split(',').Any(n => r.transform.name.StartsWith(n))) { r.enabled = false; hidden.Add(r); }
                     camGo.transform.position = new Vector3(F(1), F(2), F(3)); camGo.transform.LookAt(new Vector3(F(4), F(5), F(6)));
                     cam.Render(); RenderTexture.active = rt;
                     var tex = new Texture2D(1280, 720, TextureFormat.RGB24, false); tex.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0); tex.Apply();
                     System.IO.File.WriteAllBytes($"B52Fold_{f.ToString("F2", inv)}_{s[0]}.png", tex.EncodeToPNG());
+                    foreach (var r in hidden) r.enabled = true;
                 }
             }
             System.IO.File.WriteAllText("B52GearFolds.log", foldLog.ToString());
             RenderTexture.active = null;
             Object.DestroyImmediate(go); Object.DestroyImmediate(camGo); Object.DestroyImmediate(lightGo);
+        }
+
+        /// Lists, for every renderer whose name starts with one of the prefixes in B52Renderers.txt, its materials and
+        /// mesh channels, to B52Renderers.log (to tell why two pieces of skin shade differently).
+        public static void Renderers()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Blueprinter/Mods/B52/B52.prefab");
+            var pre = System.IO.File.ReadAllLines("B52Renderers.txt").Where(l => l.Trim().Length > 0).ToArray();
+            var sb = new StringBuilder();
+            foreach (var r in prefab.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (!pre.Any(x => r.name.StartsWith(x.Trim()))) continue;
+                var m = r.GetComponent<MeshFilter>()?.sharedMesh;
+                sb.AppendLine($"{r.name}: enabled {r.enabled} shadows {r.shadowCastingMode}/{r.receiveShadows} mats [{string.Join(", ", r.sharedMaterials.Select(x => x ? x.name + "(" + x.shader.name + ")" : "null"))}]");
+                if (m) sb.AppendLine($"    mesh {m.name} v {m.vertexCount} sub {m.subMeshCount} colors {m.colors.Length} uv {m.uv.Length} uv2 {m.uv2.Length} normals {m.normals.Length} tangents {m.tangents.Length}" +
+                                     (m.colors.Length > 0 ? $" color0 {m.colors[0]}" : ""));
+            }
+            System.IO.File.WriteAllText("B52Renderers.log", sb.ToString());
         }
 
         /// Renders the built prefab from four angles to B52Ext_*.png (atlas / livery check).

@@ -15,6 +15,7 @@ echo "== Blender: split parts";   "$B" -b source_assets/bohmerang/source_blend/s
 echo "== Blender: face normals";  "$B" -b blender/out/B52_parts.blend --python tools/blender_normals.py 2>&1 | grep -E "NORMALS total|Error|Traceback"
 echo "== Blender: landing gear";  "$B" -b blender/out/B52_parts.blend --python tools/blender_gear.py 2>&1 | grep -E "GEAR|  [FROL][LR]:|Error|Traceback"
 echo "== Blender: gear wells";   "$B" -b blender/out/B52_parts.blend --python tools/blender_wells.py 2>&1 | grep -E "WELLS|  [FR][LR]:|Error|Traceback"
+echo "== Blender: tip gear wells"; "$B" -b blender/out/B52_parts.blend --python tools/blender_wingwells.py 2>&1 | grep -E "WINGWELLS|  O[LR]:|Error|Traceback"
 echo "== Blender: cockpit";       "$B" -b blender/out/B52_parts.blend --python tools/blender_cockpit.py 2>&1 | grep -E "COCKPIT|Error|Traceback"
 echo "== Blender: exterior atlas"; "$B" -b blender/out/B52_parts.blend --python tools/blender_atlas.py 2>&1 | grep -E "ATLAS|Error|Traceback"
 echo "== Atlas image";         python tools/make_atlas.py
