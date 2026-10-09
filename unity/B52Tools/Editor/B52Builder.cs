@@ -593,100 +593,31 @@ namespace B52Tools
         }
 
         /// <summary>
-        /// The main-gear door, as on the B-52H (reference photos): one large door per truck, hinged along the lower
-        /// fuselage side (the chine, x +-1.46) and wrapping round under the belly to near the centreline when shut. Seen
-        /// from the side it is a trapezoid: 2.75 m along the hinge, narrowing to 0.4 m at its free edge, which lies
-        /// two-thirds of the way along (long sloping edge on the truck side). It sits over
-        /// the truck's well, so ahead of a port (forward-folding) truck and behind a starboard one. With the gear down
-        /// it hangs open, canted 35 deg outboard of the tyres; LandingGear opens it before extending and shuts it after
-        /// retracting. The panel is cast onto the skin (vertical rays) with the skin's atlas UVs, so shut it reads as
-        /// belly; a dark patch on the skin under it shows as the open well.
+        /// The main-gear door, as on the B-52H (reference photos): one large V-shaped door per truck over its well, hinged
+        /// along the lower fuselage side (the chine) and hanging open, canted 35 deg outboard of the tyres, whenever the
+        /// gear is down. tools/blender_wells.py cut the well opening out of the hull and kept the cut-out skin as
+        /// gearDoorPanel_<k>, so the door is exactly the hole's shape, flush and in the skin's paint when shut; it also
+        /// built the well box (wellBox_<k>) the truck folds into. Here the panel only gets its hinge: a pivot on the top
+        /// (chine) edge, with LandingGear opening it before extending and shutting it after retracting.
         /// </summary>
         static void AddMainDoor(Component lg, string k, Transform part, Vector3 pivot, float sgn)
         {
-            const float hingeX = 1.46f, innerX = 0.30f, cant = 35f;
-            const float s0Hinge = 0.15f, s1Hinge = 2.90f, s0Free = 1.85f, s1Free = 2.25f;   // along the fuselage from the trunnion;
-            // the free edge sits 2/3 of the way along, so the edge nearest the truck slopes down and away from it
-            const int nx = 10, ns = 10;
-            float dir = sgn < 0 ? 1f : -1f;                                     // port wells ahead of the trunnion
-            var skinMat = part.GetComponent<MeshRenderer>()?.sharedMaterials.FirstOrDefault(m => m && m.name.Contains("B52_Skin"));
-            var mats = ourRoot.GetComponentsInChildren<Renderer>(true).SelectMany(r => r.sharedMaterials).Where(m => m).ToList();
-            var darkMat = mats.FirstOrDefault(m => m.name.Contains("BayInterior")) ?? mats.FirstOrDefault(m => m.name.Contains("GearDark"));
-            var grayMat = mats.FirstOrDefault(m => m.name.Contains("SpoilerGray")) ?? skinMat;
-
-            // Skin points: row i runs from the hinge (i = 0) to the free edge (i = nx); column j along the fuselage.
-            var pts = new Vector3[nx + 1, ns + 1]; var uvs = new Vector2[nx + 1, ns + 1]; var nrm = new Vector3[nx + 1, ns + 1];
-            for (int i = 0; i <= nx; i++)
-            {
-                float u = i / (float)nx;
-                float x = sgn * Mathf.Lerp(hingeX, innerX, u);
-                float sa = Mathf.Lerp(s0Hinge, s0Free, u), sb = Mathf.Lerp(s1Hinge, s1Free, u);
-                for (int j = 0; j <= ns; j++)
-                {
-                    float z = pivot.z + dir * Mathf.Lerp(sa, sb, j / (float)ns);
-                    if (!BellyHit(x, z, pivot.y + 0.6f, out var y, out var uv)) { y = pivot.y - 0.3f; uv = Vector2.zero; }
-                    pts[i, j] = new Vector3(x, y, z); uvs[i, j] = uv;
-                    nrm[i, j] = new Vector3(x, y - (pivot.y + 0.8f), 0f).normalized;              // out from the fuselage axis
-                }
-            }
-            var hinge = new Vector3(sgn * hingeX, pts[0, ns / 2].y, pivot.z + dir * (s0Hinge + s1Hinge) * 0.5f);
+            const float cant = 35f;
+            var panel = Find(ourRoot, "gearDoorPanel_" + k);
+            var mf = panel ? panel.GetComponent<MeshFilter>() : null;
+            if (!mf || !mf.sharedMesh) { Note("  ! gearDoorPanel_" + k + " missing (run tools/blender_wells.py)"); return; }
+            var verts = mf.sharedMesh.vertices.Select(v => panel.TransformPoint(v)).ToList();
+            // hinge line: the panel's outboard (chine) edge; its free edge: the vertices nearest the centreline
+            float outAbs = verts.Max(v => Mathf.Abs(v.x));
+            var hingeVs = verts.Where(v => Mathf.Abs(v.x) > outAbs - 0.04f).ToList();
+            var hinge = new Vector3(hingeVs.Average(v => v.x), hingeVs.Max(v => v.y), hingeVs.Average(v => v.z));
+            float innerAbs = verts.Min(v => Mathf.Abs(v.x));
+            var freeVs = verts.Where(v => Mathf.Abs(v.x) < innerAbs + 0.05f).ToList();
+            var free = new Vector3(freeVs.Average(v => v.x), freeVs.Average(v => v.y), freeVs.Average(v => v.z));
             var pivotT = Child(part, "gearDoor_" + k, hinge, part.rotation);
-
-            Mesh Panel(string name, float lift, float thick, bool withInner)
-            {
-                var verts = new List<Vector3>(); var uvList = new List<Vector2>(); var outer = new List<int>(); var inner = new List<int>();
-                var o = new int[nx + 1, ns + 1]; var n = new int[nx + 1, ns + 1];
-                for (int i = 0; i <= nx; i++)
-                    for (int j = 0; j <= ns; j++)
-                    {
-                        verts.Add(pivotT.InverseTransformPoint(pts[i, j] + nrm[i, j] * lift)); uvList.Add(uvs[i, j]); o[i, j] = verts.Count - 1;
-                        verts.Add(pivotT.InverseTransformPoint(pts[i, j] + nrm[i, j] * (lift - thick))); uvList.Add(uvs[i, j]); n[i, j] = verts.Count - 1;
-                    }
-                // winding: the outer face must face away from the fuselage axis
-                var a0 = pts[0, 0]; var e1 = pts[1, 0] - a0; var e2 = pts[0, 1] - a0;
-                bool flip = Vector3.Dot(Vector3.Cross(e1, e2), nrm[0, 0]) < 0f;
-                void Q(List<int> l, int a, int b, int c, int d, bool f)
-                {
-                    if (f) l.AddRange(new[] { a, c, b, a, d, c }); else l.AddRange(new[] { a, b, c, a, c, d });
-                }
-                for (int i = 0; i < nx; i++)
-                    for (int j = 0; j < ns; j++)
-                    {
-                        Q(outer, o[i, j], o[i + 1, j], o[i + 1, j + 1], o[i, j + 1], flip);
-                        if (withInner) Q(inner, n[i, j], n[i + 1, j], n[i + 1, j + 1], n[i, j + 1], !flip);
-                    }
-                if (withInner)
-                {
-                    foreach (bool f in new[] { true, false })
-                    {
-                        for (int i = 0; i < nx; i++) { Q(inner, o[i, 0], o[i + 1, 0], n[i + 1, 0], n[i, 0], f); Q(inner, o[i, ns], o[i + 1, ns], n[i + 1, ns], n[i, ns], f); }
-                        for (int j = 0; j < ns; j++) { Q(inner, o[0, j], o[0, j + 1], n[0, j + 1], n[0, j], f); Q(inner, o[nx, j], o[nx, j + 1], n[nx, j + 1], n[nx, j], f); }
-                    }
-                }
-                var mesh = new Mesh { name = name };
-                mesh.SetVertices(verts); mesh.SetUVs(0, uvList);
-                mesh.subMeshCount = withInner ? 2 : 1; mesh.SetTriangles(outer, 0); if (withInner) mesh.SetTriangles(inner, 1);
-                mesh.RecalculateNormals(); mesh.RecalculateBounds();
-                var path = $"{Gen}/{name}.asset";
-                AssetDatabase.DeleteAsset(path); AssetDatabase.CreateAsset(mesh, path);
-                return mesh;
-            }
-
-            // the door
-            var panel = new GameObject(pivotT.name + "_panel");
-            panel.transform.SetParent(pivotT, false);
-            panel.AddComponent<MeshFilter>().sharedMesh = Panel(pivotT.name + "_mesh", 0.012f, 0.03f, true);
-            panel.AddComponent<MeshRenderer>().sharedMaterials = new[] { skinMat, grayMat };
-            // the open well: a dark patch just outside the skin, under the shut door
-            var well = new GameObject("gearWell_" + k);
-            well.transform.SetParent(part, false);
-            well.transform.position = pivotT.position; well.transform.rotation = pivotT.rotation;
-            well.AddComponent<MeshFilter>().sharedMesh = Panel("gearWell_" + k + "_mesh", 0.004f, 0f, false);
-            well.AddComponent<MeshRenderer>().sharedMaterial = darkMat ?? grayMat;
-
-            // open angle: swing the free edge from its shut direction to hanging down, canted outboard
-            // in the door pivot's own frame (the fuselage parts are not all unrotated), about its local Z
-            var shut = pivotT.InverseTransformDirection(pts[nx, ns / 2] - hinge); shut.z = 0f;
+            panel.SetParent(pivotT, true);
+            // open angle about the door's local Z (fore-aft): free edge from its shut direction to hanging down, canted outboard
+            var shut = pivotT.InverseTransformDirection(free - hinge); shut.z = 0f;
             var open = pivotT.InverseTransformDirection(new Vector3(sgn * Mathf.Sin(cant * Mathf.Deg2Rad), -Mathf.Cos(cant * Mathf.Deg2Rad), 0f)); open.z = 0f;
             float ang = Mathf.Atan2(shut.x * open.y - shut.y * open.x, shut.x * open.x + shut.y * open.y) * Mathf.Rad2Deg;
             Set(lg, "gearDoors", p =>
@@ -697,7 +628,7 @@ namespace B52Tools
                 e.FindPropertyRelative("closedAngle").vector3Value = Vector3.zero;
                 e.FindPropertyRelative("openAngle").vector3Value = new Vector3(0f, 0f, ang);
             });
-            Note($"  door {k}: hinge {hinge:F2}, opens {ang:F0} deg, along z {pivot.z + dir * s0Hinge:F2}..{pivot.z + dir * s1Hinge:F2}{(skinMat ? "" : " (no skin material)")}");
+            Note($"  door {k}: hinge {hinge:F2}, free edge {free:F2}, opens {ang:F0} deg");
         }
 
         /// <summary>
