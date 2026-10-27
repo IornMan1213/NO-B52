@@ -29,8 +29,11 @@ atlas.save(L['out'])
 
 # Livery template: same pixels, cells outlined and named
 tpl = atlas.copy(); d = ImageDraw.Draw(tpl)
-try: f = ImageFont.truetype('arial.ttf', 28)
-except OSError: f = ImageFont.load_default()
+f = None
+for name in ('arial.ttf', 'LiberationSans-Regular.ttf', 'DejaVuSans.ttf'):   # Windows, then Linux look-alikes
+    try: f = ImageFont.truetype(name, 28); break
+    except OSError: pass
+if f is None: f = ImageFont.load_default(28)
 for e in L['images']:
     x, y, w, h = e['rect']
     d.rectangle((x, y, x + w - 1, y + h - 1), outline=(255, 0, 255), width=3)

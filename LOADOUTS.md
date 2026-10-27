@@ -1,7 +1,7 @@
 # B-52J Loadouts
 
 Stations:
-- **Internal Bay**: clip-in racks, or the 8-round rotary launcher for cruise missiles. Bay doors open on release.
+- **Internal Bay**: clip-in racks, or the 8-round rotary launcher for cruise and other missiles. Bay doors open on release.
 - **Wing Pylons (HSAB)**: one Heavy Stores Adapter Beam under each wing, between the fuselage and the inboard
   engines. Both pylons always carry the same rack.
 
@@ -13,7 +13,7 @@ and counts are the real ones, and rack mass uses the real weapon weights. Genera
 |---|---|---|---|---|
 | **Nuclear** | | | | |
 | AGM-86B ALCM | 20 kt cruise missile | 8 (rotary) | 6 | 20 |
-| AGM-69 SRAM (retired) | tactical nuclear ballistic missile | 8 | 6 | 20 |
+| AGM-69 SRAM (retired) | tactical nuclear ballistic missile | 8 (rotary) | 6 | 20 |
 | B61 | tactical nuclear bomb | 8 | — | 8 |
 | B83 | strategic nuclear bomb | 8 | — | 8 |
 | B53 (retired) | strategic nuclear bomb | 2 | — | 2 |
@@ -22,16 +22,16 @@ and counts are the real ones, and rack mass uses the real weapon weights. Genera
 | AGM-158A JASSM | cruise missile | 8 (rotary) | 6 | 20 |
 | AGM-158B JASSM-ER | cruise missile | 8 (rotary) | 6 | 20 |
 | AGM-158C LRASM | anti-ship missile (AShM-300) | 8 (rotary) | 6 | 20 |
-| AGM-86C/D CALCM (retired) | cruise missile | 8 (rotary) | 6 | 20 |
+| AGM-86C/D CALCM (retired) | cruise missile | 8 (rotary) | 4 | 16 |
 | AGM-84 Harpoon | anti-ship missile | — | 4 | 8 |
 | AGM-142 Have Nap | heavy AGM | — | 2 | 4 |
 | AGM-154 JSOW | glide bomb | — | 6 | 12 |
-| AGM-129 ACM (retired) | 20 kt cruise missile | 12 | — | 12 |
+| AGM-129 ACM (retired) | 20 kt cruise missile | 12 (rotary) | — | 12 |
 | **Gravity** | | | | |
 | Mk 82 | 250 kg bomb | 27 | 12 | 51 |
 | M117 | 250 kg bomb | 27 | 12 | 51 |
 | Mk 84 | 500 kg bomb | 12 | 9 | 30 |
-| BDU-48 | 125 kg bomb | 17 | — | 17 |
+| BDU-48 (10 lb practice bomb) | 125 kg bomb | 17 | — | 17 |
 | **Cluster** | | | | |
 | CBU-52 / CBU-58 / CBU-71 | cluster bomb | 27 | 12 | 51 |
 | CBU-87 CEM | cluster bomb | 24 | 8 | 40 |
@@ -50,9 +50,9 @@ and counts are the real ones, and rack mass uses the real weapon weights. Genera
 | Mk 56 Quickstrike | 500 kg bomb | 8 | 6 | 20 |
 | Mk 62 Quickstrike | 250 kg bomb | 32 | 24 | 80 |
 | Mk 63 / Mk 65 Quickstrike | 500 kg bomb | 8 | 5 | 18 |
-
-| ADM-160B MALD | decoy (custom) | 0 | 8 | 16 |
-| ADM-160C MALD-J | decoy + jammer (custom) | 0 | 8 | 16 |
+| **Decoys** | | | | |
+| ADM-160B MALD | decoy (custom) | — | 8 | 16 |
+| ADM-160C MALD-J | decoy + jammer (custom) | — | 8 | 16 |
 
 **MALD / MALD-J** are custom missiles (v0.3.7), made from the game's ALM-C450 cruise missile: 2.85 m, 115 kg,
 subsonic, ~600+ km, no warhead. Both show enemy radar the radar size of a B-52J (0.1), so they draw tracking and
@@ -61,11 +61,18 @@ game's own jamming: 0.8 at the decoy, fading to 0 at 30 km). Fire them at an aim
 the defences to look at. Preset: "JASSM-ER x8 + MALD-J x16 (SEAD)".
 
 Where the source list gives a range, the build uses the top of the range that fits the 70,000 lb (31,750 kg)
-payload limit. For example, Mk 84 is 12 in the bay plus 9 per pylon, so 30.
+payload limit. For example, Mk 84 is 12 in the bay plus 9 per pylon, so 30. The CALCM is the heaviest missile
+(1,950 kg), so it carries 4 per pylon (16 in all, 31.2 t) rather than the 20 of the lighter ALCM.
+
+BDU-48 racks weigh what the real 10 lb practice bombs weigh, but in game they explode like the 125 kg bomb they
+reuse.
 
 ## Presets (AI and quick select)
 - Mk 82 x51
 - JASSM-ER x20
+- JASSM-ER x8 + MALD-J x16 (SEAD)
+- JASSM-ER x8 + GBU-38 x48
+- LRASM x8 + MALD x16 (anti-ship)
 - LRASM x20 (anti-ship)
 - GBU-31 JDAM x24
 - GBU-38 JDAM x80

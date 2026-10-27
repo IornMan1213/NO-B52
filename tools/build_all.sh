@@ -1,28 +1,53 @@
 #!/usr/bin/env bash
-# Full B-52 build: Blender split + cockpit -> FBX -> Unity prefab -> .nobp -> plugin. Run from the repo root.
-set -e
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# Tools and the Blueprinter Editor project: override with environment variables if yours live elsewhere.
-B="${BLENDER:-/c/Program Files/Blender Foundation/Blender 5.2/blender.exe}"
-U="${UNITY:-/c/Program Files/Unity/Hub/Editor/2022.3.62f2/Editor/Unity.exe}"
-PROJ="${BLUEPRINTER_PROJECT:-$HOME/BlueprinterProject/Blueprinter-Editor}"     # Blueprinter Editor Unity project
-P="$(cygpath -w "$PROJ")"
-LOGS="$(dirname "$PROJ")"
-export B52_BUILD_DIR="$(cygpath -w "$ROOT/build")"                               # where the builders write the .nobp
-OUT="$(cygpath -w "$ROOT/blender/out")"
+# Full B-52 build: Blender split + gear + cockpit + atlas -> FBX -> Unity prefab -> .nobp -> plugin. Linux or Windows
+# (Git Bash). Paths: see tools/env.sh.
+#   bash tools/build_all.sh              everything
+#   bash tools/build_all.sh --from-fbx   skip Blender: build from the committed unity/Mods/B52/B52.fbx
+#   bash tools/build_all.sh --plugin     only the B52Systems plugin
+set -euo pipefail
+source "$(dirname "$0")/env.sh"
 cd "$ROOT"
-echo "== Blender: split parts";   "$B" -b source_assets/bohmerang/source_blend/source/B-52.blend --python tools/blender_prep.py -- "$OUT" 2>&1 | grep -E "EMPTY|Error|Traceback|DONE"
-echo "== Blender: face normals";  "$B" -b blender/out/B52_parts.blend --python tools/blender_normals.py 2>&1 | grep -E "NORMALS total|Error|Traceback"
-echo "== Blender: landing gear";  "$B" -b blender/out/B52_parts.blend --python tools/blender_gear.py 2>&1 | grep -E "GEAR|  [FROL][LR]:|Error|Traceback"
-echo "== Blender: gear wells";   "$B" -b blender/out/B52_parts.blend --python tools/blender_wells.py 2>&1 | grep -E "WELLS|  [FR][LR]:|Error|Traceback"
-echo "== Blender: tip gear wells"; "$B" -b blender/out/B52_parts.blend --python tools/blender_wingwells.py 2>&1 | grep -E "WINGWELLS|  O[LR]:|Error|Traceback"
-echo "== Blender: cockpit";       "$B" -b blender/out/B52_parts.blend --python tools/blender_cockpit.py 2>&1 | grep -E "COCKPIT|Error|Traceback"
-echo "== Blender: exterior atlas"; "$B" -b blender/out/B52_parts.blend --python tools/blender_atlas.py 2>&1 | grep -E "ATLAS|Error|Traceback"
-echo "== Atlas image";         python tools/make_atlas.py
-echo "== Blender: FBX export";    "$B" -b blender/out/B52_parts.blend --python tools/blender_export.py -- "$(cygpath -w unity/Mods/B52)" 2>&1 | grep -E "EXPORTED|Error|Traceback"
-echo "== Unity: prefab";          "$U" -batchmode -nographics -quit -projectPath "$P" -logFile "$(cygpath -w "$LOGS/build_prefab.log")" -executeMethod B52Tools.B52Builder.Build
-grep -E "error CS" "$LOGS/build_prefab.log" | head -5 || true
-grep -E "FAILED|Saved" "$PROJ/B52Build.log"
-echo "== Unity: mod bundle";      "$U" -batchmode -nographics -quit -projectPath "$P" -logFile "$(cygpath -w "$LOGS/build_mod.log")" -executeMethod B52Tools.B52Builder.BuildMod
-grep -E "\[Blueprinter\] (Built|Missing)" "$LOGS/build_mod.log"
-echo "== Plugin";                 (cd plugin/B52Systems && dotnet build -c Release -o ../../build/plugin 2>&1 | grep -E " error |Build succeeded" | sort -u)
+
+MODE="${1:-all}"
+SRC="source_assets/bohmerang/source_blend/source/B-52.blend"
+OUT="$(winpath "$ROOT/blender/out")"
+PARTS="blender/out/B52_parts.blend"
+export B52_BUILD_DIR="$(winpath "$ROOT/build")"           # where the Unity builders write the .nobp
+mkdir -p build
+
+if [[ "$MODE" == all ]]; then
+  if [[ ! -f "$SRC" ]]; then
+    echo "Missing $SRC: download bohmerang's model (README, 'Building from source') and unzip it into source_assets/bohmerang/source_blend/"
+    exit 1
+  fi
+  step "Blender split parts"     "EMPTY|DONE"           blender_run "$SRC" --python tools/blender_prep.py -- "$OUT"
+  step "Blender face normals"    "NORMALS total"        blender_run "$PARTS" --python tools/blender_normals.py
+  step "Blender landing gear"    "GEAR|  [FROL][LR]:"   blender_run "$PARTS" --python tools/blender_gear.py
+  step "Blender gear wells"      "WELLS|  [FR][LR]:"    blender_run "$PARTS" --python tools/blender_wells.py
+  step "Blender tip gear wells"  "WINGWELLS|  O[LR]:"   blender_run "$PARTS" --python tools/blender_wingwells.py
+  step "Blender wing pylons"     "PYLONS|  hsab"        blender_run "$PARTS" --python tools/blender_pylons.py
+  step "Blender engine fans"     "FANS"                 blender_run "$PARTS" --python tools/blender_fans.py
+  step "Blender hull fix"        "HULLFIX"              blender_run "$PARTS" --python tools/blender_hullfix.py -- "$(winpath "$ROOT/$SRC")"
+  step "Blender cockpit"         "COCKPIT"              blender_run "$PARTS" --python tools/blender_cockpit.py
+  step "Blender exterior atlas"  "ATLAS"                blender_run "$PARTS" --python tools/blender_atlas.py
+  step "Atlas image"             ""                     "$PYTHON" tools/make_atlas.py
+  step "Skin detail textures"    "SKIN"                 "$PYTHON" tools/make_skin_detail.py
+  if [[ "${B52_SKIP_AO:-0}" != 1 ]]; then              # ~5 min of CPU; B52_SKIP_AO=1 keeps the committed AO map
+    step "Blender skin AO"       "AO baked"             blender_run "$PARTS" --python tools/blender_ao.py -- "$(winpath "$ROOT/unity/Mods/B52")"
+  fi
+  step "Blender FBX export"      "EXPORTED"             blender_run "$PARTS" --python tools/blender_export.py -- "$(winpath "$ROOT/unity/Mods/B52")"
+fi
+
+if [[ "$MODE" == all || "$MODE" == --from-fbx ]]; then
+  link_unity_sources
+  unity_prepare
+  step "Unity prefab" "" unity_run B52Tools.B52Builder.Build "$LOGS/unity_prefab_editor.log"
+  grep -E "error CS" "$LOGS/unity_prefab_editor.log" | head -5 || true
+  grep -E "FAILED|Saved|Hardpoints|Materials|Livery targets" "$B52_UNITY_PROJECT/B52Build.log" || true
+  step "Unity mod bundle" "" unity_run B52Tools.B52Builder.BuildMod "$LOGS/unity_mod_editor.log"
+  grep -E "\[Blueprinter\] (Built|Missing)|\[B52\] mod built" "$LOGS/unity_mod_editor.log" || true
+  ls -la build/*.nobp
+fi
+
+step "Plugin" "Build succeeded|warning" dotnet_plugin B52Systems
+echo "Done: $(ls build/*.nobp 2>/dev/null | tr '\n' ' ') build/plugin/B52Systems.dll"

@@ -43,13 +43,4 @@ namespace B52Systems
         }
     }
 
-    [HarmonyPatch(typeof(Aircraft), nameof(Aircraft.Awake))]
-    internal static class AttachMachDrag
-    {
-        private static void Postfix(Aircraft __instance)
-        {
-            if (Plugin.IsB52(__instance) && !__instance.GetComponent<MachDrag>())
-                __instance.gameObject.AddComponent<MachDrag>();
-        }
-    }
 }

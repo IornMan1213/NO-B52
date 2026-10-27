@@ -60,7 +60,7 @@ namespace B52Tools
             new W("AGM158A", "AGM-158A JASSM",     "cruise",      8, 6, 1020),
             new W("AGM158B", "AGM-158B JASSM-ER",  "cruise",      8, 6, 1021),
             new W("AGM158C", "AGM-158C LRASM",     "ashm1",       8, 6, 1100),
-            new W("AGM86C",  "AGM-86C/D CALCM",    "cruise",      8, 6, 1950),
+            new W("AGM86C",  "AGM-86C/D CALCM",    "cruise",      8, 4, 1950),   // 16 x 1,950 kg = 31.2 t: 20 would exceed the payload limit
             new W("AGM84",   "AGM-84 Harpoon",     "ashm2",       0, 4, 691),
             new W("AGM142",  "AGM-142 Have Nap",   "agm_heavy",   0, 2, 1360),
             new W("AGM154",  "AGM-154 JSOW",       "bomb_glide1", 0, 6, 483),
@@ -69,7 +69,7 @@ namespace B52Tools
             new W("MK82",    "Mk 82",              "bomb_250",    27, 12, 227),
             new W("M117",    "M117",               "bomb_250",    27, 12, 340),
             new W("MK84",    "Mk 84",              "bomb_500",    12, 9, 907),
-            new W("BDU48",   "BDU-48",             "bomb_125",    17, 0, 907),
+            new W("BDU48",   "BDU-48",             "bomb_125",    17, 0, 4.5f),  // 10 lb practice bomb
             // Cluster
             new W("CBU52",   "CBU-52",             "bomb_cluster1", 27, 12, 356),
             new W("CBU58",   "CBU-58",             "bomb_cluster1", 27, 12, 372),
@@ -111,6 +111,9 @@ namespace B52Tools
                 "drawing radars and SAMs away from the bombers.", log);
             DecoyInfo["mald_j"] = MakeDecoy("ADM160C", "ADM-160C MALD-J", "MALD-J",
                 "MALD with a jammer: looks like a B-52 on radar and jams enemy radars within ~30 km of its path.", log);
+            // Without the decoy, MakeMount would fill the MALD racks with the donor: real, armed cruise missiles.
+            foreach (var kv in DecoyInfo)
+                if (!kv.Value) throw new Exception($"Decoy '{kv.Key}' could not be built (CruiseMissile1 placeholders missing?); stopping so the MALD racks don't ship armed cruise missiles");
             foreach (var w in Table)
             {
                 var donor = AssetDatabase.LoadAssetAtPath<ScriptableObject>(DoNotShip + Donor[w.family] + "_PLACEHOLDER.asset");
@@ -118,7 +121,18 @@ namespace B52Tools
                 if (w.internalCount > 0) bay.Add(MakeMount(w, donor, true, w.internalCount, log));
                 if (w.perPylon > 0) pylon.Add(MakeMount(w, donor, false, w.perPylon, log));
             }
-            log($"Weapons: {bay.Count} bay racks, {pylon.Count} pylon racks");
+            // Racks a previous build made that this one didn't (a count changed, e.g. AGM86C hsabx6 -> hsabx4) would still
+            // be packed into the mod and offered in game: remove them.
+            var made = new HashSet<string>(bay.Concat(pylon).Where(m => m).Select(m => m.name));
+            int stale = 0;
+            foreach (var guid in AssetDatabase.FindAssets("B52_", new[] { Dir }))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var name = System.IO.Path.GetFileNameWithoutExtension(path);
+                if (!System.Text.RegularExpressions.Regex.IsMatch(name, @"^B52_.+_(bay|hsab)x\d+$") || made.Contains(name)) continue;
+                AssetDatabase.DeleteAsset(path); stale++;
+            }
+            log($"Weapons: {bay.Count} bay racks, {pylon.Count} pylon racks" + (stale > 0 ? $", {stale} stale rack files removed" : ""));
             return (bay, pylon);
         }
 
@@ -165,7 +179,7 @@ namespace B52Tools
             var so = new SerializedObject(mount);
             so.FindProperty("prefab").objectReferenceValue = prefab;
             so.FindProperty("jsonKey").stringValue = key;
-            so.FindProperty("mountName").stringValue = $"{w.name} x{count}" + (internalBay ? (count == 8 && w.family.StartsWith("cruise") ? " (rotary)" : "") : " (HSAB)");
+            so.FindProperty("mountName").stringValue = $"{w.name} x{count}" + (internalBay ? (IsRotary(w.family) ? " (rotary)" : "") : " (HSAB)");
             so.FindProperty("ammo").intValue = count;
             so.FindProperty("missileBay").boolValue = internalBay;
             so.FindProperty("mass").floatValue = w.unitKg * count;
@@ -246,12 +260,15 @@ namespace B52Tools
             return info;
         }
 
+        /// <summary>Missiles that load on the bay's rotary launcher rather than clip-in racks.</summary>
+        static bool IsRotary(string family) => family.StartsWith("cruise") || family == "tbm_nuke" || family == "ashm1";
+
         // Bay: 10.3 m long x 1.7 m wide x 1.8 m tall. Cruise missiles go on an 8-round rotary launcher; bombs on
         // clip-in racks in rows x columns x layers. Origin is the bay centre.
         static Vector3[] BayLayout(int n, float len, float dia, string family)
         {
             var p = new Vector3[n];
-            if (family.StartsWith("cruise") || family == "tbm_nuke" || family == "ashm1")
+            if (IsRotary(family))
             {
                 int perRing = 8; int rings = Mathf.CeilToInt(n / (float)perRing);
                 for (int i = 0; i < n; i++)

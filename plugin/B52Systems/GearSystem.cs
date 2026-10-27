@@ -23,7 +23,7 @@ namespace B52Systems
             AccessTools.FieldRefAccess<LandingGear, float>("strutRotation");
 
         internal static float CrabSelected;                     // set by the local pilot, deg, + = trucks to the right
-        private static float messageUntil;
+        private static Aircraft crabOwner;                      // the aircraft CrabSelected was set in
 
         private Aircraft aircraft;
         private readonly List<Transform> swivels = new List<Transform>();
@@ -45,43 +45,43 @@ namespace B52Systems
         {
             if (!aircraft) return;
             var state = aircraft.gearState;
-            if (GameManager.IsLocalAircraft(aircraft)) HandleCrabKeys();
-            float target = GameManager.IsLocalAircraft(aircraft) ? CrabSelected : 0f;
+            bool local = GameManager.IsLocalAircraft(aircraft);
+            if (local)
+            {
+                // CrabSelected is static so it survives the game rebuilding components, but a new aircraft (respawn)
+                // starts with its trucks straight.
+                if (crabOwner != aircraft) { crabOwner = aircraft; CrabSelected = 0f; }
+                HandleCrabKeys();
+                HudReadout.LocalB52Flying();
+            }
+            else if (crabOwner == aircraft) HudReadout.SetStatus("crab", null);   // the pilot left this aircraft
+            float target = local ? CrabSelected : 0f;
             if (state == LandingGear.GearState.LockedExtended)
             {
                 crab = Mathf.MoveTowards(crab, target, CrabSlew * Time.deltaTime);
                 foreach (var sw in swivels) if (sw) sw.localEulerAngles = new Vector3(0f, crab, 0f);
             }
             else crab = 0f;                                     // LandingGear owns the swivel while folding
+            if (local) HudReadout.SetStatus("crab", CrabSelected == 0f ? null :
+                CrabText() + (state == LandingGear.GearState.LockedExtended && Mathf.Abs(crab - CrabSelected) > 0.1f ? "  (slewing)" : ""));
         }
+
+        private static string CrabText() => $"GEAR CRAB  {Mathf.Abs(CrabSelected):F0}° {(CrabSelected > 0 ? "R" : "L")}";
 
         private static void HandleCrabKeys()
         {
+            if (NuclearOption.MissionEditorScripts.InputFieldChecker.InsideInputField || GameplayUI.GameIsPaused) return;   // chat, menus
             float before = CrabSelected;
             if (Plugin.CrabLeft.Value.IsDown()) CrabSelected = Mathf.Max(CrabSelected - CrabStep, -CrabMax);
             if (Plugin.CrabRight.Value.IsDown()) CrabSelected = Mathf.Min(CrabSelected + CrabStep, CrabMax);
             if (Plugin.CrabCentre.Value.IsDown()) CrabSelected = 0f;
-            if (CrabSelected != before) messageUntil = Time.time + 3f;
+            if (CrabSelected != before) HudReadout.Flash(CrabSelected == 0f ? "GEAR CRAB  CENTRED" : CrabText());
         }
 
-        private void OnGUI()
+        private void OnDestroy()
         {
-            if (!GameManager.IsLocalAircraft(aircraft) || (Time.time > messageUntil && CrabSelected == 0f)) return;
-            string text = CrabSelected == 0f ? "GEAR CRAB  0" :
-                $"GEAR CRAB  {Mathf.Abs(CrabSelected):F0}° {(CrabSelected > 0 ? "R" : "L")}" + (Mathf.Abs(crab - CrabSelected) > 0.1f ? "  (slewing)" : "");
-            var style = new GUIStyle(GUI.skin.label) { fontSize = 16, fontStyle = FontStyle.Bold, alignment = TextAnchor.UpperCenter };
-            style.normal.textColor = new Color(0.3f, 1f, 0.4f);
-            GUI.Label(new Rect(Screen.width / 2f - 150f, 60f, 300f, 30f), text, style);
+            if (crabOwner == aircraft) HudReadout.SetStatus("crab", null);
         }
     }
 
-    [HarmonyPatch(typeof(Aircraft), nameof(Aircraft.Awake))]
-    internal static class AttachGearSystem
-    {
-        private static void Postfix(Aircraft __instance)
-        {
-            if (Plugin.IsB52(__instance) && !__instance.GetComponent<GearSystem>())
-                __instance.gameObject.AddComponent<GearSystem>();
-        }
-    }
 }

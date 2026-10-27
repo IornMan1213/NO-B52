@@ -33,10 +33,10 @@ def mat(name, rgb, metal, rough):
     return m
 
 
-M_STRUT = mat('B52_GearMetal', (0.80, 0.81, 0.82), 0.15, 0.5)       # white-painted legs
+M_STRUT = mat('B52_GearMetal', (0.70, 0.71, 0.72), 0.15, 0.5)       # light grey legs (pure white reads as unlit)
 M_CHROME = mat('B52_GearChrome', (0.85, 0.86, 0.88), 1.0, 0.12)
-M_RUBBER = mat('B52_Tyre', (0.03, 0.03, 0.03), 0.0, 0.9)
-M_RIM = mat('B52_GearRim', (0.88, 0.88, 0.87), 0.1, 0.45)          # white wheels and hub caps
+M_RUBBER = mat('B52_Tyre', (0.075, 0.075, 0.08), 0.0, 0.9)        # worn rubber, not pure black
+M_RIM = mat('B52_GearRim', (0.66, 0.67, 0.68), 0.1, 0.45)          # grey metal wheels and hub caps
 M_DARK = mat('B52_GearDark', (0.12, 0.12, 0.13), 0.5, 0.6)
 
 
@@ -114,14 +114,15 @@ class Geo:
         return o
 
 
-def tyre(g, centre, r, w, rim_r, cap=True, grooves=4):
+def tyre(g, centre, r, w, rim_r, cap=True, grooves=2):
     """Tyre with rounded shoulders and a ribbed tread, a dished wheel recessed into it, a bolt ring and a domed hub
-    cap; axle along X. Real 56x16 main tyres: rim about half the tyre diameter, tread with straight ribs."""
+    cap; axle along X. Real 56x16 main tyres: rim about half the tyre diameter, tread with straight ribs.
+    Kept to ~1.5k triangles a wheel (it was 4.3k, and ten wheels were half the aircraft's triangles)."""
     h = w / 2
     sh = min(0.09, r * 0.15)                                    # shoulder radius
     prof = [(-h * 0.92, rim_r), (-h, rim_r + 0.03), (-h, r - sh)]
-    for i in range(1, 5):                                       # shoulder arcs
-        a = math.pi / 2 * i / 5
+    for i in range(1, 4):                                       # shoulder arcs
+        a = math.pi / 2 * i / 4
         prof.append((-h + sh - sh * math.cos(a), r - sh + sh * math.sin(a)))
     x0, x1 = -h + sh, h - sh
     prof.append((x0, r))
@@ -129,24 +130,24 @@ def tyre(g, centre, r, w, rim_r, cap=True, grooves=4):
         gx = x0 + (x1 - x0) * k / (grooves + 1)
         prof += [(gx - 0.011, r), (gx - 0.007, r - 0.014), (gx + 0.007, r - 0.014), (gx + 0.011, r)]
     prof.append((x1, r))
-    for i in range(1, 5):
-        a = math.pi / 2 * i / 5
+    for i in range(1, 4):
+        a = math.pi / 2 * i / 4
         prof.append((h - sh + sh * math.sin(a), r - sh * (1 - math.cos(a))))
     prof += [(h, r - sh), (h, rim_r + 0.03), (h * 0.92, rim_r)]
-    g.lathe(centre, (1, 0, 0), prof, M_RUBBER, seg=40, caps=False)     # open at the bead: the wheel fills it
+    g.lathe(centre, (1, 0, 0), prof, M_RUBBER, seg=24, caps=False)     # open at the bead: the wheel fills it
     # wheel: flat outer disc with a raised flange, dished centre
     g.lathe(centre, (1, 0, 0), [(-h * 0.90, 0.0), (-h * 0.90, rim_r * 0.30), (-h * 0.80, rim_r * 0.55),
                                 (-h * 0.88, rim_r * 0.92), (-h * 0.95, rim_r), (h * 0.95, rim_r), (h * 0.88, rim_r * 0.92),
-                                (h * 0.80, rim_r * 0.55), (h * 0.90, rim_r * 0.30), (h * 0.90, 0.0)], M_RIM, seg=32)
+                                (h * 0.80, rim_r * 0.55), (h * 0.90, rim_r * 0.30), (h * 0.90, 0.0)], M_RIM, seg=18)
     for s_ in (-1, 1):
         if cap:
             g.lathe(Vector(centre) + Vector((s_ * h * 0.90, 0, 0)), (s_, 0, 0),
-                    [(0, 0.15), (0.03, 0.145), (0.065, 0.115), (0.085, 0.06), (0.09, 0.0)], M_RIM, seg=24)   # hub cap
-        n = 20 if cap else 10
+                    [(0, 0.15), (0.03, 0.145), (0.065, 0.115), (0.085, 0.06), (0.09, 0.0)], M_RIM, seg=12)   # hub cap
+        n = 10 if cap else 6
         for k in range(n):                                      # bolt ring
             b = 2 * math.pi * k / n
             p = Vector(centre) + Vector((s_ * h * 0.905, math.cos(b) * rim_r * 0.72, math.sin(b) * rim_r * 0.72))
-            g.cyl(p, p + Vector((s_ * 0.012, 0, 0)), 0.016, M_DARK, seg=6)
+            g.cyl(p, p + Vector((s_ * 0.012, 0, 0)), 0.016, M_DARK, seg=4)
 
 
 def endpoints(name):

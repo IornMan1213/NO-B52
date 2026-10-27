@@ -14,6 +14,7 @@ Animated objects, wired up in Unity:
 """
 import bpy, bmesh, sys, os, math
 from mathutils import Vector, Matrix
+from mathutils.bvhtree import BVHTree
 
 ARGS = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 TEX = ARGS[0] if ARGS else os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'blender', 'tex')
@@ -48,8 +49,9 @@ M = {
     'panelTex2': mat('CP_Switches2', (1, 1, 1), 0.1, 0.6, 'panel_b.png'),
     'black': mat('CP_Black', (0.02, 0.02, 0.02), 0.0, 0.5),
     'glare': mat('CP_Glareshield', (0.03, 0.03, 0.035), 0.0, 0.95),
-    'wall': mat('CP_Wall', (0.33, 0.36, 0.33), 0.0, 0.85),
-    'floor': mat('CP_Floor', (0.10, 0.10, 0.10), 0.2, 0.9),
+    'wall': mat('CP_Wall', (1, 1, 1), 0.0, 0.85, 'wall_quilt.png'),       # quilted insulation (make_cockpit_trim.py)
+    'floor': mat('CP_Floor', (1, 1, 1), 0.2, 0.9, 'floor_tread.png'),
+    'frame': mat('CP_Frame', (0.36, 0.38, 0.36), 0.0, 0.75),            # painted window frames (inside of the hull)
     'metal': mat('CP_Metal', (0.6, 0.6, 0.62), 0.9, 0.3),
     'seat': mat('CP_Seat', (1, 1, 1), 0.0, 0.9, 'seat.png'),
     'yellow': mat('CP_EjectHandle', (0.9, 0.75, 0.05), 0.0, 0.5),
@@ -174,8 +176,19 @@ shell = b.write(obj('cp_shell', root, (0, 24.4, 0)))
 src = cockpit
 glass_idx = {i for i, m in enumerate(src.data.materials) if m and m.name == 'Glass'}
 bm = bmesh.new(); bm.from_mesh(src.data); bm.transform(src.matrix_world)
+_outer = BVHTree.FromBMesh(bm)
+def on_hull(f):
+    # Only the hull itself: bohmerang's cockpit section also has a few bits 0.3-0.7 m inside it (simple interior
+    # pieces), and copied inward they hung across the cabin (a rod from the roof to the pedestal). A face is hull if
+    # the outermost surface along the ray from the cabin axis through it is within 8 cm.
+    c = f.calc_center_median()
+    d = Vector((c.x, 0.0, c.z - 0.35))
+    if d.length < 0.05: return False
+    d.normalize()
+    hit = _outer.ray_cast(Vector((0.0, c.y, 0.35)) + d * 6.0, -d, 6.0)[0]
+    return hit is not None and (hit - c).length < 0.08
 keep = [f for f in bm.faces if f.material_index not in glass_idx
-        and 21.2 < f.calc_center_median().y < 26.3 and f.calc_center_median().z > -0.55]
+        and 21.2 < f.calc_center_median().y < 26.3 and f.calc_center_median().z > -0.55 and on_hull(f)]
 bmesh.ops.delete(bm, geom=[f for f in bm.faces if f not in set(keep)], context='FACES')
 for v in bm.verts:
     axis_pt = Vector((0, v.co.y, 0.35))
@@ -187,7 +200,7 @@ wall_i = 0
 for f in bm.faces: f.material_index = 0
 skin = obj('cp_skin', root, (0, 24.5, 0.35))
 bm.transform(skin.matrix_world.inverted()); bm.to_mesh(skin.data); bm.free()
-skin.data.materials.append(M['wall'])
+skin.data.materials.append(M['frame'])
 
 # ------------------------------------------------------------------ main instrument panel + glareshield
 b = Builder()
@@ -244,6 +257,14 @@ def round_gauge(gx, gz, r, face_mat, needle=None):
         nb = Builder()
         nb.box(face + off * 0.002 + up_p * r * 0.42, (0.004, 0.002, r * 0.85), M['needle'], rot=panel_rot)
         nb.write(nd)
+    if needle == 'alt':
+        # three-pointer altimeter on the same 0-10 dial: long needle hundreds, short wide needle thousands,
+        # thin pointer to the rim ten-thousands (B52Systems.Instruments turns all three)
+        for name, length, width, depth in (('alt1k', 0.55, 0.009, 0.0035), ('alt10k', 0.95, 0.0016, 0.0045)):
+            nd = obj('needle_' + name, root, tuple(face + off * depth))
+            nb = Builder()
+            nb.box(face + off * depth + up_p * r * length / 2, (width, 0.002, r * length), M['needle'], rot=panel_rot)
+            nb.write(nd)
     else:                                   # fixed pointer on decorative gauges
         b.box(face + off * 0.002 + up_p * r * 0.35, (0.003, 0.002, r * 0.7), M['needle'], rot=panel_rot)
     return face
@@ -409,7 +430,9 @@ moved = 0
 stack = list(root.children)
 while stack:
     o = stack.pop(); stack.extend(o.children)
-    if o.type != 'MESH': continue
+    # cp_skin is the hull's own inner face (already 3 cm inside it): clamping it dragged roof vertices across the cabin,
+    # because the ray from the low cabin axis meets the window sills first (a long sliver through the pilot's eye)
+    if o.type != 'MESH' or o.name == 'cp_skin': continue
     mw, inv = o.matrix_world, o.matrix_world.inverted()
     for v in o.data.vertices:
         p = mw @ v.co
@@ -421,6 +444,27 @@ while stack:
             v.co = inv @ (a + d.normalized() * max(dist - MARGIN, 0.0)); moved += 1
 hull_bm.free()
 print('COCKPIT clamp: moved', moved, 'interior vertices inside the hull')
+
+# Trim textures in real-world size: wall and floor faces get planar UVs from their dominant axis, in metres over the
+# 0.5 m tile, so the quilting and tread keep their size on every wall instead of stretching across each box face.
+TILE = 0.5
+trimmed = 0
+for o in [c for c in root.children_recursive if c.type == 'MESH']:
+    idx = {i for i, m in enumerate(o.data.materials) if m in (M['wall'], M['floor'])}
+    if not idx: continue
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    uv = bm.loops.layers.uv.verify()
+    mw = o.matrix_world
+    for f in bm.faces:
+        if f.material_index not in idx: continue
+        n = (mw.to_3x3() @ f.normal); ax = max(range(3), key=lambda i: abs(n[i]))
+        for l in f.loops:
+            p = mw @ l.vert.co
+            a, b_ = [(1, 2), (0, 2), (0, 1)][ax]
+            l[uv].uv = (p[a] / TILE, p[b_] / TILE)
+        trimmed += 1
+    bm.to_mesh(o.data); bm.free()
+print('COCKPIT trim UVs on', trimmed, 'faces')
 
 bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath)
 print('COCKPIT OK', len([o for o in bpy.data.objects if o.parent == root]), 'objects under cockpit_int')

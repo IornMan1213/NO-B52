@@ -64,13 +64,4 @@ namespace B52Systems
         }
     }
 
-    [HarmonyPatch(typeof(Aircraft), nameof(Aircraft.Awake))]
-    internal static class AttachMassSync
-    {
-        private static void Postfix(Aircraft __instance)
-        {
-            if (Plugin.IsB52(__instance) && Plugin.RigidAirframe.Value && !__instance.GetComponent<MassSync>())
-                __instance.gameObject.AddComponent<MassSync>();
-        }
-    }
 }

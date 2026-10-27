@@ -1,0 +1,72 @@
+# Changelog
+
+Player-facing changes in each release. The development diary with every detail is [MODLOG.md](MODLOG.md).
+
+## 1.0.0 (in progress)
+
+**Fixes**
+- The crosswind crab angle no longer carries over to your next aircraft after a respawn.
+- Other players now see your drag chute at full size (it used to stay tiny or not appear).
+- The drag chute now drops away and settles on the runway when released, instead of vanishing, and it no longer
+  glows at night.
+- The crab keys `[` `]` `\` no longer fire while you type in chat or have the game paused.
+- Without Heavy Hangar installed, the B-52 now spawns on the apron outside the hangar instead of inside it with its
+  wings through the walls.
+- Your own B-52 now uses the game's precise collision detection, like other player aircraft.
+- From the cockpit you can now see your own wings and engines (the whole exterior used to vanish in cockpit view).
+- A stray bar no longer hangs across the cockpit from the roof to the throttles.
+- Weapon data:
+  - The BDU-48 practice bomb rack now weighs what 17 practice bombs weigh (it was 15 t).
+  - The CALCM loadout is 16 missiles (8 in the bay, 4 per pylon), so it stays inside the payload limit; the old
+    20-missile rack is gone from the list.
+  - The aircraft description matches the real loadouts.
+
+**Looks**
+- The dent and crease on the right side of the hull just behind the cockpit glass are gone (they came with the
+  original model), and the flat sides of the fuselage no longer shade as if creased in a pyramid pattern.
+- The skin has real surface detail now: panel lines and rivets catch the light, contact shadows darken the wing
+  roots, pylons and the belly under the wings, and damaged parts turn scorched and sooty instead of just darker.
+- No more visible seams around the gear doors, and the inside of an open door is painted, not black.
+- Proper wing pylons with the adapter beam, instead of plain boxes.
+- Tyres, wheels and gear legs in realistic greys instead of pure black and white.
+- The spoilers take liveries and damage like the rest of the wing.
+- The flight deck walls are lined with quilted insulation, the window frames are painted, and the floor has a
+  non-slip covering.
+- Landing and taxi lights come on with the gear, and there are red anti-collision beacons and white strobes.
+- The engine fans turn as the engines spool up.
+
+**Cockpit**
+- The altimeter is now a three-pointer altimeter (hundreds, thousands and ten-thousands of feet), so you can read
+  your altitude.
+- A help card with the B-52's keys and speeds shows the first time you fly it each session; Shift+F1 brings it back.
+
+**Performance**
+- The landing gear wheels use about a third of the triangles they did (they were over half the aircraft).
+
+**Changes**
+- Flight logging (telemetry) is now off by default. When you turn it on, it only logs your own aircraft and keeps
+  the newest 20 logs. The logs also read correctly in any Windows language.
+- GEAR CRAB and the new CHUTE messages appear low in the centre of the screen, sized to your resolution.
+- The first time the chute's conditions are almost met, a hint tells you to hold the wheel brakes.
+- LRASM and SRAM racks are labelled as rotary-launcher loads.
+- Two new mixed presets: JASSM-ER x8 + GBU-38 x48, and LRASM x8 + MALD x16 (anti-ship).
+- The onboard jammer is a little stronger and lasts a little longer than the stock bombers' (intensity 10, was 8).
+- The eight engines now sound like four pods instead of sixteen identical loops: smoother and no louder than a
+  stock bomber.
+
+## 0.4.1
+- Real landing-gear wells: each main truck folds into its own well, with doors cut from the skin; the wingtip gear
+  stows inside the outer wing.
+- Cockpit layout closer to the real B-52, and the dents behind the cockpit are gone.
+
+## 0.4.0
+- Landing gear rebuilt like the real B-52 (swivel-and-fold retraction, crosswind crab), nav lights and cockpit
+  poke-through fixed.
+
+## 0.3.x
+- 0.3.8: transonic drag rise, so the B-52 can't go supersonic in a dive.
+- 0.3.7: ADM-160 MALD and MALD-J decoys, and a SEAD preset.
+- 0.3.6: liveries and damage shading, with a livery template.
+- 0.3.5: main gear doors.
+- 0.3.4: speedbrakes and the landing drag chute.
+- 0.3.0 to 0.3.3: real aerodynamic lever arms, fly-by-wire tuned for a bomber, takeoff calibrated to B-52H data.

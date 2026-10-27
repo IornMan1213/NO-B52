@@ -1,0 +1,51 @@
+say START B-52J flight
+include spawn.txt B52J
+b52check
+state
+gear
+shot b52_test_spawn.png
+camat cockpit 9 1.5 -4 45 b52_hull_right.png
+camat cockpit -9 1.5 -4 45 b52_hull_left.png
+camat fuselage_F -14 1 3 50 b52_hull_fwd_left.png
+camat fuselage_F 14 1 3 50 b52_hull_fwd_right.png
+camat @ac -38 10 42 45 b52_ext_front34.png
+camat @ac -16 -1.5 16 55 b52_gear_front.png
+camat wingtip_L -3 -4 2 50 b52_outrigger_down.png
+view -0.55 0.8 24.3 -0.2 0.45 26.0 75 b52_cockpit.png
+runway
+wait 3
+state
+shot b52_test_runway.png
+takeoff 1.0 300 0.5
+wait 60
+state
+gear
+parts
+shot b52_test_climb.png
+camat wingtip_L -3 -4 2 50 b52_outrigger_stowed.png
+camat @ac -18 -4 -2 50 b52_belly_gear_up.png
+camat @ac -42 10 48 40 b52_flight_front34.png
+camat @ac 30 6 -55 40 b52_flight_rear34.png
+camat @ac -60 3 0 35 b52_flight_side.png
+salvo 0 8 0.6
+wait 4
+shot b52_test_bay_drop.png
+salvo 0 6 0.5
+wait 4
+state
+setgear true
+wait 12
+gear
+shot b52_test_gear_down.png
+runway
+wait 3
+rollout 250
+wait 3
+expect chute
+state
+shot b52_test_chute.png
+wait 35
+state
+expect nochute
+fps 5
+say END

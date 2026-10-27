@@ -108,7 +108,12 @@ def bisect(bm, co, no):
         cut_edges = [e for e in res['geom_cut'] if isinstance(e, bmesh.types.BMEdge)]
         if cut_edges:
             try:
-                bmesh.ops.holes_fill(b, edges=cut_edges, sides=0)
+                caps = bmesh.ops.holes_fill(b, edges=cut_edges, sides=0)['faces']
+                # The cap's rim is a hard edge and the cap is flat: otherwise smooth shading averages the cap's
+                # sideways normal into the skin's vertices along the cut, and the hull shades as if creased there.
+                for f in caps:
+                    f.smooth = False
+                    for e in f.edges: e.smooth = False
             except Exception:
                 pass
         halves.append(b)
@@ -272,8 +277,11 @@ for src in ('Engines', 'EngineBlades', 'RandomStuff', 'RandomStuff2'):
 
 # ---- Spoilers: 7 panels per wing on the upper surface ahead of the flaps, outboard of the inner pod.
 #      Generated as thin plates; one ControlSurface per wing drives them (B52Systems makes them one-way).
-SPOILER_MAT = bpy.data.materials.new('B52_SpoilerGray'); SPOILER_MAT.use_nodes = True
-SPOILER_MAT.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.36, 0.38, 0.40, 1)
+#      Their paint is a plain-colour material without the B52_ prefix, so blender_atlas.py packs it as a swatch in the
+#      skin atlas (it reads diffuse_color): the spoilers then take liveries and damage shading like the rest of the wing.
+SPOILER_MAT = bpy.data.materials.new('SpoilerPaint'); SPOILER_MAT.use_nodes = True
+SPOILER_MAT.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.61, 0.62, 0.64, 1)
+SPOILER_MAT.diffuse_color = (0.61, 0.62, 0.64, 1)   # = the wing-top paint's average, so raised panels match
 ALL_MATS.append(SPOILER_MAT)
 
 
