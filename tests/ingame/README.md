@@ -15,6 +15,9 @@ bash tests/ingame/run.sh tests/ingame/b52_flight.txt
   (`look <pan> <tilt>`, then `shot`: the game's cockpit camera, exposure and post-processing, as the player sees it),
   and a frame-time sample on the runway. Screenshots: `BepInEx/b52_cp_*.png`. For judging the model and cockpit.
   (`view` and `pview` render with a single camera: handy for geometry, but they miss the game's cockpit camera.)
+- `hh_place.txt`: Heavy Hangar automatic placement: where each hangar went (the log), shots of the site from above,
+  and `taxiout`: the B-52 rolls straight out of the door and must stay on paving (hangar floor, apron, taxiway).
+- `hh_outside.txt`: spawning outside a stock hangar's door (run it with Heavy Hangar's `AutoPlace = false`).
 - `spawn.txt`: the menu clicks from the main menu to sitting in the aircraft (`include spawn.txt <aircraft>`).
 
 Driver commands are listed at the top of each `case` in `NODevDriver/Driver.cs`; `b52check` is in `B52Check.cs`.

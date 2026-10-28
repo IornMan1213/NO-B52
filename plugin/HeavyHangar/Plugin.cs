@@ -12,7 +12,7 @@ namespace HeavyHangar
     /// - Optionally places one heavy hangar beside a long runway at each land airbase when a mission starts.
     /// Works for any aircraft; nothing here is B-52 specific.
     /// </summary>
-    [BepInPlugin("com.ironman1213.heavyhangar", "Heavy Hangar", "0.1.0")]
+    [BepInPlugin("com.ironman1213.heavyhangar", "Heavy Hangar", "0.2.0")]
     public class Plugin : BaseUnityPlugin
     {
         public const string JsonKey = "hangar_heavy";          // unity/B52Tools/Editor/HangarBuilder.cs

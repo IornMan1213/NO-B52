@@ -3,8 +3,12 @@
     <TargetFramework>net472</TargetFramework>
     <AssemblyName>HeavyHangar</AssemblyName>
     <LangVersion>latest</LangVersion>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <GameDir>C:\Program Files (x86)\Steam\steamapps\common\Nuclear Option</GameDir>
+    <!-- the DLL's file version must match the release version (mod managers such as NOMNOM check it) -->
+    <Version>0.2.0</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <!-- the game folder: pass -p:GameDir=... (tools/build_hangar.sh does), or the usual Steam location is used -->
+    <GameDir Condition="'$(GameDir)' == '' And '$(OS)' == 'Windows_NT'">C:\Program Files (x86)\Steam\steamapps\common\Nuclear Option</GameDir>
+    <GameDir Condition="'$(GameDir)' == ''">$(HOME)/.steam/steam/steamapps/common/Nuclear Option</GameDir>
     <Managed>$(GameDir)\NuclearOption_Data\Managed</Managed>
   </PropertyGroup>
   <ItemGroup>

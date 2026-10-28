@@ -1,0 +1,11 @@
+say START Heavy Hangar placement
+include spawn.txt B52J
+wait 3
+camat @ac 0 380 150 70 hh_place_above.png
+camat @ac 90 30 150 60 hh_place_side.png
+wait 15
+taxiout 0.3 100 120
+wait 75
+camat @ac 0 150 -120 60 hh_taxiout.png
+state
+say END

@@ -17,7 +17,7 @@ namespace B52Tools
     /// </summary>
     public static class HangarBuilder
     {
-        public const string Version = "0.1.0";
+        public const string Version = "0.2.0";
         public const string JsonKey = "hangar_heavy";          // also plugin/HeavyHangar/Plugin.cs
         const string ModDir = "Assets/Blueprinter/Mods/HeavyHangar";
         const string Fbx = ModDir + "/HeavyHangar.fbx";
@@ -25,7 +25,8 @@ namespace B52Tools
         const string DoNotShip = "Assets/Blueprinter/_donotship";
         const string TemplatePrefab = DoNotShip + "/GameObject/hangar_med_PLACEHOLDER.prefab";
         const string TemplateDef = DoNotShip + "/MonoBehaviour/hangar_med_PLACEHOLDER.asset";
-        // tools/build_all.sh sets B52_BUILD_DIR to the repo's build/ folder; otherwise build/ inside the Unity project.
+        // The build scripts (tools/build_hangar.sh, and build_all.sh in NO-B52) set B52_BUILD_DIR to the repo's build/
+        // folder; otherwise build/ inside the Unity project.
         static string BuildDir => System.Environment.GetEnvironmentVariable("B52_BUILD_DIR") ?? System.IO.Path.GetFullPath("build");
         const int StaticsLayer = 6;                             // PhysicsLayers.Statics, as hangar_med
 

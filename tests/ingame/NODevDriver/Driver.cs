@@ -841,6 +841,15 @@ namespace NODevDriverB52
                     StartCoroutine(Takeoff(ac, F(0), F(1), a.Length > 2 ? F(2) : 0.6f));
                     break;
                 }
+                case "taxiout":   // taxiout <throttle 0..1> <metres> [timeout s, default 120]: roll straight ahead (out of a hangar door) with the stick centred until that far from the start, then idle and brakes; passes if the ground under the aircraft stayed paved (hangar floor, apron, taxiway) all the way and nothing broke
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var a = arg.Split(' ');
+                    float F(int i) => float.Parse(a[i], System.Globalization.CultureInfo.InvariantCulture);
+                    StartCoroutine(TaxiOut(ac, F(0), F(1), a.Length > 2 ? F(2) : 120f));
+                    break;
+                }
                 case "rollout":   // rollout <km/h>: on the runway, roll at that speed, then idle and full brakes; logs the stopping distance
                 {
                     var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
@@ -907,6 +916,53 @@ namespace NODevDriverB52
         static Aircraft runwayAc; static float runwayH0;   // the "runway" command's last on-ground root height
 
         static float Pitch(Aircraft ac) { var f = ac.transform.forward; return Mathf.Asin(Mathf.Clamp(f.y, -1f, 1f)) * Mathf.Rad2Deg; }
+
+        System.Collections.IEnumerator TaxiOut(Aircraft ac, float throttle, float metres, float timeout)
+        {
+            int gen = ++flightGen;
+            var inp = ac.GetInputs(); var start = ac.GlobalPosition(); float t0 = Time.time, nextTrace = 0f, dist = 0f;
+            var bf = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+            var parts = FindObjectsOfType<UnitPart>().Where(q => q.parentUnit == ac).ToList();
+            int Intact() => parts.Count(q => q != null && q.GetType().GetField("joints", bf)?.GetValue(q) is System.Array js
+                                            && js.Cast<object>().All(j => j.GetType().GetField("joint", bf)?.GetValue(j) as Joint != null));
+            int intact0 = Intact(); bool reached = false;
+            string firstUnpaved = null, lastSurface = "?"; float nextProbe = 0f;
+            bool Under(out string what)   // the first surface below the aircraft that isn't the aircraft itself
+            {
+                what = "nothing";
+                foreach (var h in Physics.RaycastAll(ac.transform.position + Vector3.up * 3f, Vector3.down, 40f, ~(1 << 2), QueryTriggerInteraction.Ignore).OrderBy(h => h.distance))
+                {
+                    if (h.collider.GetComponentInParent<Aircraft>() == ac) continue;
+                    var unit = h.collider.GetComponentInParent<Unit>();
+                    what = unit != null ? $"{h.collider.name} ({unit.definition?.unitName})" : h.collider.name;
+                    return h.collider.sharedMaterial != GameAssets.i.terrainMaterial;
+                }
+                return false;
+            }
+            while (Time.time - t0 < timeout)
+            {
+                yield return null;
+                if (ac == null || ac.disabled) { StickHold.Held = null; StickHold.Throttle = null; Test(false, $"taxiout: the aircraft was destroyed at {Time.time - t0:F1} s"); yield break; }
+                if (inp == null) { inp = ac.GetInputs(); continue; }
+                StickHold.Held = Vector3.zero; StickHold.Throttle = throttle; inp.brake = 0f;
+                dist = Vector3.ProjectOnPlane(ac.GlobalPosition() - start, Vector3.up).magnitude;
+                if (Time.time >= nextTrace) { nextTrace = Time.time + 2f; Logger.LogInfo($"  taxi t {Time.time - t0:F0} s: {ac.speed * 3.6f:F0} km/h, {dist:F0} m, radar alt {ac.radarAlt:F2}, parts intact {Intact()}/{intact0}"); }
+                if (Time.time >= nextProbe)
+                {
+                    nextProbe = Time.time + 0.25f;
+                    bool paved = Under(out var what);
+                    if (what != lastSurface) { Logger.LogInfo($"  taxi {dist:F0} m: now on {what} ({(paved ? "paved" : "terrain")})"); lastSurface = what; }
+                    if (!paved && firstUnpaved == null) firstUnpaved = $"{what} at {dist:F0} m";
+                }
+                if (dist >= metres) { reached = true; break; }
+            }
+            StickHold.Throttle = 0f; if (inp != null) inp.brake = 1f;
+            yield return new WaitForSeconds(6f);
+            if (inp != null) inp.brake = 0f;
+            if (gen == flightGen) { StickHold.Held = null; StickHold.Throttle = null; }
+            Test(reached && firstUnpaved == null && ac != null && Intact() == intact0,
+                 $"taxiout: {dist:F0} of {metres:F0} m, " + (firstUnpaved == null ? "paved all the way" : $"left the paving: {firstUnpaved}") + $", parts intact {(ac != null ? Intact() : 0)}/{intact0}");
+        }
 
         System.Collections.IEnumerator Takeoff(Aircraft ac, float throttle, float rotateKmh, float pitchIn)
         {

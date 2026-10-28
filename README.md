@@ -74,9 +74,8 @@ In `BepInEx/config/com.ironman1213.b52systems.cfg` (or in-game with the BepInEx 
   only the newest.
 - **The B-52 has no spoilers, chute or crab:** `B52Systems.dll` is missing or BepInEx isn't installed.
 - **It spawns outside the hangar:** that airbase has no Heavy Hangar (install it, or use a base with a long runway).
-- **Can't taxi from an automatically placed Heavy Hangar to the runway:** a known Heavy Hangar 0.1.0 issue (the hangar
-  sits on grass off the runway). Until Heavy Hangar 0.2.0, set `Placement.AutoPlace = false` in
-  `BepInEx/config/com.ironman1213.heavyhangar.cfg`; the B-52 then spawns on the apron outside a stock hangar.
+- **Can't taxi from an automatically placed Heavy Hangar to the runway:** fixed in Heavy Hangar 0.2.0 (the hangar now
+  sits against a taxiway). Update Heavy Hangar; with 0.1.0 the hangar is on grass off the runway.
 - **Bug reports:** turn on `Telemetry.Enabled`, fly until it happens, and attach the CSV from
   `BepInEx/B52_telemetry` and `BepInEx/LogOutput.log` to an [issue](https://github.com/IornMan1213/NO-B52/issues).
 
