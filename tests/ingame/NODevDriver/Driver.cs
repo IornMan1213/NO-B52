@@ -815,6 +815,75 @@ namespace NODevDriverB52
                         Logger.LogInfo($"  hld {h.name}: position {F(h, "position"):0.00}, speed deployed/retracted {F(h, "speedDeployed")}/{F(h, "speedRetracted")} m/s, alphaMin {F(h, "alphaMin")}, alphaFactor {F(h, "alphaFactor")}, area {F(h, "partAreaRetracted")} -> {F(h, "partAreaDeployed")}; aircraft {ac.speed:F1} m/s");
                     break;
                 }
+                case "cpinv":   // cpinv [radius m, default 4]: every renderer, canvas and text near the pilot's eye, in the aircraft frame: path, layer, on/off, centre, size, and whether its centre is inside the hull
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    float radius = arg.Length > 0 ? float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture) : 4f;
+                    var cam = Camera.main; var eye = cam != null ? cam.transform.position : ac.transform.TransformPoint(new Vector3(-0.55f, 0.8f, 24.6f));
+                    string Path(Transform t) { var n = t.name; for (int i = 0; i < 3 && t.parent != null; i++) { t = t.parent; n = t.name + "/" + n; } return n; }
+                    var hull = ac.GetComponentsInChildren<Collider>(true).Where(c => c.GetComponentInParent<UnitPart>() != null && c.GetComponentInParent<UnitPart>().name == "cockpit" && !c.isTrigger).ToList();
+                    bool Inside(Vector3 w)   // a ray from the cabin axis out through the point must meet the cockpit hull beyond it
+                    {
+                        var l = ac.transform.InverseTransformPoint(w); var axis = ac.transform.TransformPoint(new Vector3(0f, 0.35f, l.z));
+                        var d = w - axis; if (d.magnitude < 0.05f) return true;
+                        foreach (var c in hull) if (c.Raycast(new Ray(w, d.normalized), out _, 8f)) return true;
+                        return false;
+                    }
+                    var items = new System.Collections.Generic.List<(float dist, string line)>();
+                    foreach (var r in Resources.FindObjectsOfTypeAll<Renderer>().Where(r => r.gameObject.scene.IsValid()))
+                    {
+                        var c = r.bounds.center; float dist = Vector3.Distance(c, eye);
+                        if (dist > radius || r.GetComponentInParent<Aircraft>() != ac && r.transform.root != ac.transform.root) continue;
+                        var lc = ac.transform.InverseTransformPoint(c);
+                        items.Add((dist, $"R {Path(r.transform)} [{r.GetType().Name}] layer {r.gameObject.layer} {(r.gameObject.activeInHierarchy && r.enabled ? "on" : "off")} at {lc:F2} size {r.bounds.size:F2} {(Inside(c) ? "" : "OUTSIDE HULL")}"));
+                    }
+                    foreach (var cv in Resources.FindObjectsOfTypeAll<Canvas>().Where(x => x.gameObject.scene.IsValid() && x.renderMode == RenderMode.WorldSpace))
+                    {
+                        var c = cv.transform.position; float dist = Vector3.Distance(c, eye);
+                        if (dist > radius) continue;
+                        var lc = ac.transform.InverseTransformPoint(c);
+                        items.Add((dist, $"C {Path(cv.transform)} layer {cv.gameObject.layer} {(cv.gameObject.activeInHierarchy && cv.enabled ? "on" : "off")} at {lc:F2} scale {cv.transform.lossyScale.x:F4} {(Inside(c) ? "" : "OUTSIDE HULL")}"));
+                    }
+                    Logger.LogInfo($"  cpinv: eye at {ac.transform.InverseTransformPoint(eye):F2}, {items.Count} items within {radius} m, hull colliders {hull.Count}");
+                    foreach (var it in items.OrderBy(x => x.dist)) Logger.LogInfo("  " + it.line);
+                    break;
+                }
+                case "crewvis":   // crewvis on|off: show (or hide again) the crew's bodies and seats on the player's aircraft, which the game hides in cockpit view, for a screenshot
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null || ac.pilots == null) { Logger.LogWarning("  no aircraft"); break; }
+                    int n = 0;
+                    foreach (var pl in ac.pilots.Where(x => x != null))
+                        foreach (var r in pl.GetComponentsInChildren<Renderer>(true)) { r.enabled = arg != "off"; n++; }
+                    Logger.LogInfo($"  crew renderers {(arg != "off" ? "shown" : "hidden")}: {n}");
+                    break;
+                }
+                case "expectac":   // expectac <jsonKey>: check the player is flying that aircraft (if the spawn clicks missed, the rest of the scenario would shoot another one)
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    var key = ac != null && ac.definition != null ? ac.definition.jsonKey : "none";
+                    Test(key == arg, $"player aircraft is {arg} (got {key})");
+                    break;
+                }
+                case "cpfill":   // cpfill <k>: give the cockpit interior's paint an emission of k x its own colour (the builder's fill light), to compare levels in screenshots
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    var ci = ac != null ? ac.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == "cockpit_int") : null;
+                    if (ci == null) { Logger.LogWarning("  no cockpit_int"); break; }
+                    float k = float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture);
+                    var done = new HashSet<Material>();
+                    foreach (var r in ci.GetComponentsInChildren<Renderer>(true))
+                        foreach (var m in r.sharedMaterials)
+                        {
+                            if (m == null || !m.name.StartsWith("B52_CP_") || m.name.StartsWith("B52_CP_MFD") || !done.Add(m)) continue;
+                            m.EnableKeyword("_EMISSION");
+                            if (m.HasProperty("_BaseMap") && m.GetTexture("_BaseMap") != null) m.SetTexture("_EmissionMap", m.GetTexture("_BaseMap"));
+                            m.SetColor("_EmissionColor", (m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor") : Color.white) * k);
+                        }
+                    Logger.LogInfo($"  cockpit fill {k:F2} on {done.Count} materials: {string.Join(", ", done.Select(m => m.name))}");
+                    break;
+                }
                 case "b52live":   // b52live: checks on the player's own B-52 (B52Check.Live: crab reset, engine sound, altimeter) and its fans turning
                 {
                     var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;

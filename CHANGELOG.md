@@ -3,6 +3,17 @@
 Player-facing changes in each release. The development diary with every detail is [MODLOG.md](MODLOG.md).
 
 ## Unreleased (next: 1.0.0)
+- **Cockpit view:** your eye point is 0.24 m further back, where the pilot really sits, so the windscreen frames no
+  longer fill the screen; the instrument panel is a short glance down.
+- The pilots now sit in their seats: the seats, control wheels and rudder pedals are placed for the pilot model's
+  body (it used to sit a metre ahead of an empty seat). The seat backs recline 13 degrees with the pilot's back;
+  every seat on the flight deck used to lean forward.
+- A leftover 1.5 m display from the donor aircraft no longer hangs through the glareshield and the nose.
+- A copy of the outside windscreen wiper no longer sits in the middle of the pilot's windscreen.
+- The flight deck no longer goes nearly black against the bright outside: its paint has a soft fill light (no
+  frame-rate cost), and the seat rails behind your head are dark instead of shiny.
+- A row of caution and warning lights under the glareshield, and a detailed throttle pedestal (lever slots,
+  switch panels).
 - Without Heavy Hangar, a B-52 spawned outside a stock hangar now checks the spot is clear (no aircraft, vehicle or
   building there) and uses the next clear spot instead of landing on top of something.
 - Bay loads that didn't fit the bay: AGM-129 is 8 on one rotary ring (12 ran past the bay's ends) and GBU-54 is 8

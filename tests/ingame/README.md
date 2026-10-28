@@ -21,6 +21,12 @@ bash tests/ingame/run.sh tests/ingame/b52_flight.txt
   hands-off takeoff, for the full-load numbers.
 - `b52_flight.txt` also runs `b52live` on the ground and in the climb (crab reset, one engine sound per pod, the
   altimeter's pointers, fans turning) and ends with `eject`.
+- `b52_cockpit_audit.txt`: the flight deck as the player sees it: an inventory of the interior (`cpinv`), where the
+  pilot model and camera sit, eight head directions, then views of the cabin with the crew shown (`crewvis`) to check
+  the pilots sit in their seats. Screenshots: `BepInEx/b52_audit_*.png`. `b52_pilot_pose.txt` logs the pilot's
+  joints relative to the camera (the numbers tools/blender_cockpit.py places the seats, wheels and pedals from).
+- `b52_cockpit_fill.txt`: the cockpit's fill light at four levels (`cpfill <k>`), for choosing `CockpitFill` in the
+  builder. Cockpit scenarios start with `expectac B52J`, so a spawn that picked another aircraft fails.
 - `hh_place.txt`: Heavy Hangar automatic placement: where each hangar went (the log), shots of the site from above,
   and `taxiout`: the B-52 rolls straight out of the door and must stay on paving (hangar floor, apron, taxiway).
 - `hh_outside.txt`: spawning outside a stock hangar's door (run it with Heavy Hangar's `AutoPlace = false`).

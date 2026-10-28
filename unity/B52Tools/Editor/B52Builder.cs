@@ -1001,7 +1001,18 @@ namespace B52Tools
             if (scr) SetRef(ck, "tacScreenRender", scr.GetComponent<Renderer>());
             // Template tacScreen object (UI anchor) goes onto our centre display.
             var tac = Find(tmplRoot, "tacScreen");
-            if (tac && scr) { tac.SetParent(ci, true); tac.position = scr.position; tac.rotation = scr.rotation; }
+            if (tac && scr)
+            {
+                tac.SetParent(ci, true); tac.position = scr.position; tac.rotation = scr.rotation;
+                // The donor's own screen mesh is 1.5 m wide and offset from its pivot: moved here it hung through the
+                // glareshield and the nose (seen in cockpit view, layer Cockpit). The live map draws on mfd_C_screen
+                // (tacScreenRender), so only the object stays, as an anchor. Removed rather than disabled: the game
+                // switches every interior renderer back on in cockpit view.
+                var tacMesh = tac.GetComponent<MeshRenderer>();
+                if (tacMesh) Object.DestroyImmediate(tacMesh);
+                var tacFilter = tac.GetComponent<MeshFilter>();
+                if (tacFilter) Object.DestroyImmediate(tacFilter);
+            }
 
             // Aircraft renderer lists: interior vs exterior. In cockpit view the game hides every exterior renderer
             // (Aircraft.SetCockpitRenderers), so this lists only the cockpit section's own outer skin, which would cover
@@ -1149,6 +1160,7 @@ namespace B52Tools
         // B-52 is lit, damaged and fogged like stock aircraft. Canopy glass uses the game's glass material.
         // The interior keeps URP/Lit (screens need emission).
         static readonly Dictionary<Material, Material> MatCache = new Dictionary<Material, Material>();
+        const float CockpitFill = 0.25f;  // interior paint glow, x its colour: 0 left the frames black, 0.5 washed it flat (tests/ingame/b52_cockpit_fill.txt)
 
         static Texture2D SolidTex(string name, Color c, bool linear = false)
         {
@@ -1230,6 +1242,15 @@ namespace B52Tools
                         m.EnableKeyword("_EMISSION");
                         m.SetTexture("_EmissionMap", src.GetTexture("_BaseMap"));
                         m.SetColor("_EmissionColor", Color.white * 1.2f);
+                        m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+                    }
+                    else
+                    {
+                        // Soft fill: the game exposes for the bright outside, so the flight deck went nearly black. A faint
+                        // glow of each paint's own colour stands in for light through the windows, at no cost per frame.
+                        m.EnableKeyword("_EMISSION");
+                        if (src.GetTexture("_BaseMap")) m.SetTexture("_EmissionMap", src.GetTexture("_BaseMap"));
+                        m.SetColor("_EmissionColor", src.GetColor("_BaseColor") * CockpitFill);
                         m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
                     }
                     AssetDatabase.CreateAsset(m, Gen + "/" + m.name + ".mat");

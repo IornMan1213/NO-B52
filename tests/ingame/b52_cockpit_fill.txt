@@ -1,0 +1,47 @@
+say START B-52J cockpit fill levels
+include spawn.txt B52J
+expectac B52J
+runway
+wait 4
+cpfill 0
+look 0 0
+wait 2
+shot b52_fill_0_fwd.png
+look -35 45
+wait 2
+shot b52_fill_0_panel.png
+look 120 10
+wait 2
+shot b52_fill_0_back.png
+cpfill 0.15
+look 0 0
+wait 2
+shot b52_fill_015_fwd.png
+look -35 45
+wait 2
+shot b52_fill_015_panel.png
+look 120 10
+wait 2
+shot b52_fill_015_back.png
+cpfill 0.3
+look 0 0
+wait 2
+shot b52_fill_03_fwd.png
+look -35 45
+wait 2
+shot b52_fill_03_panel.png
+look 120 10
+wait 2
+shot b52_fill_03_back.png
+cpfill 0.5
+look 0 0
+wait 2
+shot b52_fill_05_fwd.png
+look -35 45
+wait 2
+shot b52_fill_05_panel.png
+look 120 10
+wait 2
+shot b52_fill_05_back.png
+look off
+say END
