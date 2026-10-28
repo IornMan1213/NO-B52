@@ -18,7 +18,8 @@ FLYING IT
   Crosswind crab   [ and ] turn the main trucks 5 degrees left or right (up to 20), \ straightens them.
                    Keys can be changed in BepInEx/config/com.ironman1213.b52systems.cfg.
   Taxi steering    Rudder.
-  Takeoff          At full load it lifts off by itself at about 170 kt. Climb at 180 kt.
+  Takeoff          Full power, rotate at 150 kt; lift-off at 170-175 kt. About 1,800 m of runway at the
+                   default load, 2,400 m at maximum weight. Climb at 180 kt.
   Approach         150-165 kt depending on weight. Flaps below 204 kt. Touch down at 135-145 kt.
 
 SETTINGS (BepInEx/config/com.ironman1213.b52systems.cfg)

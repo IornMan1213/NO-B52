@@ -26,7 +26,7 @@ and counts are the real ones, and rack mass uses the real weapon weights. Genera
 | AGM-84 Harpoon | anti-ship missile | — | 4 | 8 |
 | AGM-142 Have Nap | heavy AGM | — | 2 | 4 |
 | AGM-154 JSOW | glide bomb | — | 6 | 12 |
-| AGM-129 ACM (retired) | 20 kt cruise missile | 12 (rotary) | — | 12 |
+| AGM-129 ACM (retired) | 20 kt cruise missile | 8 (rotary) | — | 8 |
 | **Gravity** | | | | |
 | Mk 82 | 250 kg bomb | 27 | 12 | 51 |
 | M117 | 250 kg bomb | 27 | 12 | 51 |
@@ -43,7 +43,7 @@ and counts are the real ones, and rack mass uses the real weapon weights. Genera
 | **JDAM** | | | | |
 | GBU-31 | 500 kg guided bomb | 8 | 8 | 24 |
 | GBU-38 | 250 kg guided bomb | 32 | 24 | 80 |
-| GBU-54 | 500 kg guided bomb | 15 | — | 15 |
+| GBU-54 | 500 kg guided bomb | 8 | — | 8 |
 | **WCMD** | | | | |
 | CBU-103 / 104 / 105 | cluster bomb | 16 | 7 | 30 |
 | **Naval mines** | | | | |

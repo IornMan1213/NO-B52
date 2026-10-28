@@ -64,7 +64,7 @@ namespace B52Tools
             new W("AGM84",   "AGM-84 Harpoon",     "ashm2",       0, 4, 691),
             new W("AGM142",  "AGM-142 Have Nap",   "agm_heavy",   0, 2, 1360),
             new W("AGM154",  "AGM-154 JSOW",       "bomb_glide1", 0, 6, 483),
-            new W("AGM129",  "AGM-129 ACM",        "cruise_nuke", 12, 0, 1250),
+            new W("AGM129",  "AGM-129 ACM",        "cruise_nuke", 8, 0, 1250),    // one rotary ring: two rings of 6.3 m missiles are longer than the bay
             // Conventional gravity
             new W("MK82",    "Mk 82",              "bomb_250",    27, 12, 227),
             new W("M117",    "M117",               "bomb_250",    27, 12, 340),
@@ -83,7 +83,7 @@ namespace B52Tools
             // JDAM
             new W("GBU31",   "GBU-31 JDAM",        "bomb_500_glide", 8, 8, 925),
             new W("GBU38",   "GBU-38 JDAM",        "bomb_250_glide", 32, 24, 241),
-            new W("GBU54",   "GBU-54 Laser JDAM",  "bomb_500_glide", 15, 0, 907),
+            new W("GBU54",   "GBU-54 Laser JDAM",  "bomb_500_glide", 8, 0, 907),  // the game's 2,000 lb glide-bomb model, so it fits like GBU-31 (15 hung below the doors)
             // WCMD
             new W("CBU103",  "CBU-103 WCMD",       "bomb_cluster1", 16, 7, 430),
             new W("CBU104",  "CBU-104 WCMD",       "bomb_cluster1", 16, 7, 322),
@@ -276,7 +276,10 @@ namespace B52Tools
                     float a = (i % perRing) * Mathf.PI * 2f / perRing;
                     int ring = i / perRing;
                     float z = rings == 1 ? 0 : (ring - (rings - 1) / 2f) * Mathf.Min(len * 1.02f, 10.3f / rings);
-                    p[i] = new Vector3(Mathf.Cos(a) * 0.55f, Mathf.Sin(a) * 0.55f, z);
+                    // 8 cm above the bay centre: with fins, the missiles are taller than the bay, and measured in game
+                    // (tests/ingame bayfit) this keeps every rotary load above the door line; the overlap goes into
+                    // the bay roof, inside the fuselage.
+                    p[i] = new Vector3(Mathf.Cos(a) * 0.55f, Mathf.Sin(a) * 0.55f + 0.08f, z);
                 }
                 return p;
             }

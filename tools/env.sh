@@ -30,8 +30,10 @@ LOGS="$ROOT/build/logs"
 # Native path for tools that don't understand MSYS paths (Unity, Blender, dotnet on Windows).
 winpath() { if [[ $IS_WIN == 1 ]]; then cygpath -w "$1"; else printf '%s\n' "$1"; fi; }
 
-# The mod version, from the Unity builder (the plugin's [BepInPlugin] attribute must match it).
-mod_version() { grep -oE 'const string Version = "[^"]+"' "$ROOT/unity/B52Tools/Editor/B52Builder.cs" | grep -oE '[0-9][0-9.]*[0-9]'; }
+# The mod version: the VERSION file, the one place it's set. The plugin's project reads it directly; the Unity builder
+# gets it from B52_VERSION.
+mod_version() { tr -d ' \r\n' < "$ROOT/VERSION"; }
+export B52_VERSION="$(mod_version)"
 
 game_running() {
   if [[ $IS_WIN == 1 ]]; then tasklist 2>/dev/null | grep -qi "NuclearOption.exe"

@@ -62,7 +62,7 @@ namespace NODevDriverB52
         class Runner : MonoBehaviour
         {
             internal Driver owner;
-            void Update() { owner.HoldLook(); owner.Tick(); }
+            void Update() { owner.HoldLook(); B52Check.Tick(owner.Test); owner.Tick(); }
         }
 
         // "look": the pilot's head held at a pan/tilt (degrees) every frame, so a following "shot" shows the real cockpit
@@ -699,6 +699,145 @@ namespace NODevDriverB52
                         }
                     break;
                 }
+                case "fuel":   // fuel <0..1>: set every tank of the player's aircraft to that fraction through FuelTank.Refuel (it sets, not adds; part masses follow), then log the mass
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    float frac = arg == "full" ? 1f : float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture);
+                    int tanks = 0;
+                    foreach (var tank in ac.GetFuelTanks()) { tanks++; tank.Refuel(frac); }
+                    Logger.LogInfo($"  fuel: {tanks} tanks set to {frac:F2}, fuel level {ac.GetFuelLevel():F2}, rigidbody mass {(ac.rb != null ? ac.rb.mass : 0f):F0} kg (updates next physics step)");
+                    break;
+                }
+                case "mass":   // mass: the player's aircraft's rigidbody mass and fuel level
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    Logger.LogInfo($"  mass {(ac.rb != null ? ac.rb.mass : 0f):F0} kg, fuel level {ac.GetFuelLevel():F2}");
+                    break;
+                }
+                case "bayfit":   // bayfit [margin m]: every B-52 bay rack, loaded (inactive) on the player's B-52's bay hardpoint and measured against the bay (the bombBay mesh's box): one PASS/FAIL line per rack
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    float margin = arg.Length > 0 ? float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture) : 0.05f;
+                    var all = ac.GetComponentsInChildren<Transform>(true);
+                    var mount = all.FirstOrDefault(t => t.name == "bayMount"); var bay = all.FirstOrDefault(t => t.name == "bombBay");
+                    if (mount == null) { Logger.LogWarning("  no bayMount"); break; }
+                    Bounds Box(Transform root, Transform frame)   // mesh bounds of everything under root, in frame's space
+                    {
+                        var b = new Bounds(); bool any = false;
+                        foreach (var mf in root.GetComponentsInChildren<MeshFilter>(true))
+                        {
+                            if (mf.sharedMesh == null) continue; var mb = mf.sharedMesh.bounds;
+                            for (int c = 0; c < 8; c++)
+                            {
+                                var p = frame.InverseTransformPoint(mf.transform.TransformPoint(mb.center + Vector3.Scale(mb.extents, new Vector3((c & 1) == 0 ? -1 : 1, (c & 2) == 0 ? -1 : 1, (c & 4) == 0 ? -1 : 1))));
+                                if (!any) { b = new Bounds(p, Vector3.zero); any = true; } else b.Encapsulate(p);
+                            }
+                        }
+                        return b;
+                    }
+                    var bayBox = bay != null && bay.GetComponentInChildren<MeshFilter>(true) != null ? Box(bay, mount) : new Bounds(Vector3.zero, new Vector3(1.7f, 1.8f, 10.3f));
+                    Logger.LogInfo($"  bay box in the hardpoint's frame: min {bayBox.min:F2} max {bayBox.max:F2}{(bay == null ? " (fallback: no bombBay mesh)" : "")}");
+                    var racks = Resources.FindObjectsOfTypeAll<WeaponMount>().Where(m => m.name.StartsWith("B52_") && m.name.Contains("_bayx") && m.prefab != null).OrderBy(m => m.name).ToList();
+                    foreach (var m in racks)
+                    {
+                        var holder = new GameObject("bayfit"); holder.SetActive(false);
+                        holder.transform.SetParent(mount, false);
+                        var rack = Instantiate(m.prefab, holder.transform, false);
+                        var rb = Box(rack.transform, mount);
+                        Destroy(holder);
+                        float over = Mathf.Max(Mathf.Max(bayBox.min.x - rb.min.x, rb.max.x - bayBox.max.x), Mathf.Max(bayBox.min.z - rb.min.z, rb.max.z - bayBox.max.z));
+                        float roof = rb.max.y - bayBox.max.y, below = bayBox.min.y - rb.min.y;
+                        Test(Mathf.Max(over, roof, below) <= margin,
+                             $"bay fit {m.name}: stores min {rb.min:F2} max {rb.max:F2}; past the bay sides/ends {Mathf.Max(over, 0f):F2} m, roof {Mathf.Max(roof, 0f):F2} m, door line {Mathf.Max(below, 0f):F2} m");
+                    }
+                    break;
+                }
+                case "hud":   // hud: the B-52's HUD readout state (help card shown yet, card open, flash message, status lines); passes if the help card has shown itself once this session
+                {
+                    var t = HudType(); if (t == null) { Logger.LogWarning("  no HudReadout"); break; }
+                    var bf = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
+                    bool shown = (bool)t.GetField("cardShownOnce", bf).GetValue(null), open = (bool)t.GetField("cardOpen", bf).GetValue(null);
+                    var status = t.GetField("status", bf).GetValue(null) as System.Collections.IDictionary;
+                    Logger.LogInfo($"  hud: flash '{t.GetField("flash", bf).GetValue(null)}', status [{string.Join("; ", status.Values.Cast<object>())}], card open {open}");
+                    Test(shown, "help card showed itself on the first flight of the session");
+                    break;
+                }
+                case "helpcard":   // helpcard on|off: open or close the B-52's key card as Shift+F1 would (for a screenshot)
+                {
+                    var t = HudType(); if (t == null) { Logger.LogWarning("  no HudReadout"); break; }
+                    t.GetField("cardOpen", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic).SetValue(null, arg != "off");
+                    break;
+                }
+                case "hudwatch":   // hudwatch <seconds> <text>: passes if a B-52 HUD message containing <text> appears within that time (runs alongside the next commands)
+                {
+                    var a = arg.Split(new[] { ' ' }, 2);
+                    StartCoroutine(HudWatch(float.Parse(a[0], System.Globalization.CultureInfo.InvariantCulture), a.Length > 1 ? a[1] : ""));
+                    break;
+                }
+                case "spawnai":   // spawnai <aircraft jsonKey>: the heavy hangar nearest the player (else the nearest hangar) spawns an AI-flown aircraft of that type, as a mission would; "trackai" follows it
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var me = hud != null ? hud.aircraft : null;
+                    var def = Resources.FindObjectsOfTypeAll<AircraftDefinition>().FirstOrDefault(d => d.jsonKey == arg);
+                    if (def == null) { Logger.LogWarning("  no aircraft definition " + arg); break; }
+                    var from = me != null ? me.transform.position : Vector3.zero;
+                    var hangars = FindObjectsOfType<Hangar>().Where(h => h.attachedUnit != null && h.attachedUnit.definition != null).ToList();
+                    var hangar = hangars.Where(h => h.attachedUnit.definition.jsonKey == "hangar_heavy").OrderBy(h => (h.transform.position - from).sqrMagnitude).FirstOrDefault()
+                                 ?? hangars.OrderBy(h => (h.transform.position - from).sqrMagnitude).FirstOrDefault();
+                    if (hangar == null) { Logger.LogWarning("  no hangar"); break; }
+                    var res = hangar.TrySpawnAircraft(null, def, default(LiveryKey), null, 0.6f);
+                    aiDef = def; aiSince = Time.time;
+                    Logger.LogInfo($"  spawnai {def.unitName} from {hangar.attachedUnit.definition.unitName} at {hangar.parentAirbase?.name}: allowed {res.Allowed}, delayed {res.DelayedSpawn}");
+                    if (!res.Allowed) StartCoroutine(SpawnAiDirect(hangar, def));   // the hangar refused player-less spawns: do what it does ourselves
+                    break;
+                }
+                case "trackai":   // trackai <seconds>: follow the AI aircraft "spawnai" made (waits up to 60 s for it to roll out of the hangar)
+                {
+                    StartCoroutine(TrackAi(float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture)));
+                    break;
+                }
+                case "track":   // track <seconds>: log the player's aircraft every 2 s (speed, height, pilot state, distance moved); at the end: did it fly, and how much it bobbed in level flight
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    StartCoroutine(Track(ac, float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture)));
+                    break;
+                }
+                case "hld":   // hld: every HighLiftDevice (flaps/slats) on the player's aircraft: deployed position, speed and alpha settings, with the aircraft's speed
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var bf = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+                    object F(object o, string n) => o.GetType().GetField(n, bf)?.GetValue(o);
+                    foreach (var h in ac.GetComponentsInChildren<HighLiftDevice>(true))
+                        Logger.LogInfo($"  hld {h.name}: position {F(h, "position"):0.00}, speed deployed/retracted {F(h, "speedDeployed")}/{F(h, "speedRetracted")} m/s, alphaMin {F(h, "alphaMin")}, alphaFactor {F(h, "alphaFactor")}, area {F(h, "partAreaRetracted")} -> {F(h, "partAreaDeployed")}; aircraft {ac.speed:F1} m/s");
+                    break;
+                }
+                case "b52live":   // b52live: checks on the player's own B-52 (B52Check.Live: crab reset, engine sound, altimeter) and its fans turning
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    B52Check.Live(ac, Logger, Test);
+                    StartCoroutine(FansTurn(ac));
+                    break;
+                }
+                case "crabshow":   // crabshow <deg>: set the crosswind crab on the player's B-52 as the keys would (for a HUD screenshot); crabshow 0 clears it
+                {
+                    var gear = BepInEx.Bootstrap.Chainloader.PluginInfos.TryGetValue("com.ironman1213.b52systems", out var pi) ? pi.Instance.GetType().Assembly.GetType("B52Systems.GearSystem") : null;
+                    gear?.GetField("CrabSelected", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
+                        ?.SetValue(null, float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture));
+                    Logger.LogInfo($"  crab {arg} deg");
+                    break;
+                }
+                case "eject":   // eject: the player's aircraft starts its ejection sequence; passes if the crew's seats leave it within 5 s
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    StartCoroutine(Eject(ac));
+                    break;
+                }
                 case "b52check":   // B-52 mod checks (B52Check.cs): "[TEST] PASS/FAIL" lines
                     B52Check.Run(Logger, Test);
                     break;
@@ -916,6 +1055,91 @@ namespace NODevDriverB52
         static Aircraft runwayAc; static float runwayH0;   // the "runway" command's last on-ground root height
 
         static float Pitch(Aircraft ac) { var f = ac.transform.forward; return Mathf.Asin(Mathf.Clamp(f.y, -1f, 1f)) * Mathf.Rad2Deg; }
+
+        static System.Type HudType() =>
+            BepInEx.Bootstrap.Chainloader.PluginInfos.TryGetValue("com.ironman1213.b52systems", out var pi) ? pi.Instance.GetType().Assembly.GetType("B52Systems.HudReadout") : null;
+
+        System.Collections.IEnumerator HudWatch(float seconds, string text)
+        {
+            var f = HudType()?.GetField("flash", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            float t0 = Time.time; string seen = null, last = null;
+            while (f != null && Time.time - t0 < seconds)
+            {
+                var now = f.GetValue(null) as string;
+                if (now != last) { last = now; if (now != null) Logger.LogInfo($"  hud message: '{now}' at {Time.time - t0:F1} s"); }
+                if (now != null && now.Contains(text)) { seen = now; break; }
+                yield return null;
+            }
+            Test(seen != null, $"HUD message '{text}' " + (seen != null ? $"shown after {Time.time - t0:F1} s" : $"not shown in {seconds:F0} s"));
+        }
+
+        // Open the hangar's doors with its own routine, wait for them, then spawn the AI aircraft at its spawn point through
+        // the spawner (as Hangar.SpawnAircraft does).
+        System.Collections.IEnumerator SpawnAiDirect(Hangar hangar, AircraftDefinition def)
+        {
+            var bf = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            typeof(Hangar).GetMethod("OpenDoors", bf)?.Invoke(hangar, null);
+            Logger.LogInfo("  spawnai: opening the hangar doors");
+            yield return new WaitForSeconds(22f);
+            var sp = typeof(Hangar).GetField("spawnTransform", bf)?.GetValue(hangar) as Transform;
+            if (sp == null) { Logger.LogWarning("  no spawn point"); yield break; }
+            var pos = sp.position + Vector3.up * def.spawnOffset.y + sp.forward * def.spawnOffset.z;
+            var ai = NetworkSceneSingleton<Spawner>.i.SpawnAircraft(null, def.unitPrefab, null, 0.6f, default(LiveryKey), pos.ToGlobalPosition(),
+                        sp.rotation * Quaternion.Euler(def.restRotation), Vector3.zero, hangar, hangar.attachedUnit.NetworkHQ, null, 1f, 0.5f);
+            if (ai != null) ai.Networkloadout = ai.weaponManager.SelectAIAircraftWeapons(hangar.parentAirbase);
+            Logger.LogInfo($"  spawnai: spawned at the hangar's spawn point with the doors open: {(ai != null ? ai.name : "failed")}");
+        }
+
+        static AircraftDefinition aiDef; static float aiSince;
+        System.Collections.IEnumerator TrackAi(float seconds)
+        {
+            var hud = SceneSingleton<CombatHUD>.i; var me = hud != null ? hud.aircraft : null;
+            Aircraft ai = null; float t0 = Time.time;
+            while (ai == null && Time.time - t0 < 60f)
+            {
+                ai = FindObjectsOfType<Aircraft>().Where(a => a != me && a.definition == aiDef && !a.disabled).OrderByDescending(a => a.GetInstanceID()).FirstOrDefault();
+                if (ai == null) yield return new WaitForSeconds(1f);
+            }
+            if (ai == null) { Test(false, "AI aircraft: none spawned within 60 s"); yield break; }
+            Logger.LogInfo($"  trackai: found {ai.definition.unitName} after {Time.time - t0:F0} s");
+            yield return Track(ai, seconds);
+        }
+
+        System.Collections.IEnumerator Track(Aircraft ac, float seconds)
+        {
+            var start = ac.GlobalPosition(); float t0 = Time.time, maxAgl = 0f, maxDist = 0f;
+            var vs = new System.Collections.Generic.List<float>();
+            while (Time.time - t0 < seconds && ac != null && !ac.disabled)
+            {
+                var pilot = ac.pilots != null ? ac.pilots.FirstOrDefault(x => x != null) : null;
+                float dist = Vector3.ProjectOnPlane(ac.GlobalPosition() - start, Vector3.up).magnitude, vy = ac.rb != null ? ac.rb.velocity.y : 0f;
+                maxAgl = Mathf.Max(maxAgl, ac.radarAlt); maxDist = Mathf.Max(maxDist, dist);
+                if (ac.radarAlt > 300f) vs.Add(vy);
+                Logger.LogInfo($"  track t {Time.time - t0:F0} s: {pilot?.GetCurrentState()}, {ac.speed * 3.6f:F0} km/h, radar alt {ac.radarAlt:F0} m, climb {vy:F1} m/s, pitch {Pitch(ac):F1}, {dist:F0} m from start, gear {ac.gearState}");
+                yield return new WaitForSeconds(2f);
+            }
+            float mean = vs.Count > 0 ? vs.Average() : 0f, sd = vs.Count > 1 ? Mathf.Sqrt(vs.Sum(v => (v - mean) * (v - mean)) / (vs.Count - 1)) : 0f;
+            Logger.LogInfo($"  track summary: max radar alt {maxAgl:F0} m, moved {maxDist:F0} m, vertical speed above 300 m: mean {mean:F1} m/s, spread {sd:F1} m/s over {vs.Count} samples");
+            Test(ac != null && !ac.disabled && maxAgl > 150f, $"AI flight: took off and climbed to {maxAgl:F0} m (moved {maxDist:F0} m)");
+        }
+
+        System.Collections.IEnumerator FansTurn(Aircraft ac)
+        {
+            var fans = ac.GetComponentsInChildren<Transform>(true).Where(t => t.name.StartsWith("fan_pod")).ToList();
+            var before = fans.Select(t => t.localRotation).ToList();
+            yield return new WaitForSeconds(1f);
+            int turned = fans.Where((t, i) => t != null && Quaternion.Angle(before[i], t.localRotation) > 5f).Count();
+            Test(fans.Count > 0 && turned == fans.Count, $"engine fans: {turned} of {fans.Count} turned in a second");
+        }
+
+        System.Collections.IEnumerator Eject(Aircraft ac)
+        {
+            int seats0 = FindObjectsOfType<EjectionSeat>().Length;
+            ac.StartEjectionSequence();
+            float t0 = Time.time; int seats = seats0;
+            while (Time.time - t0 < 5f) { yield return new WaitForSeconds(0.25f); seats = FindObjectsOfType<EjectionSeat>().Length; if (seats > seats0) break; }
+            Test(seats > seats0, $"eject: {seats - seats0} ejection seat(s) left the aircraft in {Time.time - t0:F1} s");
+        }
 
         System.Collections.IEnumerator TaxiOut(Aircraft ac, float throttle, float metres, float timeout)
         {

@@ -1555,7 +1555,20 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.9.0";
+        // The mod version: the repo's VERSION file, the one place it's set (the plugin's project reads it too). The build
+        // scripts pass it in B52_VERSION; run by hand, it's read through the project's link to this folder.
+        public static string Version
+        {
+            get
+            {
+                var v = System.Environment.GetEnvironmentVariable("B52_VERSION");
+                var file = System.IO.Path.Combine("Assets", "Editor", "B52Tools", "..", "..", "..", "VERSION");   // the link's target, on Linux
+                if (string.IsNullOrEmpty(v) && System.IO.File.Exists(file)) v = System.IO.File.ReadAllText(file);
+                v = v?.Trim();
+                if (string.IsNullOrEmpty(v)) throw new Exception("No mod version: run the build through tools/build_all.sh (it sets B52_VERSION from VERSION)");
+                return v;
+            }
+        }
         // tools/build_all.sh sets B52_BUILD_DIR to the repo's build/ folder; otherwise build/ inside the Unity project.
         static string BuildDir => System.Environment.GetEnvironmentVariable("B52_BUILD_DIR") ?? System.IO.Path.GetFullPath("build");
 

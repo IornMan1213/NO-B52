@@ -11,14 +11,13 @@ cd "$ROOT"
 
 CATEGORY=release; [[ "${1:-}" == --pre ]] && CATEGORY=preRelease
 V="$(mod_version)"
-PV="$(grep -oE 'BepInPlugin\("[^"]+", "[^"]+", "[^"]+"\)' plugin/B52Systems/Plugin.cs | grep -oE '"[0-9][0-9.]*"' | tr -d '"')"
-[[ "$V" == "$PV" ]] || { echo "Version mismatch: builder says $V, plugin says $PV. Set both before packaging."; exit 1; }
 grep -q "^## $V" CHANGELOG.md || { echo "CHANGELOG.md has no '## $V' section"; exit 1; }
 NOBP="build/B-52J Stratofortress_$V.nobp"
 DLL="build/plugin/B52Systems.dll"
 [[ -f "$NOBP" ]] || { echo "Missing $NOBP (run tools/build_all.sh)"; exit 1; }
 [[ -f "$DLL" ]] || { echo "Missing $DLL (run tools/build_all.sh)"; exit 1; }
-[[ "$DLL" -nt plugin/B52Systems/Plugin.cs ]] || { echo "$DLL is older than the plugin source; rebuild it"; exit 1; }
+[[ "$DLL" -nt plugin/B52Systems/Plugin.cs && "$DLL" -nt VERSION ]] || { echo "$DLL is older than the plugin source or VERSION; rebuild it"; exit 1; }
+grep -aq "$V" "$DLL" || { echo "$DLL doesn't carry version $V; rebuild it"; exit 1; }
 
 STAGE="build/package"
 rm -rf "$STAGE"; mkdir -p "$STAGE"

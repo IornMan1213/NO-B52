@@ -1,8 +1,7 @@
 # Releasing a new version
 
-1. **Version.** Set the same version in `unity/B52Tools/Editor/B52Builder.cs` (`Version`) and
-   `plugin/B52Systems/Plugin.cs` (`[BepInPlugin(..., "x.y.z")]`). `tools/package.sh` refuses to package if they
-   differ.
+1. **Version.** Set it in `VERSION` (the only place): the plugin's project, the Unity builder and the scripts all
+   read it from there.
 2. **Changelog.** Move the "in progress" notes in [CHANGELOG.md](CHANGELOG.md) under the new version, in player
    language. Update the compatibility table in the README if the game or Blueprinter version changed.
 3. **Build** (game closed): `bash tools/build_all.sh`, or `--from-fbx` if no Blender script changed. Check the

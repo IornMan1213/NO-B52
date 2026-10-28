@@ -77,4 +77,9 @@ echo "$results"
 fails=$(echo "$results" | grep -c "\[TEST\] FAIL" || true)
 ended=$(echo "$results" | grep -c "\[TEST\] END" || true)
 echo "---"; echo "failed checks: $fails"
+# keep this run's part of the game log (the game starts a new log every launch)
+mkdir -p "$here/../../build/logs" && mine > "$here/../../build/logs/ingame_$(basename "$scenario" .txt).log"
+# with QUIT=1 the scenario closes the game: wait until it is gone, so a run started right after doesn't talk to a
+# game that is still shutting down
+if [ "${QUIT:-0}" = 1 ]; then for _ in $(seq 60); do pgrep -x "NuclearOption.e" >/dev/null || break; sleep 2; done; fi
 [ "$fails" -eq 0 ] && [ "$ended" -gt 0 ]

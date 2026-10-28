@@ -15,6 +15,12 @@ bash tests/ingame/run.sh tests/ingame/b52_flight.txt
   (`look <pan> <tilt>`, then `shot`: the game's cockpit camera, exposure and post-processing, as the player sees it),
   and a frame-time sample on the runway. Screenshots: `BepInEx/b52_cp_*.png`. For judging the model and cockpit.
   (`view` and `pview` render with a single camera: handy for geometry, but they miss the game's cockpit camera.)
+- `b52_hud.txt`: the HUD readouts: the key card shows itself on the first flight (and a screenshot of it), and the
+  CHUTE OUT / CHUTE RELEASED messages appear during a rollout (`hudwatch`).
+- `b52_fullload.txt`: every bay rack measured against the bay (`bayfit`), then full tanks (`fuel full`) and a
+  hands-off takeoff, for the full-load numbers.
+- `b52_flight.txt` also runs `b52live` on the ground and in the climb (crab reset, one engine sound per pod, the
+  altimeter's pointers, fans turning) and ends with `eject`.
 - `hh_place.txt`: Heavy Hangar automatic placement: where each hangar went (the log), shots of the site from above,
   and `taxiout`: the B-52 rolls straight out of the door and must stay on paving (hangar floor, apron, taxiway).
 - `hh_outside.txt`: spawning outside a stock hangar's door (run it with Heavy Hangar's `AutoPlace = false`).

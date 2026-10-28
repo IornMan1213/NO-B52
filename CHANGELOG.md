@@ -2,6 +2,16 @@
 
 Player-facing changes in each release. The development diary with every detail is [MODLOG.md](MODLOG.md).
 
+## Unreleased (next: 1.0.0)
+- Without Heavy Hangar, a B-52 spawned outside a stock hangar now checks the spot is clear (no aircraft, vehicle or
+  building there) and uses the next clear spot instead of landing on top of something.
+- Bay loads that didn't fit the bay: AGM-129 is 8 on one rotary ring (12 ran past the bay's ends) and GBU-54 is 8
+  (15 hung below the closed doors). Measured in game against the bay for every bay rack.
+- The README's takeoff numbers are now measured in game: rotate at 150 kt, lift-off at 170-175 kt, about 1,800 m at
+  the default load and 2,400 m at maximum takeoff weight. (It used to say a full-load B-52 lifts off by itself at
+  170 kt; it doesn't.)
+- Rotary-launcher missiles sit 8 cm higher, so none of them pokes below the closed bay doors.
+
 ## 0.9.0 (pre-release: the 1.0 release candidate)
 
 Everything planned for 1.0 that one player can test. 1.0.0 follows once it has had a multiplayer test.

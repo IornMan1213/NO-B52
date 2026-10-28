@@ -21,8 +21,8 @@ airframe numbers with the B-52J modernisation: F130 engines, an AESA radar and a
 In multiplayer, every player needs the same version.
 
 ## Features
-- **Flight model tuned to the real aircraft.** Full-load takeoff run of about 2,300 m, lifting off at about 170 kt
-  without rotating. Climbs above 42,000 ft and cruises at Mach 0.70-0.75. Transonic drag rise, so it can't go
+- **Flight model tuned to the real aircraft.** At maximum takeoff weight (221 t) it needs about 2,400 m of runway,
+  the same as the real B-52H, lifting off near 175 kt. Climbs above 42,000 ft and cruises at Mach 0.70-0.75. Transonic drag rise, so it can't go
   supersonic in a dive. Fly-by-wire tuned for a bomber, not a fighter.
 - **Landing gear modelled on the B-52H.** Four two-wheel main trucks and two wingtip outriggers. Each truck swivels
   90° and folds flat into its own well, and the doors are cut from the skin so they close flush.
@@ -54,9 +54,12 @@ In multiplayer, every player needs the same version.
 | Key card | `Shift+F1` shows or hides a card with these controls. It also appears for 10 seconds on your first B-52 flight each session. |
 
 **Numbers to fly by**
-- **Takeoff:** at full load, hold it on the runway and it lifts off by itself at about 170 kt. Climb at 180 kt.
+- **Takeoff:** full power, rotate at 150 kt (pull back firmly; the nose comes up slowly) and it lifts off at about
+  170-175 kt. Ground run, measured in game: about 1,800 m at the default load (180 t), 2,400 m at maximum takeoff
+  weight (221 t), so use a long runway when heavy. Only a light B-52 flies off by itself (about 145 kt at 100 t).
+  Climb at 180 kt.
 - **Approach:** about 150-165 kt, depending on weight. Flaps come out below 204 kt.
-- **Touchdown:** about 135-145 kt.
+- **Touchdown:** about 135-145 kt. With the wheel brakes and the drag chute, it stops in about 450 m from 135 kt.
 
 ## Settings
 In `BepInEx/config/com.ironman1213.b52systems.cfg` (or in-game with the BepInEx Configuration Manager):

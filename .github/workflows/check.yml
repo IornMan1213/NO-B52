@@ -14,13 +14,7 @@ jobs:
         run: python3 -m py_compile tools/*.py
       - name: Shell scripts parse
         run: for f in tools/*.sh tests/ingame/run.sh; do bash -n "$f" || exit 1; done
-      - name: Plugin and aircraft versions match
-        run: |
-          b=$(grep -oE 'const string Version = "[^"]+"' unity/B52Tools/Editor/B52Builder.cs | grep -oE '[0-9][0-9.]*[0-9]')
-          p=$(grep -oE 'BepInPlugin\("[^"]+", "[^"]+", "[^"]+"\)' plugin/B52Systems/Plugin.cs | grep -oE '"[0-9][0-9.]*"' | tr -d '"')
-          echo "builder $b, plugin $p"
-          test "$b" = "$p"
+      - name: VERSION is a plain version number
+        run: grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' VERSION
       - name: Changelog mentions the version
-        run: |
-          v=$(grep -oE 'const string Version = "[^"]+"' unity/B52Tools/Editor/B52Builder.cs | grep -oE '[0-9][0-9.]*[0-9]')
-          grep -q "^## $v" CHANGELOG.md
+        run: grep -q "^## $(tr -d ' \r\n' < VERSION)" CHANGELOG.md
