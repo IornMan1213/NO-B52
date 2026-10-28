@@ -62,7 +62,23 @@ namespace NODevDriverB52
         class Runner : MonoBehaviour
         {
             internal Driver owner;
-            void Update() => owner.Tick();
+            void Update() { owner.HoldLook(); owner.Tick(); }
+        }
+
+        // "look": the pilot's head held at a pan/tilt (degrees) every frame, so a following "shot" shows the real cockpit
+        // view (the game's cockpit overlay camera and exposure) in that direction
+        Vector2? lookHeld;
+        void HoldLook()
+        {
+            if (lookHeld == null) return;
+            var csm = FindObjectOfType<CameraStateManager>();
+            if (csm == null) return;
+            csm.panView = lookHeld.Value.x; csm.tiltView = lookHeld.Value.y;
+            var st = csm.cockpitState;
+            if (st == null) return;
+            var bf = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            typeof(CameraCockpitState).GetField("panView", bf)?.SetValue(st, lookHeld.Value.x);
+            typeof(CameraCockpitState).GetField("tiltView", bf)?.SetValue(st, lookHeld.Value.y);
         }
 
         void Tick()
@@ -232,6 +248,45 @@ namespace NODevDriverB52
                     File.WriteAllBytes(Path.Combine(Paths.BepInExRootPath, a[7]), tex.EncodeToPNG());
                     Destroy(tex); rt.Release(); Destroy(rt); Destroy(go3);
                     Logger.LogInfo($"  view -> {a[7]}");
+                    break;
+                }
+                case "pview":   // pview <x y z> <lx ly lz> <fov> <file>: like view, but through the game's own camera (its post-processing and exposure), i.e. what the player sees
+                {
+                    var a = arg.Split(' ');
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    var main = Camera.main;
+                    if (ac == null || main == null) { Logger.LogWarning("  no aircraft or main camera"); break; }
+                    float F(int i) => float.Parse(a[i], System.Globalization.CultureInfo.InvariantCulture);
+                    var fr = ac.transform;
+                    var from = fr.TransformPoint(new Vector3(F(0), F(1), F(2))); var to = fr.TransformPoint(new Vector3(F(3), F(4), F(5)));
+                    var pos0 = main.transform.position; var rot0 = main.transform.rotation; var fov0 = main.fieldOfView; var tt0 = main.targetTexture;
+                    main.transform.position = from; main.transform.LookAt(to, fr.up); main.fieldOfView = F(6);
+                    var rt = new RenderTexture(1600, 1000, 24); main.targetTexture = rt; main.Render();
+                    RenderTexture.active = rt; var tex = new Texture2D(1600, 1000, TextureFormat.RGB24, false);
+                    tex.ReadPixels(new Rect(0, 0, 1600, 1000), 0, 0); tex.Apply(); RenderTexture.active = null;
+                    main.targetTexture = tt0; main.transform.SetPositionAndRotation(pos0, rot0); main.fieldOfView = fov0;
+                    File.WriteAllBytes(Path.Combine(Paths.BepInExRootPath, a[7]), tex.EncodeToPNG());
+                    Destroy(tex); rt.Release(); Destroy(rt);
+                    Logger.LogInfo($"  pview -> {a[7]}");
+                    break;
+                }
+                case "look":   // look <pan deg> <tilt deg> | look off: hold the pilot's head there (for "shot"); look off lets the mouse have it back
+                {
+                    var a = arg.Split(' ');
+                    float F(int i) => float.Parse(a[i], System.Globalization.CultureInfo.InvariantCulture);
+                    lookHeld = arg == "off" ? (Vector2?)null : new Vector2(F(0), F(1));
+                    break;
+                }
+                case "campos":   // campos: every enabled camera's position, forward, fov, near plane and culling layers, in the player's aircraft frame
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    foreach (var c in Camera.allCameras)
+                    {
+                        var lp = ac.transform.InverseTransformPoint(c.transform.position); var lf = ac.transform.InverseTransformDirection(c.transform.forward);
+                        var layers = string.Join(",", Enumerable.Range(0, 32).Where(i => (c.cullingMask & (1 << i)) != 0));
+                        Logger.LogInfo($"  {c.name}: pos {lp:F3} fwd {lf:F2} fov {c.fieldOfView:F1} near {c.nearClipPlane:F3} depth {c.depth} layers [{layers}]");
+                    }
                     break;
                 }
                 case "pos":   // pos <substring>: aircraft-frame positions of the player's aircraft's transforms whose name contains it

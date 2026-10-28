@@ -232,17 +232,17 @@ namespace B52Tools
                 ti.maxTextureSize = 4096; ti.textureCompression = TextureImporterCompression.CompressedHQ;
                 ti.mipmapEnabled = true; ti.isReadable = false; ti.SaveAndReimport();
             }
-            // Skin detail maps on the same atlas layout (tools/make_skin_detail.py, tools/blender_ao.py).
-            void Tex(string file, int size, bool normalMap, bool srgb)
+            // Skin detail maps on the same atlas layout (tools/blender_ao.py, tools/make_skin_detail.py). No normal map:
+            // one made from the atlas embossed the printed markings and dirt, so they looked like dents.
+            void Tex(string file, int size, bool srgb)
             {
                 if (!(AssetImporter.GetAtPath(ModDir + "/Textures/" + file) is TextureImporter t)) return;
-                t.textureType = normalMap ? TextureImporterType.NormalMap : TextureImporterType.Default;
+                t.textureType = TextureImporterType.Default;
                 t.sRGBTexture = srgb; t.maxTextureSize = size; t.textureCompression = TextureImporterCompression.CompressedHQ;
                 t.mipmapEnabled = true; t.isReadable = false; t.SaveAndReimport();
             }
-            Tex("B52_atlas_normal.png", 4096, true, false);
-            Tex("B52_atlas_ao.png", 2048, false, false);
-            Tex("B52_atlas_dmg.png", 2048, false, true);
+            Tex("B52_atlas_ao.png", 2048, false);
+            Tex("B52_atlas_dmg.png", 2048, true);
         }
 
         /// <summary>The FBX nodes arrive with a +90 deg X axis-conversion rotation on every frame. Bake it into
@@ -1018,6 +1018,17 @@ namespace B52Tools
             SetRef(ac, "weaponManager", Find(ourRoot, "cockpit").GetComponent(T("WeaponManager")));
             SetRefArray(ac, "canopies", new Object[0]);
             Note($"Cockpit: {interior.Count} interior / {exterior.Count} exterior renderers");
+
+            // The game draws cockpits with a second camera that only renders its cockpit layers and has a near plane
+            // of a few centimetres; the main camera's is much further out. Our interior came in from the FBX on
+            // Default, so only the main camera drew it: from the seat the walls, roof and side-window frames (less
+            // than a metre away) were cut away. The stock bomber's interior root is on CockpitAndExternal (14),
+            // which the cockpit camera draws in cockpit view and the main camera from outside, through the windows.
+            const int CockpitAndExternal = 14;
+            int moved = 0;
+            foreach (var t in ci.GetComponentsInChildren<Transform>(true))
+                if (t.gameObject.layer == 0) { t.gameObject.layer = CockpitAndExternal; moved++; }
+            Note($"Cockpit: {moved} interior objects moved to the CockpitAndExternal layer");
         }
 
         static void ApplyPhysics()
@@ -1165,11 +1176,10 @@ namespace B52Tools
             var black = SolidTex("black", Color.black, true);
             var white = SolidTex("white", Color.white, true);
             var interior = Find(ourRoot, "cockpit_int");
-            // The skin's own maps: panel-line normals, baked contact shadows and a scorched damage texture.
-            var skinNormal = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/B52_atlas_normal.png");
+            // The skin's own maps: baked contact shadows and a scorched damage texture (normals stay flat).
             var skinAO = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/B52_atlas_ao.png");
             var skinDmg = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/B52_atlas_dmg.png");
-            Note($"Skin maps: normal {(skinNormal ? "yes" : "MISSING")}, AO {(skinAO ? "yes" : "MISSING")}, damage {(skinDmg ? "yes" : "MISSING")}");
+            Note($"Skin maps: AO {(skinAO ? "yes" : "MISSING")}, damage {(skinDmg ? "yes" : "MISSING")}");
             int converted = 0;
             foreach (var r in ourRoot.GetComponentsInChildren<MeshRenderer>(true))
             {
@@ -1193,10 +1203,9 @@ namespace B52Tools
                             tex = SolidTex("col_" + src.name.Replace(' ', '_'), col);
                         }
                         bool isSkin = src.name == "B52_Skin";
-                        var nrm = isSkin && skinNormal ? skinNormal : flatNormal;
                         m.SetTexture("_Basecolor", tex); m.SetTexture("_Livery", tex);
                         m.SetTexture("_BasecolorDmg", isSkin && skinDmg ? skinDmg : tex);
-                        m.SetTexture("_Normal", nrm); m.SetTexture("_NormalDmg", nrm);
+                        m.SetTexture("_Normal", flatNormal); m.SetTexture("_NormalDmg", flatNormal);
                         m.SetTexture("_Metallic", black); m.SetTexture("_AO", isSkin && skinAO ? skinAO : white);
                         m.SetFloat("_HitPoints", 100f);
                         AssetDatabase.CreateAsset(m, Gen + "/" + m.name + ".mat");

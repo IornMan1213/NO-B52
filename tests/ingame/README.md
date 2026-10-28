@@ -11,6 +11,10 @@ bash tests/ingame/run.sh tests/ingame/b52_flight.txt
 
 - `b52_flight.txt`: spawn at Boscali North (Heavy Hangar there), mod checks, takeoff, bombs from the bay and both
   pylons (`salvo <station> <pulls>`), gear cycle, rollout with the drag chute. Screenshots go to `BepInEx/b52_test_*.png`.
+- `b52_looks.txt`: spawn, then hull close-ups and real screenshots of the flight deck with the pilot's head turned
+  (`look <pan> <tilt>`, then `shot`: the game's cockpit camera, exposure and post-processing, as the player sees it),
+  and a frame-time sample on the runway. Screenshots: `BepInEx/b52_cp_*.png`. For judging the model and cockpit.
+  (`view` and `pview` render with a single camera: handy for geometry, but they miss the game's cockpit camera.)
 - `spawn.txt`: the menu clicks from the main menu to sitting in the aircraft (`include spawn.txt <aircraft>`).
 
 Driver commands are listed at the top of each `case` in `NODevDriver/Driver.cs`; `b52check` is in `B52Check.cs`.

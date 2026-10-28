@@ -15,6 +15,11 @@ Player-facing changes in each release. The development diary with every detail i
 - Your own B-52 now uses the game's precise collision detection, like other player aircraft.
 - From the cockpit you can now see your own wings and engines (the whole exterior used to vanish in cockpit view).
 - A stray bar no longer hangs across the cockpit from the roof to the throttles.
+- Looking left, right or up from the pilot's seat no longer shows open sky: the game's camera was cutting away
+  every part of the flight deck closer than about a metre (walls, roof, side-window frames). The interior is now on
+  the game's cockpit layer, like the stock aircraft.
+- No more hole under the windscreen: you could see the runway through the nose, because the game hides the nose's
+  outer skin in cockpit view. The inside of the nose is now lined all the way to the tip.
 - Weapon data:
   - The BDU-48 practice bomb rack now weighs what 17 practice bombs weigh (it was 15 t).
   - The CALCM loadout is 16 missiles (8 in the bay, 4 per pylon), so it stays inside the payload limit; the old
@@ -24,14 +29,16 @@ Player-facing changes in each release. The development diary with every detail i
 **Looks**
 - The dent and crease on the right side of the hull just behind the cockpit glass are gone (they came with the
   original model), and the flat sides of the fuselage no longer shade as if creased in a pyramid pattern.
-- The skin has real surface detail now: panel lines and rivets catch the light, contact shadows darken the wing
-  roots, pylons and the belly under the wings, and damaged parts turn scorched and sooty instead of just darker.
+- Contact shadows darken the wing roots, pylons and the belly under the wings, and damaged parts turn scorched
+  and sooty instead of just darker.
 - No more visible seams around the gear doors, and the inside of an open door is painted, not black.
 - Proper wing pylons with the adapter beam, instead of plain boxes.
 - Tyres, wheels and gear legs in realistic greys instead of pure black and white.
 - The spoilers take liveries and damage like the rest of the wing.
-- The flight deck walls are lined with quilted insulation, the window frames are painted, and the floor has a
-  non-slip covering.
+- The flight deck is reworked to look like the real one: dark grey panels and window frames, quilted insulation
+  on the walls, a padded glareshield you can see the instruments under, a round attitude indicator and dials,
+  bevelled edges on the panels and consoles, and round throttle knobs. A stray window post no longer hangs across
+  the left side window.
 - Landing and taxi lights come on with the gear, and there are red anti-collision beacons and white strobes.
 - The engine fans turn as the engines spool up.
 
@@ -42,6 +49,8 @@ Player-facing changes in each release. The development diary with every detail i
 
 **Performance**
 - The landing gear wheels use about a third of the triangles they did (they were over half the aircraft).
+- The beacon and strobe lights switch fully off between flashes, and the landing lights light only the runway ahead
+  (250 m instead of 550 m), so they cost less per frame, especially with several B-52s around.
 
 **Changes**
 - Flight logging (telemetry) is now off by default. When you turn it on, it only logs your own aircraft and keeps

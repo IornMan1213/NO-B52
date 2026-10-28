@@ -9,12 +9,14 @@ namespace B52Systems
     ///  - white strobes at the wingtips and the fin tip, a double flash every 1.5 s.
     /// Each flasher is a camera-facing glow plus a short-range point light, so it reads at night without lighting up
     /// the ground. Positions are in the aircraft frame (metres), measured from the model.
+    /// Lights cost per frame even at zero intensity, so each one is switched off (not dimmed) between flashes, and the
+    /// landing lights reach only as far as the runway ahead needs.
     /// </summary>
     public class ExteriorLights : MonoBehaviour
     {
         private class Flasher
         {
-            public Transform glow; public Light light; public float period, phase, intensity; public bool doubleFlash;
+            public Transform glow; public Light light; public float period, phase; public bool doubleFlash;
         }
 
         private Aircraft aircraft;
@@ -34,7 +36,7 @@ namespace B52Systems
             {
                 Spot("B52_LandingLight_L", new Vector3(-0.8f, -2.55f, 16.6f), -4f, warm),
                 Spot("B52_LandingLight_R", new Vector3(0.8f, -2.55f, 16.6f), -4f, warm),
-                Spot("B52_TaxiLight", new Vector3(0f, -2.6f, 15.8f), -9f, warm, range: 160f, angle: 50f),
+                Spot("B52_TaxiLight", new Vector3(0f, -2.6f, 15.8f), -9f, warm, range: 80f, angle: 50f),
             };
             var red = new Color(1f, 0.12f, 0.08f); var white = new Color(1f, 1f, 1f);
             flashers = new[]
@@ -72,7 +74,7 @@ namespace B52Systems
             quad.RecalculateBounds();
         }
 
-        private Light Spot(string name, Vector3 pos, float pitchDown, Color c, float range = 550f, float angle = 24f)
+        private Light Spot(string name, Vector3 pos, float pitchDown, Color c, float range = 250f, float angle = 24f)
         {
             var go = new GameObject(name);
             go.transform.SetParent(transform, false);
@@ -90,7 +92,8 @@ namespace B52Systems
             go.transform.SetParent(transform, false);
             go.transform.localPosition = pos;
             var l = go.AddComponent<Light>();
-            l.type = LightType.Point; l.range = 14f; l.intensity = 0f; l.color = c; l.shadows = LightShadows.None;
+            l.type = LightType.Point; l.range = 14f; l.intensity = 2.5f; l.color = c; l.shadows = LightShadows.None;
+            l.enabled = false;
             var g = new GameObject(name + "_glow");
             g.transform.SetParent(go.transform, false);
             g.transform.localScale = Vector3.one * size;
@@ -99,7 +102,7 @@ namespace B52Systems
             mr.sharedMaterial = glowMat; mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
             var block = new MaterialPropertyBlock(); block.SetColor("_Color", c); mr.SetPropertyBlock(block);
             g.SetActive(false);
-            return new Flasher { glow = g.transform, light = l, period = period, phase = phase, intensity = 2.5f, doubleFlash = doubleFlash };
+            return new Flasher { glow = g.transform, light = l, period = period, phase = phase, doubleFlash = doubleFlash };
         }
 
         private void LateUpdate()
@@ -117,8 +120,8 @@ namespace B52Systems
                 if (!f.glow) continue;
                 float u = Mathf.Repeat(t / f.period + f.phase, 1f);
                 bool on = alive && (u < 0.08f || (f.doubleFlash && u > 0.16f && u < 0.24f));
-                f.glow.gameObject.SetActive(on);
-                f.light.intensity = on ? f.intensity : 0f;
+                if (f.glow.gameObject.activeSelf != on) f.glow.gameObject.SetActive(on);
+                if (f.light.enabled != on) f.light.enabled = on;
                 if (on && cam) f.glow.rotation = Quaternion.LookRotation(f.glow.position - cam.transform.position, cam.transform.up);
             }
         }

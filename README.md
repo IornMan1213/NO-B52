@@ -40,7 +40,7 @@ In multiplayer, every player needs the same version.
 *In the Heavy Aircraft Hangar, and in cruise.*
 
 ![Flight deck](docs/images/cockpit.jpg)
-*The flight deck on the runway.*
+*The flight deck, looking down at the panel (in game).
 
 ## Flying it
 

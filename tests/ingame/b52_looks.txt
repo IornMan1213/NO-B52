@@ -1,0 +1,32 @@
+say START B-52J looks
+include spawn.txt B52J
+b52check
+wait 3
+camat cockpit 9 1.5 -4 45 b52_hull_right.png
+camat cockpit -9 1.5 -4 45 b52_hull_left.png
+camat fuselage_F -14 1 3 50 b52_hull_fwd_left.png
+camat fuselage_F 14 1 3 50 b52_hull_fwd_right.png
+camat @ac -38 10 42 45 b52_ext_front34.png
+view -0.55 0.78 24.55 -0.2 0.05 25.6 70 b52_cp_panel_flat.png
+runway
+wait 4
+shot b52_cp_fwd.png
+look 0 -35
+wait 2
+shot b52_cp_look_a.png
+look 0 35
+wait 2
+shot b52_cp_look_b.png
+look -80 0
+wait 2
+shot b52_cp_look_c.png
+look 80 -20
+wait 2
+shot b52_cp_look_d.png
+look -40 20
+wait 2
+shot b52_cp_look_e.png
+look off
+fps 5
+wait 6
+say END

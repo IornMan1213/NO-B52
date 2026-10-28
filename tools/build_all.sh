@@ -31,7 +31,7 @@ if [[ "$MODE" == all ]]; then
   step "Blender cockpit"         "COCKPIT"              blender_run "$PARTS" --python tools/blender_cockpit.py
   step "Blender exterior atlas"  "ATLAS"                blender_run "$PARTS" --python tools/blender_atlas.py
   step "Atlas image"             ""                     "$PYTHON" tools/make_atlas.py
-  step "Skin detail textures"    "SKIN"                 "$PYTHON" tools/make_skin_detail.py
+  step "Skin damage texture"     "SKIN"                 "$PYTHON" tools/make_skin_detail.py
   if [[ "${B52_SKIP_AO:-0}" != 1 ]]; then              # ~5 min of CPU; B52_SKIP_AO=1 keeps the committed AO map
     step "Blender skin AO"       "AO baked"             blender_run "$PARTS" --python tools/blender_ao.py -- "$(winpath "$ROOT/unity/Mods/B52")"
   fi
