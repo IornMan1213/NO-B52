@@ -12,10 +12,14 @@
    `BepInEx/b52_test_*.png` screenshots.
 5. **Multiplayer** (for releases that change the plugin): host plus one client, both with the new build. Check the
    chute, gear and weapon release on the other screen.
-6. **Package:** `bash tools/package.sh`. It prints the zip's contents and its sha256.
-7. **Release on GitHub:** tag `vX.Y.Z`, attach `build/B-52J_Stratofortress-X.Y.Z.zip`, and paste the changelog section
-   as the notes. Mark it Latest (not pre-release) once steps 4 and 5 passed.
-8. **Mod manager:** update `nomnom/B52J.json` (version, download URL, sha256 from step 6, game version) and submit it.
+6. **Package:** `bash tools/package.sh` (`--pre` for a pre-release). It builds the flat zip NOMM installs
+   (`build/B-52J-Stratofortress_X.Y.Z.zip`), prints its contents and sha256, and writes the artifact into
+   `nomnom/B52J.json`. Commit the manifest.
+7. **Release on GitHub:** tag `vX.Y.Z` (a plain number, no `-rc`: NOMNOM rejects suffixes), attach the zip as the
+   first asset, and paste the changelog section as the notes. Mark it Latest (not pre-release) once steps 4 and
+   5 passed.
+8. **Mod manager:** check `nomnom/B52J.json` (game version in `tools/nomnom_manifest.py`) and submit it to
+   NOMNOM once (see [nomnom/README.md](nomnom/README.md)); after that NOMNOM updates it from the releases.
 9. **Heavy Hangar:** if `plugin/HeavyHangar` or the hangar tools changed, copy the change to
    [NO-HeavyHangar](https://github.com/IornMan1213/NO-HeavyHangar) and release it there too; the two copies stay in
    step.

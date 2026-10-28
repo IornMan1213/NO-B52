@@ -14,7 +14,10 @@ if [[ "$WHAT" == b52 || "$WHAT" == all ]]; then
   V="$(mod_version)"
   NOBP="$B/B-52J Stratofortress_$V.nobp"
   [[ -f "$NOBP" && -f "$B/plugin/B52Systems.dll" ]] || { echo "Build $V first (bash tools/build_all.sh): missing $NOBP or the plugin"; exit 1; }
-  G="$P/B-52J_Stratofortress"; mkdir -p "$G"
+  # plugins/B52J, the folder NOMM uses for the mod id (as plugins/HeavyHangar below); move out of the old folder
+  OLD="$P/B-52J_Stratofortress"
+  if [[ -d "$OLD" ]]; then rm -f "$OLD"/*.nobp "$OLD"/B52Systems.dll; rmdir "$OLD" 2>/dev/null || true; fi
+  G="$P/B52J"; mkdir -p "$G"
   rm -f "$G"/*.nobp "$G"/B52Systems.dll
   cp "$NOBP" "$G/"
   cp "$B/plugin/B52Systems.dll" "$G/"

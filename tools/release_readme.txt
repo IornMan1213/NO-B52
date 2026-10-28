@@ -3,8 +3,9 @@ https://github.com/IornMan1213/NO-B52
 
 INSTALL
 1. You need BepInEx 5 and Blueprinter {BLUEPRINTER} or newer.
-2. Delete any older B-52J Stratofortress_*.nobp from BepInEx/plugins first, or the game loads both.
-3. Copy the B-52J_Stratofortress folder into Nuclear Option/BepInEx/plugins/.
+2. Delete any older B-52J Stratofortress_*.nobp (or the old B-52J_Stratofortress folder) from BepInEx/plugins
+   first, or the game loads both.
+3. Make a folder Nuclear Option/BepInEx/plugins/B52J/ and put everything from this zip in it.
    It holds the aircraft (.nobp) and B52Systems.dll; the game needs both.
 4. Strongly recommended: Heavy Aircraft Hangar (https://github.com/IornMan1213/NO-HeavyHangar).
    The B-52 is too big for stock hangars. Without it, the B-52 spawns on the apron outside a hangar.

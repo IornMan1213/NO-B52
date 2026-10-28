@@ -9,10 +9,11 @@ airframe numbers with the B-52J modernisation: F130 engines, an AESA radar and a
 ## Quick start
 1. Install [BepInEx 5](https://docs.bepinex.dev/articles/user_guide/installation/index.html) and
    [Blueprinter](https://github.com/nikkorap/NOBlueprinter-Releases/releases/latest) 2.0.1 or newer.
-2. Download `B-52J_Stratofortress-<version>.zip` from [Releases](https://github.com/IornMan1213/NO-B52/releases).
-3. Delete any older `B-52J Stratofortress_*.nobp` from `BepInEx/plugins`, then extract the zip into
-   `Nuclear Option/BepInEx/plugins/`. You should have `BepInEx/plugins/B-52J_Stratofortress/` with the `.nobp` and
-   `B52Systems.dll` in it. The game needs both.
+2. Download `B-52J-Stratofortress_<version>.zip` from [Releases](https://github.com/IornMan1213/NO-B52/releases).
+3. Delete any older `B-52J Stratofortress_*.nobp` from `BepInEx/plugins` (or the old `B-52J_Stratofortress` folder),
+   make a folder `Nuclear Option/BepInEx/plugins/B52J/` and extract the zip into it. You should have the `.nobp`
+   and `B52Systems.dll` in that folder; the game needs both. (The zip has the same layout as the mods the NOMM mod
+   manager installs, so it can install it the same way once the B-52 is listed.)
 4. Recommended: [Heavy Aircraft Hangar](https://github.com/IornMan1213/NO-HeavyHangar). The B-52 is too big for
    stock hangars; Heavy Hangar adds a hangar it fits in at bases with a long runway. Without it, the B-52 spawns on
    the apron outside the hangar.
@@ -73,13 +74,16 @@ In `BepInEx/config/com.ironman1213.b52systems.cfg` (or in-game with the BepInEx 
   only the newest.
 - **The B-52 has no spoilers, chute or crab:** `B52Systems.dll` is missing or BepInEx isn't installed.
 - **It spawns outside the hangar:** that airbase has no Heavy Hangar (install it, or use a base with a long runway).
+- **Can't taxi from an automatically placed Heavy Hangar to the runway:** a known Heavy Hangar 0.1.0 issue (the hangar
+  sits on grass off the runway). Until Heavy Hangar 0.2.0, set `Placement.AutoPlace = false` in
+  `BepInEx/config/com.ironman1213.heavyhangar.cfg`; the B-52 then spawns on the apron outside a stock hangar.
 - **Bug reports:** turn on `Telemetry.Enabled`, fly until it happens, and attach the CSV from
   `BepInEx/B52_telemetry` and `BepInEx/LogOutput.log` to an [issue](https://github.com/IornMan1213/NO-B52/issues).
 
 ## Compatibility
 | B-52J | Nuclear Option | Blueprinter | BepInEx |
 |---|---|---|---|
-| 1.0.0 | build of 23 Oct 2026 | 2.0.1 or newer (tested on 2.1.1) | 5.4.23 |
+| 0.9.0 (pre-release) | 0.34.3 | 2.0.1 or newer (tested on 2.1.1) | 5.4.23 |
 
 Changes per version: [CHANGELOG.md](CHANGELOG.md).
 

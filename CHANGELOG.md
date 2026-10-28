@@ -2,7 +2,9 @@
 
 Player-facing changes in each release. The development diary with every detail is [MODLOG.md](MODLOG.md).
 
-## 1.0.0 (in progress)
+## 0.9.0 (pre-release: the 1.0 release candidate)
+
+Everything planned for 1.0 that one player can test. 1.0.0 follows once it has had a multiplayer test.
 
 **Fixes**
 - The crosswind crab angle no longer carries over to your next aircraft after a respawn.
