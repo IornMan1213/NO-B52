@@ -14,11 +14,13 @@ namespace B52Systems
         {
             if (!Plugin.IsB52(__instance)) return;
             var go = __instance.gameObject;
+            EffectMaterials.Fix(__instance);
             if (Plugin.RigidAirframe.Value) Add<MassSync>(go);
             Add<GearSystem>(go);
             Add<DragChute>(go);
             Add<SpoilerDriver>(go);
             Add<MachDrag>(go);
+            Add<GroundEffect>(go);
             Add<Instruments>(go);
             Add<ExteriorLights>(go);
             Add<EngineFans>(go);

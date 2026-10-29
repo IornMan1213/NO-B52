@@ -48,6 +48,15 @@ namespace NODevDriverB52
             if (crab == null || owner == null) test(false, "crab reset: GearSystem fields not found");
             else { owner.SetValue(null, null); crab.SetValue(null, 10f); pendingCrabCheck = (crab, Time.frameCount); }
 
+            // Every particle effect has a material the game can draw (the tyre dust had none: pink squares on dirt)
+            var bad = ac.GetComponentsInChildren<ParticleSystemRenderer>(true)
+                .Where(r => r.sharedMaterial == null || r.sharedMaterial.shader == null || !r.sharedMaterial.shader.isSupported)
+                .Select(r => $"{r.name} ({(r.sharedMaterial ? r.sharedMaterial.name : "no material")} / {(r.sharedMaterial && r.sharedMaterial.shader ? r.sharedMaterial.shader.name : "no shader")})").ToList();
+            foreach (var m in Resources.FindObjectsOfTypeAll<Material>().Where(m => bad.Any(b => b.Contains("(" + m.name + " "))))
+                log.LogInfo($"  loaded material {m.name}: shader {(m.shader ? m.shader.name + (m.shader.isSupported ? "" : " (not supported)") : "none")}, instance {m.GetInstanceID()}");
+            test(bad.Count == 0, bad.Count == 0 ? "particle effects all have a working material"
+                                                : $"particle effects without a working material: {string.Join(", ", bad)}");
+
             // SD1: two turbofans per pod, only the first one's turbine loop audible
             var fans = ac.GetComponentsInChildren<Turbofan>(true);
             var audible = fans.Select(f => typeof(Turbofan).GetField("turbineAudio", Any)?.GetValue(f) as AudioSource)

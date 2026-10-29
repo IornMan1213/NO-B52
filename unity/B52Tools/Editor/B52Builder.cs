@@ -1490,8 +1490,14 @@ namespace B52Tools
                     }
                     var existing = holder.GetComponent(v.GetType());
                     rep = existing ? existing : CopyComponent((Component)v, holder);
-                    if (v is ParticleSystem && !holder.GetComponent<ParticleSystemRenderer>())
-                        CopyComponent(go.GetComponent<ParticleSystemRenderer>(), holder);
+                    if (v is ParticleSystem)
+                    {
+                        // Adding the ParticleSystem also added a blank renderer, with no material: the tyre dust drew
+                        // as pink squares. Copy the donor's renderer onto it.
+                        var srcR = go.GetComponent<ParticleSystemRenderer>(); var dstR = holder.GetComponent<ParticleSystemRenderer>();
+                        if (srcR && dstR) EditorUtility.CopySerialized(srcR, dstR);
+                        else if (srcR) CopyComponent(srcR, holder);
+                    }
                 }
                 else if (v is GameObject && !go.GetComponentInChildren<MeshRenderer>())
                 {

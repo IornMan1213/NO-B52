@@ -84,8 +84,7 @@ unity_prepare() {
   local sa="$B52_UNITY_PROJECT/Library/ScriptAssemblies"
   mkdir -p "$sa"
   for f in "${GAME_DLLS[@]}"; do [[ -f "$sa/$f" ]] && chmod u+w "$sa/$f"; done
-  step "Unity compile" "" "$UNITY" -batchmode -nographics -quit -projectPath "$(winpath "$B52_UNITY_PROJECT")" \
-    -logFile "$(winpath "$LOGS/unity_compile_editor.log")"
+  step "Unity compile" "" unity_batch "$LOGS/unity_compile_editor.log"
   for f in "${GAME_DLLS[@]}"; do
     [[ -f "$sa/$f" ]] && chmod u+w "$sa/$f"
     cp "$B52_UNITY_PROJECT/Packages/nuclearoption/$f" "$sa/$f"
@@ -93,12 +92,16 @@ unity_prepare() {
   done
 }
 
-# Unity in batch mode on the Blueprinter project; it exits non-zero when the method throws.
-unity_run() {
-  local method="$1" log="$2"
-  "$UNITY" -batchmode -nographics -quit -projectPath "$(winpath "$B52_UNITY_PROJECT")" \
-    -logFile "$(winpath "$log")" -executeMethod "$method"
+# Unity in batch mode on the Blueprinter project; it exits non-zero when the method throws. Its log goes to a file of
+# its own, so it is copied into the step's log too: step's error scan then sees compile errors and builder failures
+# even when Unity exits 0 (it used to see an empty log).
+unity_batch() {
+  local log="$1" rc=0; shift
+  "$UNITY" -batchmode -nographics -quit -projectPath "$(winpath "$B52_UNITY_PROJECT")" -logFile "$(winpath "$log")" "$@" || rc=$?
+  cat "$log"
+  return $rc
 }
+unity_run() { unity_batch "$2" -executeMethod "$1"; }
 
 # Blender in the background; --python-exit-code makes a script exception fail the step.
 blender_run() { "$BLENDER" -b --python-exit-code 1 "$@"; }

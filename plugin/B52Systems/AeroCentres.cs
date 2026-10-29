@@ -62,6 +62,13 @@ namespace B52Systems
 
         internal static void Forget(AeroPart part) => localAC.Remove(part);
 
+        /// <summary>The aero force the job worked out for this part (world space), zero before the first step.</summary>
+        internal static Vector3 Force(AeroPart part)
+        {
+            ref var jf = ref Fields(part);
+            return jf.IsCreated ? jf.Ref().force : Vector3.zero;
+        }
+
         private static Vector3? Compute(AeroPart part)
         {
             var t = part.transform;

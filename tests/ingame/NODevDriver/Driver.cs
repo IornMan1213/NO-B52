@@ -866,6 +866,16 @@ namespace NODevDriverB52
                     Test(key == arg, $"player aircraft is {arg} (got {key})");
                     break;
                 }
+                case "emitfx":   // emitfx <name part> <count>: make the player's particle systems whose object name contains <name part> emit, e.g. the tyre dust, for a screenshot
+                {
+                    var a = arg.Split(' ');
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var ps = ac.GetComponentsInChildren<ParticleSystem>(true).Where(p => p.name.Contains(a[0])).ToList();
+                    foreach (var p in ps) { p.gameObject.SetActive(true); p.Emit(int.Parse(a[1])); }
+                    Logger.LogInfo($"  emitfx {a[0]}: {ps.Count} systems ({string.Join(", ", ps.Select(p => p.name + " " + (p.GetComponent<ParticleSystemRenderer>()?.sharedMaterial?.name ?? "NO MATERIAL")))})");
+                    break;
+                }
                 case "cpfill":   // cpfill <k>: give the cockpit interior's paint an emission of k x its own colour (the builder's fill light), to compare levels in screenshots
                 {
                     var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
@@ -1257,6 +1267,16 @@ namespace NODevDriverB52
                  $"taxiout: {dist:F0} of {metres:F0} m, " + (firstUnpaved == null ? "paved all the way" : $"left the paving: {firstUnpaved}") + $", parts intact {(ac != null ? Intact() : 0)}/{intact0}");
         }
 
+        // ", wing 4.5 m: lift 1500 kN + 300 kN ground effect, weight 1765 kN" from B52Systems.GroundEffect, if it's on the jet
+        static string GroundEffectTrace(Aircraft ac)
+        {
+            var ge = ac.GetComponents<MonoBehaviour>().FirstOrDefault(c => c != null && c.GetType().Name == "GroundEffect");
+            if (ge == null) return "";
+            var bf = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
+            float F(string n) => (float)ge.GetType().GetField(n, bf).GetValue(ge);
+            return $", wing {F("Height"):F1} m: lift {F("Lift") / 1000f:F0} kN + {F("Extra") / 1000f:F0} kN ground effect, weight {ac.rb.mass * 9.81f / 1000f:F0} kN";
+        }
+
         System.Collections.IEnumerator Takeoff(Aircraft ac, float throttle, float rotateKmh, float pitchIn)
         {
             int gen = ++flightGen;
@@ -1273,7 +1293,7 @@ namespace NODevDriverB52
                 var d = ac.GlobalPosition() - start; var f = Vector3.ProjectOnPlane(ac.transform.forward, Vector3.up).normalized;
                 Logger.LogInfo($"  {why} t {Time.time - t0:F1} s: {ac.speed * 3.6f:F0} km/h, along {Vector3.Dot(d, track):F0} m, across {Vector3.Cross(track, d).y:F1} m, "
                              + $"heading off {Vector3.SignedAngle(track, f, Vector3.up):F1}, pitch {Pitch(ac) - p0:F1}, roll {Vector3.SignedAngle(Vector3.ProjectOnPlane(ac.transform.up, ac.transform.forward), Vector3.ProjectOnPlane(Vector3.up, ac.transform.forward), ac.transform.forward):F1}, "
-                             + $"radar alt {ac.radarAlt:F2}, pitch in {(inp != null ? inp.pitch : 0f):F2}, parts intact {Intact()}/{intact0}, gear {ac.gearState}");
+                             + $"radar alt {ac.radarAlt:F2}, pitch in {(inp != null ? inp.pitch : 0f):F2}, parts intact {Intact()}/{intact0}, gear {ac.gearState}{GroundEffectTrace(ac)}");
             }
             Logger.LogInfo($"  takeoff: throttle {throttle}, rotate at {rotateKmh} km/h; nose attitude at rest {p0:F2} deg, radar alt {alt0:F2}");
             while (Time.time - t0 < 90f)

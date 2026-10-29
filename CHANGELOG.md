@@ -18,9 +18,14 @@ Player-facing changes in each release. The development diary with every detail i
   building there) and uses the next clear spot instead of landing on top of something.
 - Bay loads that didn't fit the bay: AGM-129 is 8 on one rotary ring (12 ran past the bay's ends) and GBU-54 is 8
   (15 hung below the closed doors). Measured in game against the bay for every bay rack.
-- The README's takeoff numbers are now measured in game: rotate at 150 kt, lift-off at 170-175 kt, about 1,800 m at
-  the default load and 2,400 m at maximum takeoff weight. (It used to say a full-load B-52 lifts off by itself at
-  170 kt; it doesn't.)
+- **Ground effect:** near the runway the wings make up to 25% more lift, fading out by about 30 m (the game has no
+  ground effect). It lifts off almost level like the real B-52: 158 kt after 1,450 m at 180 t when rotated at 150 kt
+  (was 170 kt after 1,780 m), 163 kt after 2,000 m at 221 t, and by itself, level, at about 170 kt. Setting:
+  Physics.GroundEffectLift.
+- The tyres throw up dust on dirt instead of pink squares, and the wingtip vortex trails have their smoke material
+  (they would have drawn pink too).
+- The README's takeoff numbers are now measured in game (the ones above). It used to say a full-load B-52 lifts off
+  by itself at 170 kt, which didn't match the game.
 - Rotary-launcher missiles sit 8 cm higher, so none of them pokes below the closed bay doors.
 
 ## 0.9.0 (pre-release: the 1.0 release candidate)

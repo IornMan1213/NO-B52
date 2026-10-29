@@ -1,0 +1,11 @@
+say START B-52J tyre dust
+include spawn.txt B52J
+expectac B52J
+b52live
+runway
+wait 4
+emitfx wheel_ 60
+camat wheel_F_fx -7 1.5 5 40 b52_dust_front.png
+emitfx wheel_ 60
+camat wheel_LF_fx -9 1 -3 40 b52_dust_main.png
+say END

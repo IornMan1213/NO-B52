@@ -12,6 +12,7 @@ namespace B52Systems
     {
         internal static ManualLogSource Log;
         internal static ConfigEntry<bool> RigidAirframe;
+        internal static ConfigEntry<float> GroundLift;
         internal static ConfigEntry<bool> TelemetryEnabled;
         internal static ConfigEntry<bool> VerboseAeroCfg;
         internal static ConfigEntry<KeyboardShortcut> CrabLeft, CrabRight, CrabCentre, HelpKey;
@@ -24,6 +25,9 @@ namespace B52Systems
             RigidAirframe = Config.Bind("Physics", "RigidAirframe", true,
                 "Keep the B-52 as one rigid body (the game's simple physics). Parts still break off when damaged. " +
                 "Turn off to use per-part jointed physics, which lets the long wings and fuselage flex visibly.");
+            GroundLift = Config.Bind("Physics", "GroundEffectLift", 0.25f, new ConfigDescription(
+                "Extra wing lift near the ground (ground effect, which the game doesn't model), as a share of the wings' lift " +
+                "with the wheels on the runway. It fades out by about 30 m. 0 turns it off.", new AcceptableValueRange<float>(0f, 0.6f)));
             TelemetryEnabled = Config.Bind("Telemetry", "Enabled", false,
                 "Write a CSV flight log of your own B-52J flights to BepInEx/B52_telemetry (speed, altitude, attitude, " +
                 "events), for tuning and bug reports. Only the newest 20 logs are kept.");

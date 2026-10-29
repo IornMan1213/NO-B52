@@ -21,8 +21,8 @@ airframe numbers with the B-52J modernisation: F130 engines, an AESA radar and a
 In multiplayer, every player needs the same version.
 
 ## Features
-- **Flight model tuned to the real aircraft.** At maximum takeoff weight (221 t) it needs about 2,400 m of runway,
-  the same as the real B-52H, lifting off near 175 kt. Climbs above 42,000 ft and cruises at Mach 0.70-0.75. Transonic drag rise, so it can't go
+- **Flight model tuned to the real aircraft.** Ground effect near the runway, so it lifts off almost level like the
+  real B-52H: at maximum takeoff weight (221 t), about 2,000 m of runway and 163 kt. Climbs above 42,000 ft and cruises at Mach 0.70-0.75. Transonic drag rise, so it can't go
   supersonic in a dive. Fly-by-wire tuned for a bomber, not a fighter.
 - **Landing gear modelled on the B-52H.** Four two-wheel main trucks and two wingtip outriggers. Each truck swivels
   90° and folds flat into its own well, and the doors are cut from the skin so they close flush.
@@ -55,8 +55,9 @@ In multiplayer, every player needs the same version.
 
 **Numbers to fly by**
 - **Takeoff:** full power, rotate at 150 kt (pull back firmly; the nose comes up slowly) and it lifts off at about
-  170-175 kt. Ground run, measured in game: about 1,800 m at the default load (180 t), 2,400 m at maximum takeoff
-  weight (221 t), so use a long runway when heavy. Only a light B-52 flies off by itself (about 145 kt at 100 t).
+  158-163 kt. Ground run, measured in game: about 1,450 m at the default load (180 t), 2,000 m at maximum takeoff
+  weight (221 t), so use a long runway when heavy. Hands off, it lifts off level by itself at about 170 kt (180 t).
+  The ground effect fades by about 30 m up, so don't pull it off early and let it settle back.
   Climb at 180 kt.
 - **Approach:** about 150-165 kt, depending on weight. Flaps come out below 204 kt.
 - **Touchdown:** about 135-145 kt. With the wheel brakes and the drag chute, it stops in about 450 m from 135 kt.
@@ -70,6 +71,7 @@ In `BepInEx/config/com.ironman1213.b52systems.cfg` (or in-game with the BepInEx 
 | `Interface.HelpCard` | `Shift+F1` | Shows or hides the key card. |
 | `Telemetry.Enabled` | off | Writes a CSV log of your own flights to `BepInEx/B52_telemetry` for bug reports (keeps the newest 20). |
 | `Physics.RigidAirframe` | on | One rigid body. Off: per-part jointed physics, with visible wing flex. |
+| `Physics.GroundEffectLift` | 0.25 | Extra wing lift near the ground (ground effect), fading out by about 30 m. 0 turns it off. |
 | `Debug.LogAeroCentres` | on | Logs each part's lift point when a B-52 first flies. |
 
 ## Troubleshooting
