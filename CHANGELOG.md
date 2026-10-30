@@ -3,6 +3,7 @@
 Player-facing changes in each release. The development diary with every detail is [MODLOG.md](MODLOG.md).
 
 ## Unreleased (next: 1.0.0)
+- Needs Blueprinter 2.1.1 (built with Blueprinter Editor 0.1.1, which pairs with 2.1.1's material texture fix).
 - **Cockpit view:** your eye point is 0.24 m further back, where the pilot really sits, so the windscreen frames no
   longer fill the screen; the instrument panel is a short glance down.
 - The pilots now sit in their seats: the seats, control wheels and rudder pedals are placed for the pilot model's

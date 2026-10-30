@@ -8,7 +8,7 @@ airframe numbers with the B-52J modernisation: F130 engines, an AESA radar and a
 
 ## Quick start
 1. Install [BepInEx 5](https://docs.bepinex.dev/articles/user_guide/installation/index.html) and
-   [Blueprinter](https://github.com/nikkorap/NOBlueprinter-Releases/releases/latest) 2.0.1 or newer.
+   [Blueprinter](https://github.com/nikkorap/NOBlueprinter-Releases/releases/latest) 2.1.1 or newer.
 2. Download `B-52J-Stratofortress_<version>.zip` from [Releases](https://github.com/IornMan1213/NO-B52/releases).
 3. Delete any older `B-52J Stratofortress_*.nobp` from `BepInEx/plugins` (or the old `B-52J_Stratofortress` folder),
    make a folder `Nuclear Option/BepInEx/plugins/B52J/` and extract the zip into it. You should have the `.nobp`

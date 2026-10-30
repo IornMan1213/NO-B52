@@ -26,7 +26,7 @@ cp LICENSE "$STAGE/LICENSE-code-MIT.txt"
 cp LICENSES/CC-BY-4.0.txt "$STAGE/LICENSE-model-CC-BY-4.0.txt"
 cp LICENSES/CREDITS-bohmerang-B52.txt "$STAGE/CREDITS-bohmerang-B52.txt"
 cp NOTICE "$STAGE/NOTICE.txt"
-sed -e "s/{VERSION}/$V/g" -e "s/{BLUEPRINTER}/2.0.1/g" tools/release_readme.txt > "$STAGE/README.txt"
+sed -e "s/{VERSION}/$V/g" -e "s/{BLUEPRINTER}/2.1.1/g" tools/release_readme.txt > "$STAGE/README.txt"
 if [[ $IS_WIN == 1 ]]; then   # Windows readers expect CRLF in .txt files opened in Notepad
   for f in "$STAGE"/*.txt; do sed -i 's/$/\r/' "$f"; done
 fi

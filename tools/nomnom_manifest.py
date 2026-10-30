@@ -21,7 +21,7 @@ artifact = {
     'gameVersion': GAME_VERSION,
     'downloadUrl': f"https://github.com/{m['githubOwner']}/{m['githubRepoName']}/releases/download/v{version}/{zip_name}",
     'hash': f'sha256:{sha}',
-    'extends': {'id': 'com.nikkorap.blueprinter', 'version': '2.0.1'},
+    'extends': {'id': 'com.nikkorap.blueprinter', 'version': '2.1.1'},
 }
 m['artifacts'] = [artifact] + [a for a in m.get('artifacts', []) if a.get('version') != version]
 with open(PATH, 'w', encoding='utf-8', newline='\n') as f:
