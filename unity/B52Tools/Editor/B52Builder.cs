@@ -96,7 +96,7 @@ namespace B52Tools
 
         public static void Build()
         {
-            Log.Clear(); Remap.Clear(); bellyTris = null;
+            Log.Clear(); Remap.Clear(); MatCache.Clear(); bellyTris = null;
             try
             {
                 ConfigureFbx();
@@ -120,6 +120,7 @@ namespace B52Tools
                 WireCockpit();
                 TuneFlyByWire();
                 AddAirbrake();
+                TuneJammer();
                 ApplyPhysics();
                 WireJoints();
                 AddColliders();
@@ -231,6 +232,17 @@ namespace B52Tools
                 ti.maxTextureSize = 4096; ti.textureCompression = TextureImporterCompression.CompressedHQ;
                 ti.mipmapEnabled = true; ti.isReadable = false; ti.SaveAndReimport();
             }
+            // Skin detail maps on the same atlas layout (tools/blender_ao.py, tools/make_skin_detail.py). No normal map:
+            // one made from the atlas embossed the printed markings and dirt, so they looked like dents.
+            void Tex(string file, int size, bool srgb)
+            {
+                if (!(AssetImporter.GetAtPath(ModDir + "/Textures/" + file) is TextureImporter t)) return;
+                t.textureType = TextureImporterType.Default;
+                t.sRGBTexture = srgb; t.maxTextureSize = size; t.textureCompression = TextureImporterCompression.CompressedHQ;
+                t.mipmapEnabled = true; t.isReadable = false; t.SaveAndReimport();
+            }
+            Tex("B52_atlas_ao.png", 2048, false);
+            Tex("B52_atlas_dmg.png", 2048, true);
         }
 
         /// <summary>The FBX nodes arrive with a +90 deg X axis-conversion rotation on every frame. Bake it into
@@ -453,6 +465,19 @@ namespace B52Tools
                     SetF(tf, "fuelConsumptionMax", 0.95f * 0.7f);   // CERP: ~30% better than TF33
                     var part = p.GetComponent(T("UnitPart"));
                     SetRef(tf, "part", part);
+                    // Sound: every clone keeps the donor's engine whine (Turbofan.turbineAudio) and exhaust roar
+                    // (JetNozzle.thrustAudio); sixteen identical loops sound hollow and far louder than a stock bomber
+                    // (FastBomber1 has four engines). Keep them on the first engine of each pod, pitched a little
+                    // differently per pod, and silence the second (it still runs and burns fuel, it just makes no sound).
+                    int podIndex = (n - 1) / 2;
+                    if (k == 0)
+                        SetF(tf, "turbineMaxPitch", SO(tf).FindProperty("turbineMaxPitch").floatValue * (0.97f + 0.02f * podIndex));
+                    else
+                    {
+                        var turbine = SO(tf).FindProperty("turbineAudio").objectReferenceValue as AudioSource;
+                        if (turbine) turbine.volume = 0f;
+                        SetF(jn, "thrustMaxVolume", 0f);
+                    }
                     var cap = go.GetComponent<CapsuleCollider>();
                     if (cap) { cap.direction = 2; cap.radius = 0.75f; cap.height = 4.5f; cap.center = Vector3.zero; }
                     n++;
@@ -931,6 +956,18 @@ namespace B52Tools
             Note("Airbrake: dragAmount 8, opens at idle");
         }
 
+        /// <summary>The root's RadarJammer came from FastBomber1 with the stock bombers' settings (the Darkreach has the same:
+        /// intensity 8, capacitance 100). The B-52 carries the heaviest ECM suite of any bomber (ALQ-155/-172), so it jams
+        /// a little harder and a little longer before its capacitor runs down.</summary>
+        static void TuneJammer()
+        {
+            var jam = ourRoot.GetComponent(T("RadarJammer"));
+            if (!jam) { Note("  ! no RadarJammer on the root"); return; }
+            SetF(jam, "jammingIntensity", 10f);
+            SetF(jam, "capacitance", 140f);
+            Note("Jammer: intensity 10, capacitance 140 (stock bombers 8 / 100)");
+        }
+
         static void WireCockpit()
         {
             var ci = Find(ourRoot, "cockpit_int");
@@ -964,19 +1001,45 @@ namespace B52Tools
             if (scr) SetRef(ck, "tacScreenRender", scr.GetComponent<Renderer>());
             // Template tacScreen object (UI anchor) goes onto our centre display.
             var tac = Find(tmplRoot, "tacScreen");
-            if (tac && scr) { tac.SetParent(ci, true); tac.position = scr.position; tac.rotation = scr.rotation; }
+            if (tac && scr)
+            {
+                tac.SetParent(ci, true); tac.position = scr.position; tac.rotation = scr.rotation;
+                // The donor's own screen mesh is 1.5 m wide and offset from its pivot: moved here it hung through the
+                // glareshield and the nose (seen in cockpit view, layer Cockpit). The live map draws on mfd_C_screen
+                // (tacScreenRender), so only the object stays, as an anchor. Removed rather than disabled: the game
+                // switches every interior renderer back on in cockpit view.
+                var tacMesh = tac.GetComponent<MeshRenderer>();
+                if (tacMesh) Object.DestroyImmediate(tacMesh);
+                var tacFilter = tac.GetComponent<MeshFilter>();
+                if (tacFilter) Object.DestroyImmediate(tacFilter);
+            }
 
-            // Aircraft renderer lists: interior vs exterior (cockpit view culls the exterior nose skin).
+            // Aircraft renderer lists: interior vs exterior. In cockpit view the game hides every exterior renderer
+            // (Aircraft.SetCockpitRenderers), so this lists only the cockpit section's own outer skin, which would cover
+            // the windows from inside. Listing every renderer hid the wings and engines from the cockpit.
             var ac = ourRoot.GetComponent(T("Aircraft"));
+            var cockpitPart = Find(ourRoot, "cockpit").GetComponent(T("UnitPart"));
             var interior = ci.GetComponentsInChildren<Renderer>(true).Cast<Object>().ToList();
             var exterior = ourRoot.GetComponentsInChildren<Renderer>(true).Where(r => !r.transform.IsChildOf(ci)
+                && r.GetComponentInParent(T("UnitPart")) == cockpitPart
                 && !(r is SkinnedMeshRenderer) && !(r is ParticleSystemRenderer)).Cast<Object>().ToList();
             SetRefArray(ac, "cockpitRenderers", interior);
             SetRefArray(ac, "exteriorRenderers", exterior);
-            SetRef(ac, "cockpit", Find(ourRoot, "cockpit").GetComponent(T("UnitPart")));
+            SetRef(ac, "cockpit", cockpitPart);
             SetRef(ac, "weaponManager", Find(ourRoot, "cockpit").GetComponent(T("WeaponManager")));
             SetRefArray(ac, "canopies", new Object[0]);
             Note($"Cockpit: {interior.Count} interior / {exterior.Count} exterior renderers");
+
+            // The game draws cockpits with a second camera that only renders its cockpit layers and has a near plane
+            // of a few centimetres; the main camera's is much further out. Our interior came in from the FBX on
+            // Default, so only the main camera drew it: from the seat the walls, roof and side-window frames (less
+            // than a metre away) were cut away. The stock bomber's interior root is on CockpitAndExternal (14),
+            // which the cockpit camera draws in cockpit view and the main camera from outside, through the windows.
+            const int CockpitAndExternal = 14;
+            int moved = 0;
+            foreach (var t in ci.GetComponentsInChildren<Transform>(true))
+                if (t.gameObject.layer == 0) { t.gameObject.layer = CockpitAndExternal; moved++; }
+            Note($"Cockpit: {moved} interior objects moved to the CockpitAndExternal layer");
         }
 
         static void ApplyPhysics()
@@ -1097,6 +1160,7 @@ namespace B52Tools
         // B-52 is lit, damaged and fogged like stock aircraft. Canopy glass uses the game's glass material.
         // The interior keeps URP/Lit (screens need emission).
         static readonly Dictionary<Material, Material> MatCache = new Dictionary<Material, Material>();
+        const float CockpitFill = 0.25f;  // interior paint glow, x its colour: 0 left the frames black, 0.5 washed it flat (tests/ingame/b52_cockpit_fill.txt)
 
         static Texture2D SolidTex(string name, Color c, bool linear = false)
         {
@@ -1124,6 +1188,10 @@ namespace B52Tools
             var black = SolidTex("black", Color.black, true);
             var white = SolidTex("white", Color.white, true);
             var interior = Find(ourRoot, "cockpit_int");
+            // The skin's own maps: baked contact shadows and a scorched damage texture (normals stay flat).
+            var skinAO = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/B52_atlas_ao.png");
+            var skinDmg = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/B52_atlas_dmg.png");
+            Note($"Skin maps: AO {(skinAO ? "yes" : "MISSING")}, damage {(skinDmg ? "yes" : "MISSING")}");
             int converted = 0;
             foreach (var r in ourRoot.GetComponentsInChildren<MeshRenderer>(true))
             {
@@ -1146,9 +1214,11 @@ namespace B52Tools
                             var col = src.HasProperty("_BaseColor") ? src.GetColor("_BaseColor") : Color.gray;
                             tex = SolidTex("col_" + src.name.Replace(' ', '_'), col);
                         }
-                        m.SetTexture("_Basecolor", tex); m.SetTexture("_Livery", tex); m.SetTexture("_BasecolorDmg", tex);
+                        bool isSkin = src.name == "B52_Skin";
+                        m.SetTexture("_Basecolor", tex); m.SetTexture("_Livery", tex);
+                        m.SetTexture("_BasecolorDmg", isSkin && skinDmg ? skinDmg : tex);
                         m.SetTexture("_Normal", flatNormal); m.SetTexture("_NormalDmg", flatNormal);
-                        m.SetTexture("_Metallic", black); m.SetTexture("_AO", white);
+                        m.SetTexture("_Metallic", black); m.SetTexture("_AO", isSkin && skinAO ? skinAO : white);
                         m.SetFloat("_HitPoints", 100f);
                         AssetDatabase.CreateAsset(m, Gen + "/" + m.name + ".mat");
                         converted++;
@@ -1172,6 +1242,15 @@ namespace B52Tools
                         m.EnableKeyword("_EMISSION");
                         m.SetTexture("_EmissionMap", src.GetTexture("_BaseMap"));
                         m.SetColor("_EmissionColor", Color.white * 1.2f);
+                        m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+                    }
+                    else
+                    {
+                        // Soft fill: the game exposes for the bright outside, so the flight deck went nearly black. A faint
+                        // glow of each paint's own colour stands in for light through the windows, at no cost per frame.
+                        m.EnableKeyword("_EMISSION");
+                        if (src.GetTexture("_BaseMap")) m.SetTexture("_EmissionMap", src.GetTexture("_BaseMap"));
+                        m.SetColor("_EmissionColor", src.GetColor("_BaseColor") * CockpitFill);
                         m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
                     }
                     AssetDatabase.CreateAsset(m, Gen + "/" + m.name + ".mat");
@@ -1292,15 +1371,30 @@ namespace B52Tools
                 var wr = Find(ourRoot, "wingroot_" + sd);
                 var wb = wr.GetComponent<Renderer>().bounds;
                 float x = (sd == "L" ? -1 : 1) * 5.6f;
-                var py = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                py.name = "hsabPylon_" + sd;
-                Object.DestroyImmediate(py.GetComponent<Collider>());
-                py.transform.SetParent(wr, false);
-                py.transform.position = new Vector3(x, wb.min.y - 0.35f, wb.center.z - 0.8f);
-                py.transform.rotation = ourRoot.rotation;
-                py.transform.localScale = new Vector3(0.32f, 0.9f, 5.2f);
-                var pr = py.GetComponent<Renderer>(); if (pylonMat) pr.sharedMaterial = pylonMat; pr.enabled = false;
-                var mt = Child(wr, "pylonMount_" + sd, new Vector3(x, wb.min.y - 0.85f, wb.center.z - 0.8f));
+                Renderer pr; Vector3 mountPos;
+                var modelled = Find(ourRoot, "hsabPylon_" + sd);
+                if (modelled && modelled.GetComponent<Renderer>())
+                {
+                    // the modelled pylon and adapter beam (tools/blender_pylons.py): the rack hangs just under the beam
+                    pr = modelled.GetComponent<Renderer>();
+                    var pb = pr.bounds;
+                    mountPos = new Vector3(pb.center.x, pb.min.y - 0.05f, pb.center.z);
+                }
+                else
+                {
+                    Note("  ! hsabPylon_" + sd + " not in the FBX (run tools/blender_pylons.py): using a box");
+                    var py = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    py.name = "hsabPylon_" + sd;
+                    Object.DestroyImmediate(py.GetComponent<Collider>());
+                    py.transform.SetParent(wr, false);
+                    py.transform.position = new Vector3(x, wb.min.y - 0.35f, wb.center.z - 0.8f);
+                    py.transform.rotation = ourRoot.rotation;
+                    py.transform.localScale = new Vector3(0.32f, 0.9f, 5.2f);
+                    pr = py.GetComponent<Renderer>(); if (pylonMat) pr.sharedMaterial = pylonMat;
+                    mountPos = new Vector3(x, wb.min.y - 0.85f, wb.center.z - 0.8f);
+                }
+                pr.enabled = false;                                    // shown by the game while a pylon weapon is loaded
+                var mt = Child(wr, "pylonMount_" + sd, mountPos);
                 pylons.Add((mt, pr, wr.GetComponent(T("UnitPart"))));
             }
 
@@ -1396,8 +1490,14 @@ namespace B52Tools
                     }
                     var existing = holder.GetComponent(v.GetType());
                     rep = existing ? existing : CopyComponent((Component)v, holder);
-                    if (v is ParticleSystem && !holder.GetComponent<ParticleSystemRenderer>())
-                        CopyComponent(go.GetComponent<ParticleSystemRenderer>(), holder);
+                    if (v is ParticleSystem)
+                    {
+                        // Adding the ParticleSystem also added a blank renderer, with no material: the tyre dust drew
+                        // as pink squares. Copy the donor's renderer onto it.
+                        var srcR = go.GetComponent<ParticleSystemRenderer>(); var dstR = holder.GetComponent<ParticleSystemRenderer>();
+                        if (srcR && dstR) EditorUtility.CopySerialized(srcR, dstR);
+                        else if (srcR) CopyComponent(srcR, holder);
+                    }
                 }
                 else if (v is GameObject && !go.GetComponentInChildren<MeshRenderer>())
                 {
@@ -1482,7 +1582,20 @@ namespace B52Tools
             Note("Op: OpAddAircraftToHangars -> hangar_med");
         }
 
-        public const string Version = "0.4.1";
+        // The mod version: the repo's VERSION file, the one place it's set (the plugin's project reads it too). The build
+        // scripts pass it in B52_VERSION; run by hand, it's read through the project's link to this folder.
+        public static string Version
+        {
+            get
+            {
+                var v = System.Environment.GetEnvironmentVariable("B52_VERSION");
+                var file = System.IO.Path.Combine("Assets", "Editor", "B52Tools", "..", "..", "..", "VERSION");   // the link's target, on Linux
+                if (string.IsNullOrEmpty(v) && System.IO.File.Exists(file)) v = System.IO.File.ReadAllText(file);
+                v = v?.Trim();
+                if (string.IsNullOrEmpty(v)) throw new Exception("No mod version: run the build through tools/build_all.sh (it sets B52_VERSION from VERSION)");
+                return v;
+            }
+        }
         // tools/build_all.sh sets B52_BUILD_DIR to the repo's build/ folder; otherwise build/ inside the Unity project.
         static string BuildDir => System.Environment.GetEnvironmentVariable("B52_BUILD_DIR") ?? System.IO.Path.GetFullPath("build");
 
@@ -1528,6 +1641,8 @@ namespace B52Tools
                 ("Mk 82 x51", "MK82", "MK82", 0.7f),
                 ("JASSM-ER x20", "AGM158B", "AGM158B", 0.85f),
                 ("JASSM-ER x8 + MALD-J x16 (SEAD)", "AGM158B", "ADM160C", 0.85f),
+                ("JASSM-ER x8 + GBU-38 x48", "AGM158B", "GBU38", 0.8f),
+                ("LRASM x8 + MALD x16 (anti-ship)", "AGM158C", "ADM160B", 0.85f),
                 ("LRASM x20 (anti-ship)", "AGM158C", "AGM158C", 0.85f),
                 ("GBU-31 JDAM x24", "GBU31", "GBU31", 0.7f),
                 ("GBU-38 JDAM x80", "GBU38", "GBU38", 0.7f),
@@ -1592,7 +1707,8 @@ namespace B52Tools
             ds.FindProperty("description").stringValue =
                 "Boeing B-52J Stratofortress. The B-52H airframe re-engined with eight Rolls-Royce F130 turbofans " +
                 "(17,000 lbf each) and fitted with the AN/APQ-188 AESA radar and the 1760 internal weapons bay. " +
-                "Carries up to 70,000 lb of ordnance: 51 Mk 82, 20 JASSM-ER, 20 GBU-31 or 4 hypersonic missiles.";
+                "Carries up to 70,000 lb of ordnance in the bay and on two wing pylons: 51 Mk 82, 80 GBU-38, 24 GBU-31, " +
+                "20 JASSM-ER or LRASM, 20 ALCM, or MALD decoys.";
             ds.FindProperty("length").floatValue = 48.5f;
             ds.FindProperty("width").floatValue = 56.4f;
             ds.FindProperty("height").floatValue = 12.4f;

@@ -13,9 +13,11 @@ The trucks used to fold through solid skin. Now each main truck gets a real well
 The Unity builder hinges the door at the chine and lets LandingGear open it before the gear comes down.
 Blender frame: +X right, +Y forward, +Z up.
 """
-import bpy, bmesh, math
+import bpy, bmesh, math, os, sys
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from b52_normals import reference, keep      # door and rim shade like the uncut skin
 
 HINGE_X, INNER_X, CHINE_Z, ROOF_Z = 1.46, 0.03, -1.78, -0.75
 S0_HINGE, S1_HINGE, S0_FREE, S1_FREE = -0.35, 2.00, 0.25, 1.45     # along the fuselage from the trunnion (fold direction)
@@ -29,6 +31,7 @@ def mat(name, rgb):
     return m
 
 M_WELL = mat('B52_BayInterior', (0.16, 0.17, 0.16))
+M_DOOR_IN = mat('B52_DoorInner', (0.46, 0.48, 0.47))     # inside of the doors: painted, not dark like the well
 
 
 def outline(sgn, py, dirn):
@@ -71,6 +74,7 @@ for k in ('FL', 'FR', 'RL', 'RR'):
         geom = list({v for f in faces for v in f.verts}) + list({e for f in faces for e in f.edges}) + faces
         bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, dist=1e-4)
     bm.faces.ensure_lookup_table()
+    ref = reference(bm)                                                  # the skin's normals before the cut
     # only the outer skin: the first face a ray from outside the hull, aimed at the fuselage axis, meets (the model also
     # has surfaces inside the fuselage here, which must stay)
     tree = BVHTree.FromBMesh(bm)
@@ -87,20 +91,23 @@ for k in ('FL', 'FR', 'RL', 'RR'):
     dbm = bm.copy()
     dbm.faces.ensure_lookup_table()
     bmesh.ops.delete(dbm, geom=[f for f in dbm.faces if f.index not in cut_idx], context='FACES')
-    if M_WELL.name not in [m.name for m in part.data.materials if m]: part.data.materials.append(M_WELL)
+    for mt in (M_WELL, M_DOOR_IN):
+        if mt.name not in [m.name for m in part.data.materials if m]: part.data.materials.append(mt)
     well_slot = [m.name if m else '' for m in part.data.materials].index(M_WELL.name)
+    door_in_slot = [m.name if m else '' for m in part.data.materials].index(M_DOOR_IN.name)
     inner = bmesh.ops.duplicate(dbm, geom=list(dbm.faces))['geom']
     ifaces = [g for g in inner if isinstance(g, bmesh.types.BMFace)]
     dbm.normal_update()
     for v in {v for f in ifaces for v in f.verts}:
         v.co -= v.normal * DOOR_IN
     bmesh.ops.reverse_faces(dbm, faces=ifaces)
-    for f in ifaces: f.material_index = well_slot
+    for f in ifaces: f.material_index = door_in_slot
     door_me = bpy.data.meshes.new(f'gearDoorPanel_{k}')
     dbm.transform(inv); dbm.to_mesh(door_me); dbm.free()
     for m in part.data.materials: door_me.materials.append(m)
     door = bpy.data.objects.new(f'gearDoorPanel_{k}', door_me); bpy.context.scene.collection.objects.link(door)
     door.matrix_world = mw.copy(); door.parent = part; door.matrix_world = mw.copy()
+    seam = keep(door, ref)
 
     # hull: remove the cut faces, and any of the model's internal surfaces inside the well volume (they would show in the
     # open well); keep the hole's edge loop for the well walls
@@ -114,6 +121,7 @@ for k in ('FL', 'FR', 'RL', 'RR'):
            or (e.is_boundary and ylo < e.verts[0].co.y < yhi and sgn * e.verts[0].co.x > -0.05 and e.verts[0].co.z < CHINE_Z + 0.01)]
     rim_pts = [(e.verts[0].co.copy(), e.verts[1].co.copy()) for e in rim]
     bm.transform(inv); bm.to_mesh(part.data); bm.free(); part.data.update()
+    seam += keep(part, ref, select=lambda p: ylo < p.y < yhi and sgn * p.x > -0.05 and p.z < CHINE_Z + 0.05)
 
     # well box: walls from the rim up to the roof, roof over the opening; both windings so it shows from any side
     wb = bmesh.new()
@@ -144,7 +152,7 @@ for k in ('FL', 'FR', 'RL', 'RR'):
     wme = bpy.data.meshes.new(f'wellBox_{k}'); wb.to_mesh(wme); wb.free(); wme.materials.append(M_WELL)
     well = bpy.data.objects.new(f'wellBox_{k}', wme); bpy.context.scene.collection.objects.link(well)
     well.matrix_world = mw.copy(); well.parent = part; well.matrix_world = mw.copy()
-    report.append(f'{k}: {len(cut)} skin faces -> door, {len(junk)} internal faces removed, rim {len(rim_pts)} edges, part {part.name}, '
+    report.append(f'{k}: {len(cut)} skin faces -> door, {len(junk)} internal faces removed, rim {len(rim_pts)} edges, part {part.name}, {seam} seam normals, '
                   f'y {pivot.y + dirn * S0_HINGE:.2f}..{pivot.y + dirn * S1_HINGE:.2f}')
 
 bpy.ops.wm.save_mainfile()

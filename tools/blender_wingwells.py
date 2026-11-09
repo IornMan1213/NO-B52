@@ -16,9 +16,11 @@ values the Unity builder gives LandingGear; with them the stowed gear clears bot
     upper skin, dark like the main wells, drawn from both sides. The wing's own internal faces in the slot are removed.
 Blender frame: +X right, +Y forward, +Z up.
 """
-import bpy, bmesh, math
+import bpy, bmesh, math, os, sys
 from mathutils import Vector, Quaternion
 from mathutils.bvhtree import BVHTree
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from b52_normals import reference, keep      # the slot's rim shades like the uncut skin
 
 FOLD, LIFT, SWIVEL = 89.75, -0.025, 35.0      # must match B52Builder.BuildGear (outriggers)
 STOW_DEG = 55.0                               # stowed leg direction: 55 deg inboard of straight ahead
@@ -33,6 +35,7 @@ def mat(name, rgb):
     return m
 
 M_WELL = mat('B52_BayInterior', (0.16, 0.17, 0.16))
+M_DOOR_IN = mat('B52_DoorInner', (0.46, 0.48, 0.47))     # inside of the doors: painted, not dark like the well
 
 
 def anc(o):
@@ -154,7 +157,7 @@ for s, side in (('L', -1), ('R', 1)):
         planes.append((Vector((a.x, a.y, 0)), Vector((e.y, -e.x, 0))))
     sp = Vector((piv.x, piv.y, 0)) + d * split_t
     planes.append((sp, d.copy()))
-    strut_n = wheel_n = 0; rim_pts = []; ncut = njunk = 0
+    strut_n = wheel_n = 0; rim_pts = []; ncut = njunk = nseam = 0
     for w in wings:
         mw = w.matrix_world; inv = mw.inverted()
         bm = bmesh.new(); bm.from_mesh(w.data); bm.transform(mw)
@@ -167,6 +170,7 @@ for s, side in (('L', -1), ('R', 1)):
             geom = list({v for f in faces for v in f.verts}) + list({e for f in faces for e in f.edges}) + faces
             bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, dist=1e-4)
         bm.faces.ensure_lookup_table()
+        ref = reference(bm)                                                  # the wing's normals before the cut
         tr = BVHTree.FromBMesh(bm)
         def lower(f):
             c = f.calc_center_median()
@@ -176,8 +180,10 @@ for s, side in (('L', -1), ('R', 1)):
         if not cut: bm.free(); continue
         cut_idx = {f.index for f in cut}
         ncut += len(cut)
-        if M_WELL.name not in [m.name for m in w.data.materials if m]: w.data.materials.append(M_WELL)
+        for mt in (M_WELL, M_DOOR_IN):
+            if mt.name not in [m.name for m in w.data.materials if m]: w.data.materials.append(mt)
         well_slot = [m.name if m else '' for m in w.data.materials].index(M_WELL.name)
+        door_in_slot = [m.name if m else '' for m in w.data.materials].index(M_DOOR_IN.name)
         for kind in ('Strut', 'Wheel'):
             mine = {f.index for f in cut if (t_of(*f.calc_center_median().xy) < split_t) == (kind == 'Strut')}
             if not mine: continue
@@ -188,7 +194,7 @@ for s, side in (('L', -1), ('R', 1)):
             ifaces = [x for x in inner if isinstance(x, bmesh.types.BMFace)]
             for v in {v for f in ifaces for v in f.verts}: v.co.z += DOOR_IN
             bmesh.ops.reverse_faces(dbm, faces=ifaces)
-            for f in ifaces: f.material_index = well_slot
+            for f in ifaces: f.material_index = door_in_slot
             idx = strut_n if kind == 'Strut' else wheel_n
             name = f'outDoor{kind}_{k}_{idx}'
             if kind == 'Strut': strut_n += 1
@@ -221,6 +227,7 @@ for s, side in (('L', -1), ('R', 1)):
             # slot rim: on the outline (the part's other open edges, e.g. its seam with the next part, are not)
             if outline_dist(m.x, m.y) < 0.005: rim_pts.append((e.verts[0].co.copy(), e.verts[1].co.copy()))
         bm.transform(inv); bm.to_mesh(w.data); bm.free(); w.data.update()
+        nseam += keep(w, ref, select=lambda p: outline_dist(p.x, p.y) < 0.01)
 
     # ---- well box: walls from the slot rim up to the roof, roof just under the upper skin over the slot
     host = wings[0] if inside(*wings[0].matrix_world.translation.xy) else min(
@@ -265,7 +272,8 @@ for s, side in (('L', -1), ('R', 1)):
     well.matrix_world = host.matrix_world.copy(); well.parent = host; well.matrix_world = host.matrix_world.copy()
     L = max(t_of(p.x, p.y) for p in poly) - min(t_of(p.x, p.y) for p in poly)
     report.append(f'{k}: slot {len(poly)} sides, {L:.2f} m long, split at t {split_t:.2f}; {ncut} skin faces -> '
-                  f'{strut_n} strut + {wheel_n} wheel door pieces, {njunk} internal faces removed, rim {len(rim_pts)} edges')
+                  f'{strut_n} strut + {wheel_n} wheel door pieces, {njunk} internal faces removed, rim {len(rim_pts)} edges, '
+                  f'{nseam} seam normals')
 
 bpy.ops.wm.save_mainfile()
 print('WINGWELLS', *report, sep='\n  ')

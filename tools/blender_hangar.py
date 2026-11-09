@@ -25,6 +25,7 @@ DOOR_W2, DOOR_H = 42.0, 17.0   # half width and height of the opening
 LEAF_W, LEAF_H, LEAF_T = 14.4, 17.4, 0.4
 RAILS = (40.6, 40.0, 39.4)     # leaf 0 (inner, travels furthest) on the outermost rail
 APRON_W2, APRON_LEN = 48.0, 46.0
+LIP_LEN, LIP_DROP = 4.0, 0.4   # apron front lip: Placement.cs MaxTaxiStep must stay below LIP_DROP
 FOUND = 6.0                    # foundation skirt depth below the floor, hides sloping ground
 FRAMES = (-32.5, -19.5, -6.5, 6.5, 19.5, 32.5)
 TILE = 8.0                     # metres per texture repeat
@@ -117,6 +118,13 @@ body = Builder()
 # floor slab, foundation skirt and apron (one piece of concrete)
 body.box((-W2, -D2, -FOUND), (W2, D2, 0), 'floor')
 body.box((-APRON_W2, D2, -FOUND), (APRON_W2, D2 + APRON_LEN, 0), 'floor')
+# sloped lip on the apron's front edge (1:10), so a small step down to the taxiway rolls smoothly
+y1, y2 = D2 + APRON_LEN, D2 + APRON_LEN + LIP_LEN
+for pts in (((-APRON_W2, y1, 0), (APRON_W2, y1, 0), (APRON_W2, y2, -LIP_DROP), (-APRON_W2, y2, -LIP_DROP)),             # slope
+            ((-APRON_W2, y1, -LIP_DROP), (-APRON_W2, y2, -LIP_DROP), (APRON_W2, y2, -LIP_DROP), (APRON_W2, y1, -LIP_DROP)),   # underside
+            ((-APRON_W2, y1, 0), (-APRON_W2, y2, -LIP_DROP), (-APRON_W2, y1, -LIP_DROP)),                                    # ends
+            ((APRON_W2, y1, 0), (APRON_W2, y1, -LIP_DROP), (APRON_W2, y2, -LIP_DROP))):
+    body.quad(pts, 'floor')
 # taxi lead-in line
 body.box((-0.25, -30, 0.0), (0.25, D2 + APRON_LEN - 1, 0.03), 'paint')
 

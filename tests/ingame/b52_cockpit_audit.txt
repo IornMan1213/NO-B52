@@ -1,0 +1,49 @@
+say START B-52J cockpit audit
+include spawn.txt B52J
+expectac B52J
+wait 3
+cpinv 5
+pos Pilot
+pos WSO
+pos pelvis
+pos head
+pos helmetCam
+pos seat_
+pos eye_
+pos tacScreen
+campos
+runway
+wait 4
+look 0 0
+wait 2
+shot b52_audit_fwd.png
+look 0 70
+wait 2
+shot b52_audit_down.png
+look -35 55
+wait 2
+shot b52_audit_downleft.png
+look 35 55
+wait 2
+shot b52_audit_downright.png
+look 90 10
+wait 2
+shot b52_audit_right.png
+look 150 15
+wait 2
+shot b52_audit_backright.png
+look -150 15
+wait 2
+shot b52_audit_backleft.png
+look 0 -60
+wait 2
+shot b52_audit_up.png
+look off
+view 0 0.85 24.0 0 0.2 25.5 85 b52_audit_cabin_fwd.png
+crewvis on
+view 0.45 0.95 24.45 -0.55 0.45 24.3 75 b52_audit_pilot_side.png
+view 0.2 0.9 25.3 -0.55 0.4 24.4 70 b52_audit_pilot_front.png
+crewvis off
+view -0.55 0.95 23.5 -0.55 0.35 25.3 70 b52_audit_behind_pilot.png
+view 0 0.85 24.7 0 0.25 21.5 80 b52_audit_aft_stations.png
+say END

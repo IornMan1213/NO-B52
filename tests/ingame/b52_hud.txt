@@ -1,0 +1,15 @@
+say START B-52J HUD readouts
+include spawn.txt B52J
+hud
+helpcard on
+wait 1
+shot b52_test_helpcard.png
+helpcard off
+runway
+wait 3
+hudwatch 20 CHUTE OUT
+rollout 250
+wait 3
+hudwatch 40 CHUTE RELEASED
+wait 42
+say END

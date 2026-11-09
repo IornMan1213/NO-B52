@@ -1,0 +1,14 @@
+say START B-52J full-load takeoff (rotate at 170 kt)
+include spawn.txt B52J
+bayfit 0.05
+mass
+fuel 1
+wait 2
+mass
+runway
+wait 3
+mass
+takeoff 1.0 315 0.6
+wait 100
+state
+say END

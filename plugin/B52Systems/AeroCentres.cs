@@ -62,6 +62,13 @@ namespace B52Systems
 
         internal static void Forget(AeroPart part) => localAC.Remove(part);
 
+        /// <summary>The aero force the job worked out for this part (world space), zero before the first step.</summary>
+        internal static Vector3 Force(AeroPart part)
+        {
+            ref var jf = ref Fields(part);
+            return jf.IsCreated ? jf.Ref().force : Vector3.zero;
+        }
+
         private static Vector3? Compute(AeroPart part)
         {
             var t = part.transform;
@@ -76,7 +83,12 @@ namespace B52Systems
                 if (mf.transform != t && mf.name != part.name + "_visible") continue;
                 foreach (var v in mf.sharedMesh.vertices) verts.Add(t.InverseTransformPoint(mf.transform.TransformPoint(v)));
             }
-            if (verts.Count == 0) return Vector3.zero;                                      // the part's own origin
+            if (verts.Count == 0)
+            {
+                // No readable skin mesh: lift acts at the part's own origin, which may be metres off.
+                Plugin.Log.LogWarning($"B-52J AC {part.name}: no readable mesh, using the part origin");
+                return Vector3.zero;
+            }
 
             Vector3 s = t.InverseTransformDirection(ln.right), c = t.InverseTransformDirection(ln.forward), n = t.InverseTransformDirection(ln.up);
             float sMin = float.MaxValue, sMax = float.MinValue, nMin = float.MaxValue, nMax = float.MinValue;

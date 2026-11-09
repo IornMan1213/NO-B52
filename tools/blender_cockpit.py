@@ -4,8 +4,8 @@ Scratch-built B-52J upper flight deck, added under the 'cockpit' part of B52_par
 Run:  blender -b blender/out/B52_parts.blend --python tools/blender_cockpit.py -- <tex_dir>
 
 Layout (Blender frame, metres, +Y forward):
-  windshield lower edge z 0.38-0.42 at y 25.6-26.1; side window sill z 0.46; roof z 1.31 at y 24.5
-  floor z -0.50; pilot x -0.55, copilot x +0.55; eye point y 24.55, z 0.78
+  windshield lower edge z 0.56 at y 25.6-25.9; side window sill z 0.46; roof z 1.31 at y 24.5
+  floor z -0.50; pilot x -0.55, copilot x +0.55; game camera y 24.40, z 0.80 (CAM_Y, CAM_Z below)
 Animated objects, wired up in Unity:
   yoke_L / yoke_R              Cockpit.joysticks  (pitch about local X, roll about local Z)
   throttle_1 .. throttle_8     Cockpit.throttles  (rotation about local X)
@@ -14,6 +14,7 @@ Animated objects, wired up in Unity:
 """
 import bpy, bmesh, sys, os, math
 from mathutils import Vector, Matrix
+from mathutils.bvhtree import BVHTree
 
 ARGS = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 TEX = ARGS[0] if ARGS else os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'blender', 'tex')
@@ -43,14 +44,16 @@ def mat(name, rgb, metal=0.0, rough=0.6, img=None, emit=0.0):
 
 
 M = {
-    'panel': mat('CP_PanelGrey', (0.20, 0.21, 0.22), 0.1, 0.7),
+    'panel': mat('CP_PanelGrey', (0.085, 0.09, 0.095), 0.1, 0.6),     # dark grey panels and consoles, as in the B-52H
     'panelTex': mat('CP_Switches', (1, 1, 1), 0.1, 0.6, 'panel_a.png'),
     'panelTex2': mat('CP_Switches2', (1, 1, 1), 0.1, 0.6, 'panel_b.png'),
     'black': mat('CP_Black', (0.02, 0.02, 0.02), 0.0, 0.5),
     'glare': mat('CP_Glareshield', (0.03, 0.03, 0.035), 0.0, 0.95),
-    'wall': mat('CP_Wall', (0.33, 0.36, 0.33), 0.0, 0.85),
-    'floor': mat('CP_Floor', (0.10, 0.10, 0.10), 0.2, 0.9),
-    'metal': mat('CP_Metal', (0.6, 0.6, 0.62), 0.9, 0.3),
+    'wall': mat('CP_Wall', (1, 1, 1), 0.0, 0.85, 'wall_quilt.png'),       # quilted insulation (make_cockpit_trim.py)
+    'floor': mat('CP_Floor', (1, 1, 1), 0.2, 0.9, 'floor_tread.png'),
+    'frame': mat('CP_Frame', (0.11, 0.115, 0.12), 0.0, 0.7),            # window frames from inside: dark, so they recede
+    'metal': mat('CP_Metal', (0.32, 0.33, 0.35), 0.8, 0.4),            # dark worn metal: columns, pedals, levers
+    'knob': mat('CP_Knob', (0.62, 0.62, 0.60), 0.0, 0.45),              # throttle knobs, bezel keys, placards
     'seat': mat('CP_Seat', (1, 1, 1), 0.0, 0.9, 'seat.png'),
     'yellow': mat('CP_EjectHandle', (0.9, 0.75, 0.05), 0.0, 0.5),
     'pfd': mat('CP_MFD_PFD', (1, 1, 1), 0.0, 0.2, 'mfd_pfd.png', 1.5),
@@ -63,6 +66,7 @@ M = {
     'adi': mat('CP_ADICard', (1, 1, 1), 0.0, 0.4, 'adi_card.png', 0.6),
     'needle': mat('CP_Needle', (0.95, 0.95, 0.95), 0.0, 0.4),
     'white': mat('CP_White', (0.9, 0.9, 0.9), 0.0, 0.5),
+    'ann': mat('CP_MFD_Annunciators', (1, 1, 1), 0.0, 0.3, 'annunciators.png', 1.0),   # CP_MFD_*: emissive in Unity
 }
 
 
@@ -87,12 +91,17 @@ class Builder:
         if m not in self.mats: self.mats.append(m)
         return self.mats.index(m)
 
-    def box(self, c, size, m, rot=None, uv_scale=1.0):
+    def box(self, c, size, m, rot=None, uv_scale=1.0, bevel=None):
         mtx = Matrix.Translation(c) @ (rot.to_4x4() if rot else Matrix.Identity(4)) @ Matrix.Diagonal((*size, 1))
         r = bmesh.ops.create_cube(self.bm, size=1.0, matrix=mtx, calc_uvs=True)
         idx = self.mi(m)
         for v in r['verts']:
             for f in v.link_faces: f.material_index = idx
+        if bevel is None: bevel = min(0.012, min(size) * 0.25) if min(size) >= 0.03 else 0.0
+        if bevel > 0:
+            edges = list({e for v in r['verts'] for e in v.link_edges})
+            bmesh.ops.bevel(self.bm, geom=r['verts'] + edges, offset=bevel, segments=1, affect='EDGES',
+                            clamp_overlap=True, material=-1, profile=0.5)
         return r
 
     def quad(self, pts, m, uv=((0, 0), (1, 0), (1, 1), (0, 1))):
@@ -101,6 +110,18 @@ class Builder:
         lay = self.bm.loops.layers.uv.verify()
         for l, t in zip(f.loops, uv): l[lay].uv = t
         return f
+
+    def disc(self, centre, right, up, r, m, uv=(0, 0, 1, 1), seg=24):
+        """Round dial face (a fan of triangles), its texture mapped from the square uv rect (u0, v0, u1, v1)."""
+        lay = self.bm.loops.layers.uv.verify(); idx = self.mi(m)
+        u0, v0, u1, v1 = uv; uc, vc = (u0 + u1) / 2, (v0 + v1) / 2
+        ring = [(math.cos(2 * math.pi * i / seg), math.sin(2 * math.pi * i / seg)) for i in range(seg)]
+        c = self.bm.verts.new(centre); vs = [self.bm.verts.new(centre + right * (r * a) + up * (r * b)) for a, b in ring]
+        for i in range(seg):
+            j = (i + 1) % seg
+            f = self.bm.faces.new((c, vs[i], vs[j])); f.material_index = idx
+            for l, (a, b) in zip(f.loops, ((0, 0), ring[i], ring[j])):
+                l[lay].uv = (uc + a * (u1 - u0) / 2, vc + b * (v1 - v0) / 2)
 
     def cyl(self, p0, p1, r, m, seg=16):
         d = Vector(p1) - Vector(p0)
@@ -146,6 +167,14 @@ def rx(deg):
 # ------------------------------------------------------------------ shell (floor, walls, ceiling, bulkhead)
 Y0, Y1 = 21.30, 25.75          # aft bulkhead (behind the EWO/gunner stations) .. panel base
 FLOOR, SILL, ROOF = -0.50, 0.44, 1.24
+# Where the pilot's head goes. Measured in game: the pilot model is placed so its helmet camera point is at eye_L, and
+# in its seated pose the game camera then sits 0.091 m ahead of and 0.026 m above that point, with the hip joint 0.156 m
+# ahead of and 0.716 m below the camera. So everything follows from where the camera should be: far enough back that
+# the windscreen frames don't fill the view (it used to sit 0.24 m further forward, ahead of an empty seat). At the
+# game's 50 deg field of view the panel is still just under the bottom edge looking straight ahead.
+CAM_Y, CAM_Z = 24.40, 0.80   # 0.80 rather than higher: more windscreen in view (measured: 0.88 showed less outside)
+EYE_Y, EYE_Z = CAM_Y - 0.091, CAM_Z - 0.026
+HIP_Y, HIP_Z = CAM_Y + 0.156, CAM_Z - 0.716
 b = Builder()
 b.box((0, (Y0 + Y1) / 2, FLOOR - 0.03), (2.7, Y1 - Y0, 0.06), M['floor'])
 for s in (-1, 1):
@@ -153,9 +182,6 @@ for s in (-1, 1):
     b.box((s * 1.36, (Y0 + Y1) / 2, (FLOOR + SILL) / 2), (0.04, Y1 - Y0, SILL - FLOOR), M['wall'])
     # upper wall strip aft of the side windows
     b.box((s * 1.20, (Y0 + 23.95) / 2, (SILL + ROOF) / 2), (0.04, 23.95 - Y0, ROOF - SILL), M['wall'])
-    # window frame posts (interior side)
-    for py in (24.0, 24.45, 24.95):
-        b.box((s * 1.13, py, 0.74), (0.05, 0.06, 0.62), M['wall'], rot=Matrix.Rotation(math.radians(-s * 18), 3, 'Y'))
 # ceiling with overhead panel
 CEIL_END = 24.20                    # ceiling stops behind the pilots' heads: the eyebrow windows stay clear
 b.box((0, (Y0 + CEIL_END) / 2, ROOF + 0.03), (2.3, CEIL_END - Y0, 0.05), M['wall'])
@@ -174,8 +200,37 @@ shell = b.write(obj('cp_shell', root, (0, 24.4, 0)))
 src = cockpit
 glass_idx = {i for i, m in enumerate(src.data.materials) if m and m.name == 'Glass'}
 bm = bmesh.new(); bm.from_mesh(src.data); bm.transform(src.matrix_world)
-keep = [f for f in bm.faces if f.material_index not in glass_idx
-        and 21.2 < f.calc_center_median().y < 26.3 and f.calc_center_median().z > -0.55]
+_outer = BVHTree.FromBMesh(bm)
+def on_hull(f):
+    # Only the hull itself: bohmerang's cockpit section also has a few bits 0.3-0.7 m inside it (simple interior
+    # pieces), and copied inward they hung across the cabin (a rod from the roof to the pedestal). A face is hull if
+    # the outermost surface along the ray from the cabin axis through it is within 8 cm.
+    c = f.calc_center_median()
+    d = Vector((c.x, 0.0, c.z - 0.35))
+    if d.length < 0.05: return False
+    d.normalize()
+    hit = _outer.ray_cast(Vector((0.0, c.y, 0.35)) + d * 6.0, -d, 6.0)[0]
+    return hit is not None and (hit - c).length < 0.08
+# Forward it runs to the nose tip: the game hides the cockpit section's outer skin in cockpit view, so without the
+# inner copy there the pilot saw the runway through the nose under the windscreen. Ahead of the instrument panel
+# every face is kept (the hull test rejects the nose top under the glass, and there is no interior clutter there).
+NOSE_Y = 25.5
+# Except the windscreen wipers (the small separate pieces on the nose): copied inward, the left one hung in the
+# middle of the pilot's windscreen. The outside ones are hidden in cockpit view along with the rest of the skin.
+wipers, seen = set(), set()
+for f0 in bm.faces:
+    if f0 in seen or f0.material_index in glass_idx: continue
+    isl, stack = [], [f0]; seen.add(f0)
+    while stack:
+        f = stack.pop(); isl.append(f)
+        stack += [g for e in f.edges for g in e.link_faces if g not in seen and not seen.add(g)]
+    co = [v.co for f in isl for v in f.verts]
+    lo = Vector([min(c[i] for c in co) for i in range(3)]); hi = Vector([max(c[i] for c in co) for i in range(3)])
+    if lo.y > NOSE_Y - 0.2 and max(hi - lo) < 0.5:
+        wipers.update(isl)
+keep = [f for f in bm.faces if f.material_index not in glass_idx and f not in wipers
+        and 21.2 < f.calc_center_median().y < 28.0 and f.calc_center_median().z > -0.55
+        and (f.calc_center_median().y > NOSE_Y or on_hull(f))]
 bmesh.ops.delete(bm, geom=[f for f in bm.faces if f not in set(keep)], context='FACES')
 for v in bm.verts:
     axis_pt = Vector((0, v.co.y, 0.35))
@@ -187,17 +242,29 @@ wall_i = 0
 for f in bm.faces: f.material_index = 0
 skin = obj('cp_skin', root, (0, 24.5, 0.35))
 bm.transform(skin.matrix_world.inverted()); bm.to_mesh(skin.data); bm.free()
-skin.data.materials.append(M['wall'])
+skin.data.materials.append(M['frame'])
 
 # ------------------------------------------------------------------ main instrument panel + glareshield
 b = Builder()
 PANEL_Y, PANEL_TILT = 25.55, 12        # panel face plane, leaning back 12 degrees
 panel_rot = rx(-PANEL_TILT)
 b.box((0, PANEL_Y + 0.05, -0.02), (2.1, 0.08, 0.72), M['panel'], rot=panel_rot)
-b.box((0, PANEL_Y - 0.08, 0.34), (2.0, 0.36, 0.04), M['glare'], rot=rx(4))          # glareshield hood
-b.box((0, PANEL_Y - 0.26, 0.31), (2.0, 0.03, 0.08), M['glare'])                       # glareshield lip
-for sx in (-1, 1):
-    b.box((sx * 0.99, PANEL_Y - 0.08, 0.20), (0.03, 0.36, 0.26), M['glare'])             # hood cheeks
+LIP_Y, LIP_Z, SILL_Y, SILL_Z = 25.52, 0.33, 26.00, 0.54        # hood lip (just ahead of the panel top); windscreen sill
+PTOP_Y, PTOP_Z = 25.67, 0.33                                        # top edge of the tilted panel
+gw = 1.02                                                           # hood half-width
+lip = [Vector((x, LIP_Y, LIP_Z + 0.02)) for x in (-gw, gw)]
+sill = [Vector((x, SILL_Y, SILL_Z)) for x in (-gw, gw)]
+b.quad([lip[0], lip[1], sill[1], sill[0]], M['glare'])                                  # hood top up to the sill
+b.quad([Vector((-gw, LIP_Y + 0.02, LIP_Z - 0.03)), Vector((gw, LIP_Y + 0.02, LIP_Z - 0.03)),
+        Vector((gw, PTOP_Y, PTOP_Z)), Vector((-gw, PTOP_Y, PTOP_Z))][::-1], M['glare'])   # underside to the panel
+b.cyl(Vector((-gw, LIP_Y, LIP_Z)), Vector((gw, LIP_Y, LIP_Z)), 0.028, M['glare'], 12)  # padded lip
+# caution / warning lights along the front of the hood, just under the lip, facing the pilots (make_cockpit_trim.py)
+b.quad([Vector((-0.62, LIP_Y + 0.03, LIP_Z - 0.065)), Vector((0.62, LIP_Y + 0.03, LIP_Z - 0.065)),
+        Vector((0.62, LIP_Y + 0.03, LIP_Z - 0.03)), Vector((-0.62, LIP_Y + 0.03, LIP_Z - 0.03))], M['ann'])
+for sx in (-1, 1):                                                                     # hood cheeks
+    x = sx * gw
+    b.quad([Vector((x, LIP_Y, LIP_Z - 0.03)), Vector((x, PTOP_Y, PTOP_Z)), Vector((x, SILL_Y, SILL_Z)),
+            Vector((x, LIP_Y, LIP_Z + 0.02))][::(-1 if sx > 0 else 1)], M['glare'])   # wound to face the cabin
 # centre pedestal under the panel
 b.box((0, PANEL_Y - 0.1, -0.35), (0.42, 0.25, 0.32), M['panel'])
 
@@ -211,7 +278,7 @@ def screen(cx, cz, w, h, m, name):
     for i in range(5):
         for sx in (-1, 1):
             p = c + off * 0.03 + panel_rot @ Vector((sx * (w / 2 + 0.018), 0, -h / 2 + h * (i + 0.5) / 5))
-            b.box(p, (0.014, 0.012, 0.022), M['white'], rot=panel_rot)
+            b.box(p, (0.014, 0.012, 0.022), M['knob'], rot=panel_rot)
     s = obj(name, root, tuple(c + off * 0.032))
     sb = Builder()
     corners = [Vector((-w / 2, 0, -h / 2)), Vector((w / 2, 0, -h / 2)), Vector((w / 2, 0, h / 2)), Vector((-w / 2, 0, h / 2))]
@@ -237,13 +304,20 @@ def round_gauge(gx, gz, r, face_mat, needle=None):
     c = Vector((gx, PANEL_Y, gz)) + off * 0.02
     b.cyl(c - off * 0.01, c + off * 0.022, r + 0.008, M['black'], 20)
     face = c + off * 0.023
-    b.quad([face - right_p * r - up_p * r, face + right_p * r - up_p * r,
-            face + right_p * r + up_p * r, face - right_p * r + up_p * r], face_mat)
+    b.disc(face, right_p, up_p, r, face_mat)
     if needle:
         nd = obj('needle_' + needle, root, tuple(face + off * 0.002))
         nb = Builder()
         nb.box(face + off * 0.002 + up_p * r * 0.42, (0.004, 0.002, r * 0.85), M['needle'], rot=panel_rot)
         nb.write(nd)
+    if needle == 'alt':
+        # three-pointer altimeter on the same 0-10 dial: long needle hundreds, short wide needle thousands,
+        # thin pointer to the rim ten-thousands (B52Systems.Instruments turns all three)
+        for name, length, width, depth in (('alt1k', 0.55, 0.009, 0.0035), ('alt10k', 0.95, 0.0016, 0.0045)):
+            nd = obj('needle_' + name, root, tuple(face + off * depth))
+            nb = Builder()
+            nb.box(face + off * depth + up_p * r * length / 2, (width, 0.002, r * length), M['needle'], rot=panel_rot)
+            nb.write(nd)
     else:                                   # fixed pointer on decorative gauges
         b.box(face + off * 0.002 + up_p * r * 0.35, (0.003, 0.002, r * 0.7), M['needle'], rot=panel_rot)
     return face
@@ -267,9 +341,7 @@ for sx, live in ((-1, True), (1, False)):
         r = 0.055
         card = obj('adi_card', root, tuple(face))
         cb = Builder()
-        cb.quad([face - right_p * r - up_p * r, face + right_p * r - up_p * r,
-                 face + right_p * r + up_p * r, face - right_p * r + up_p * r], M['adi'],
-                uv=((0, 0.25), (1, 0.25), (1, 0.75), (0, 0.75)))
+        cb.disc(face, right_p, up_p, r, M['adi'], uv=(0, 0.25, 1, 0.75), seg=32)    # round, like the real ball
         cb.write(card)
         b.box(face + off * 0.004, (0.06, 0.003, 0.004), M['yellow'], rot=panel_rot)   # fixed aircraft symbol
         round_gauge(gx_out, 0.12, 0.048, M['asi'], 'asi')
@@ -302,58 +374,77 @@ qb = Builder()
 QY, QZ = 25.18, -0.30                                                  # quadrant pivot line
 qb.box((0, QY + 0.08, -0.43), (0.40, 0.42, 0.30), M['panel'])          # pedestal body
 qb.box((0, QY - 0.02, QZ + 0.02), (0.36, 0.30, 0.03), M['black'])      # quadrant top plate
+for i in range(8):                                                     # a raised guide slot for each lever
+    x = -0.13 + i * (0.26 / 7) + (0.012 if i % 2 else -0.012)
+    qb.box((x, QY - 0.02, QZ + 0.037), (0.016, 0.26, 0.006), M['panel'], bevel=0.0)
+qb.box((0, QY - 0.135, -0.44), (0.36, 0.012, 0.22), M['panelTex2'])    # switch panel facing the pilots
+for sx in (-1, 1):
+    qb.box((sx * 0.206, QY + 0.08, -0.43), (0.012, 0.36, 0.22), M['panelTex'])   # switch panels on the sides
 for sx in (-1, 1):
     qb.box((sx * 0.19, QY, QZ + 0.06), (0.02, 0.32, 0.14), M['panel'])  # quadrant cheeks
 qb.box((0.24, QY - 0.02, QZ + 0.04), (0.03, 0.05, 0.16), M['black'])   # drag chute / air brake levers
 qb.box((-0.24, QY - 0.02, QZ + 0.04), (0.03, 0.05, 0.16), M['black'])
 crab = Vector((0, QY - 0.15, -0.47))
 qb.cyl(crab, crab + Vector((0, -0.04, 0)), 0.045, M['black'], 20)       # crosswind crab knob
-qb.box(crab + Vector((0, -0.02, -0.09)), (0.20, 0.005, 0.07), M['white'])   # crab pre-alignment placard
+qb.box(crab + Vector((0, -0.02, -0.09)), (0.20, 0.005, 0.07), M['knob'])    # crab pre-alignment placard
 qb.write(obj('cp_pedestal', root, (0, QY, QZ)))
 for i in range(8):
     x = -0.13 + i * (0.26 / 7) + (0.012 if i % 2 else -0.012)
     pivot = Vector((x, QY, QZ))
     t = obj(f'throttle_{i + 1}', root, tuple(pivot))
     tb = Builder()
-    tb.box(pivot + Vector((0, -0.03, 0.13)), (0.010, 0.014, 0.26), M['metal'], rot=rx(14))
-    tb.box(pivot + Vector((0, -0.07, 0.27)), (0.024, 0.045, 0.034), M['white'])      # white knobs, as in the photo
+    tb.box(pivot + Vector((0, -0.03, 0.13)), (0.010, 0.014, 0.26), M['metal'], rot=rx(14), bevel=0.003)
+    k = pivot + Vector((0, -0.065, 0.27))
+    tb.cyl(k - Vector((0.012, 0, 0)), k + Vector((0.012, 0, 0)), 0.019, M['knob'], 14)  # round knobs, light as in the photo
     tb.write(t)
 
 # ------------------------------------------------------------------ yokes (B-52 control wheels) and rudder pedals
+# Placed for the pilot model's seated pose (measured in game, relative to the camera): hands ~0.46 m ahead and
+# ~0.48 m below the eye, feet 0.70-0.92 m ahead and 1.10-1.16 m below it, 0.17 m either side of the centre line.
 for side, sx in (('L', -0.55), ('R', 0.55)):
     base = Vector((sx, 25.12, FLOOR))
+    hub = Vector((sx, CAM_Y + 0.46, CAM_Z - 0.48))
     col = obj(f'yokeColumn_{side}', root, tuple(base))
     cb = Builder()
-    cb.box(base + Vector((0, 0.02, 0.06)), (0.16, 0.22, 0.12), M['black'])
-    cb.cyl(base + Vector((0, 0, 0.1)), base + Vector((0, -0.14, 0.56)), 0.03, M['metal'])
+    cb.box(base + Vector((0, 0.02, 0.06)), (0.18, 0.24, 0.12), M['black'])                 # column boot on the floor
+    cb.cyl(base + Vector((0, 0, 0.1)), hub + Vector((0, 0.06, -0.03)), 0.03, M['metal'])   # column up between the knees
     cb.write(col)
-    hub = base + Vector((0, -0.15, 0.60))
     y = obj(f'yoke_{side}', root, tuple(hub))
     yb = Builder()
     yb.cyl(hub + Vector((0, 0.03, 0)), hub + Vector((0, -0.05, 0)), 0.035, M['black'])
-    yb.torus(hub + Vector((0, -0.05, 0)), (0, 1, 0), 0.165, 0.016, M['black'], arc=(-20, 200))   # open-top wheel
-    yb.cyl(hub + Vector((-0.16, -0.05, 0)), hub + Vector((0.16, -0.05, 0)), 0.012, M['black'])
-    yb.box(hub + Vector((-0.17, -0.05, 0.05)), (0.03, 0.03, 0.06), M['black'])
-    yb.box(hub + Vector((0.17, -0.05, 0.05)), (0.03, 0.03, 0.06), M['black'])
+    yb.torus(hub + Vector((0, -0.05, 0)), (0, 1, 0), 0.19, 0.017, M['black'], arc=(-20, 200))   # open-top wheel, ~0.4 m
+    yb.cyl(hub + Vector((-0.185, -0.05, 0)), hub + Vector((0.185, -0.05, 0)), 0.012, M['black'])
+    yb.box(hub + Vector((-0.195, -0.05, 0.05)), (0.035, 0.035, 0.08), M['black'])              # grips
+    yb.box(hub + Vector((0.195, -0.05, 0.05)), (0.035, 0.035, 0.08), M['black'])
     yb.cyl(hub + Vector((0, -0.05, 0)), hub + Vector((0, -0.075, 0)), 0.07, M['black'], 24)     # emblem hub
     yb.torus(hub + Vector((0, -0.076, 0)), (0, 1, 0), 0.055, 0.004, M['white'], seg=24, rseg=4)  # emblem ring
     yb.write(y)
     pb = Builder()
-    for px in (-0.13, 0.13):
-        pb.box((sx + px, 25.45, FLOOR + 0.12), (0.10, 0.03, 0.18), M['metal'], rot=rx(-25))
-    pb.write(obj(f'pedals_{side}', root, (sx, 25.45, FLOOR + 0.1)))
+    py, pz = CAM_Y + 0.90, CAM_Z - 1.12                                                    # under the balls of the feet
+    for px in (-0.165, 0.165):
+        pb.box((sx + px, py, pz), (0.11, 0.03, 0.20), M['metal'], rot=rx(-20))               # pedal plate
+        pb.box((sx + px, py + 0.06, (pz - 0.08 + FLOOR) / 2), (0.04, 0.04, pz - 0.08 - FLOOR), M['black'])   # pedal arm
+    pb.write(obj(f'pedals_{side}', root, (sx, py, FLOOR + 0.1)))
 
 # ------------------------------------------------------------------ ACES II seats
+# Built around the pilot model's hip (HIP_Y, HIP_Z): cushion centred under the hip, its top just under the pilot's
+# seat, the back reclined like the pilot model's own back (head 0.156 m behind the hip over 0.716 m: 12 degrees),
+# the headrest on the same line behind the helmet. rx(+a) tips a part's top aft (-Y); the backs used to lean forward.
+RECLINE = 13
 for side, sx in (('L', -0.55), ('R', 0.55)):
     sb = Builder()
-    sy = 24.12
-    sb.box((sx, sy + 0.02, FLOOR + 0.22), (0.50, 0.48, 0.44), M['black'])                 # bucket
-    sb.box((sx, sy + 0.05, FLOOR + 0.48), (0.46, 0.46, 0.08), M['seat'])                 # cushion
-    sb.box((sx, sy - 0.24, FLOOR + 0.98), (0.48, 0.12, 0.90), M['seat'], rot=rx(-12))     # back
-    sb.box((sx, sy - 0.33, FLOOR + 1.50), (0.30, 0.14, 0.22), M['black'], rot=rx(-12))    # headrest / canopy breaker
+    sy = HIP_Y - 0.07
+    fz = (HIP_Z - 0.11) - (FLOOR + 0.52)   # lift so the cushion top (FLOOR + 0.52 as built) meets the pilot model's seat
+    lean = rx(RECLINE)
+    back = Vector((sx, sy - 0.22, FLOOR + fz + 0.98))
+    sb.box((sx, sy + 0.02, FLOOR + fz + 0.22), (0.50, 0.48, 0.44), M['black'])                 # bucket
+    sb.box((sx, sy + 0.05, FLOOR + fz + 0.48), (0.46, 0.46, 0.08), M['seat'])                 # cushion
+    sb.box(back, (0.48, 0.12, 0.90), M['seat'], rot=lean)                                      # back
+    sb.box(back + lean @ Vector((0, 0.02, 0.54)), (0.30, 0.14, 0.22), M['black'], rot=lean)    # headrest / canopy breaker
+    sb.box((sx, sy + 0.02, (FLOOR + FLOOR + fz) / 2), (0.36, 0.30, max(fz, 0.02)), M['metal'])  # seat pan riser to the floor rails
     for rs in (-1, 1):
-        sb.box((sx + rs * 0.27, sy - 0.25, FLOOR + 0.85), (0.04, 0.10, 1.25), M['metal'], rot=rx(-12))   # rails
-        sb.box((sx + rs * 0.24, sy + 0.18, FLOOR + 0.58), (0.03, 0.18, 0.05), M['yellow'])               # handles
+        sb.box(back + lean @ Vector((rs * 0.27, -0.01, -0.13)), (0.04, 0.10, 1.25), M['panel'], rot=lean)   # rails, dark like the seat sides
+        sb.box((sx + rs * 0.24, sy + 0.18, FLOOR + fz + 0.58), (0.03, 0.18, 0.05), M['yellow'])               # handles
     sb.write(obj(f'seat_{side}', root, (sx, sy, FLOOR)))
 
 # ------------------------------------------------------------------ EWO (left) and gunner/instructor (right) stations
@@ -363,17 +454,19 @@ for side, sx, scr in (('L', -0.55, ('tsd', 'eng')), ('R', 0.55, ('eng', 'pfd')))
     sy = 22.25
     sb.box((sx, sy - 0.02, FLOOR + 0.22), (0.50, 0.48, 0.44), M['black'])
     sb.box((sx, sy - 0.05, FLOOR + 0.48), (0.46, 0.46, 0.08), M['seat'])
-    sb.box((sx, sy + 0.24, FLOOR + 0.98), (0.48, 0.12, 0.90), M['seat'], rot=rx(12))
-    sb.box((sx, sy + 0.33, FLOOR + 1.50), (0.30, 0.14, 0.22), M['black'], rot=rx(12))
+    lean = rx(-RECLINE)                                                         # facing aft: the top tips forward (+Y)
+    back = Vector((sx, sy + 0.22, FLOOR + 0.98))
+    sb.box(back, (0.48, 0.12, 0.90), M['seat'], rot=lean)
+    sb.box(back + lean @ Vector((0, -0.02, 0.54)), (0.30, 0.14, 0.22), M['black'], rot=lean)
     for rs in (-1, 1):
-        sb.box((sx + rs * 0.27, sy + 0.25, FLOOR + 0.85), (0.04, 0.10, 1.25), M['metal'], rot=rx(12))
+        sb.box(back + lean @ Vector((rs * 0.27, 0.01, -0.13)), (0.04, 0.10, 1.25), M['panel'], rot=lean)
         sb.box((sx + rs * 0.24, sy - 0.18, FLOOR + 0.58), (0.03, 0.18, 0.05), M['yellow'])
     sb.write(obj(f'seat_aft_{side}', root, (sx, sy, FLOOR)))
     cb = Builder()
     cy = Y0 + 0.2
     cb.box((sx, cy, -0.1), (0.95, 0.32, 0.8), M['panel'])                      # console body
     cb.box((sx, cy + 0.2, 0.05), (0.8, 0.12, 0.03), M['panelTex'])              # keyboard shelf
-    back = rx(-12)
+    back = rx(12)                                                               # screens lean back, away from the seat
     for i, (dx, m) in enumerate(zip((-0.2, 0.2), scr)):
         c = Vector((sx + dx, cy + 0.17, 0.42))
         cb.box(c, (0.26, 0.03, 0.30), M['black'], rot=back)
@@ -387,7 +480,7 @@ for side, sx, scr in (('L', -0.55, ('tsd', 'eng')), ('R', 0.55, ('eng', 'pfd')))
 # Pilot eye points (Unity: Pilot seats / camera)
 for side, sx in (('L', -0.55), ('R', 0.55)):
     e = bpy.data.objects.new(f'eye_{side}', None); bpy.context.scene.collection.objects.link(e)
-    e.matrix_world = Matrix.Translation((sx, 24.55, 0.78)); bpy.context.view_layer.update()
+    e.matrix_world = Matrix.Translation((sx, EYE_Y, EYE_Z)); bpy.context.view_layer.update()
     mw = e.matrix_world.copy(); e.parent = root; e.matrix_world = mw
 
 bpy.context.view_layer.update()
@@ -409,7 +502,9 @@ moved = 0
 stack = list(root.children)
 while stack:
     o = stack.pop(); stack.extend(o.children)
-    if o.type != 'MESH': continue
+    # cp_skin is the hull's own inner face (already 3 cm inside it): clamping it dragged roof vertices across the cabin,
+    # because the ray from the low cabin axis meets the window sills first (a long sliver through the pilot's eye)
+    if o.type != 'MESH' or o.name == 'cp_skin': continue
     mw, inv = o.matrix_world, o.matrix_world.inverted()
     for v in o.data.vertices:
         p = mw @ v.co
@@ -421,6 +516,27 @@ while stack:
             v.co = inv @ (a + d.normalized() * max(dist - MARGIN, 0.0)); moved += 1
 hull_bm.free()
 print('COCKPIT clamp: moved', moved, 'interior vertices inside the hull')
+
+# Trim textures in real-world size: wall and floor faces get planar UVs from their dominant axis, in metres over the
+# 0.5 m tile, so the quilting and tread keep their size on every wall instead of stretching across each box face.
+TILE = 0.5
+trimmed = 0
+for o in [c for c in root.children_recursive if c.type == 'MESH']:
+    idx = {i for i, m in enumerate(o.data.materials) if m in (M['wall'], M['floor'])}
+    if not idx: continue
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    uv = bm.loops.layers.uv.verify()
+    mw = o.matrix_world
+    for f in bm.faces:
+        if f.material_index not in idx: continue
+        n = (mw.to_3x3() @ f.normal); ax = max(range(3), key=lambda i: abs(n[i]))
+        for l in f.loops:
+            p = mw @ l.vert.co
+            a, b_ = [(1, 2), (0, 2), (0, 1)][ax]
+            l[uv].uv = (p[a] / TILE, p[b_] / TILE)
+        trimmed += 1
+    bm.to_mesh(o.data); bm.free()
+print('COCKPIT trim UVs on', trimmed, 'faces')
 
 bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath)
 print('COCKPIT OK', len([o for o in bpy.data.objects if o.parent == root]), 'objects under cockpit_int')
