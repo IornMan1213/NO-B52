@@ -11,6 +11,10 @@ namespace B52Systems
     /// </summary>
     public class MassSync : MonoBehaviour
     {
+        /// <summary>B-52 rigidbodies to their MassSync, so the ModifyMass patch skips every other aircraft with one lookup.</summary>
+        internal static readonly System.Collections.Generic.Dictionary<Rigidbody, MassSync> ByBody =
+            new System.Collections.Generic.Dictionary<Rigidbody, MassSync>();
+
         private Aircraft aircraft;
         private Rigidbody rb;
         private Transform com;
@@ -22,9 +26,15 @@ namespace B52Systems
             var root = GetComponent<UnitPart>();
             com = root ? root.CenterOfMass : null;
             if (!rb) { Destroy(this); return; }
+            ByBody[rb] = this;
             Sync();
             Plugin.Log.LogInfo($"B-52J {name}: rigid airframe mass {rb.mass:F0} kg, inertia {rb.inertiaTensor:F0} " +
                                $"(rot {rb.inertiaTensorRotation.eulerAngles:F0}), CoM {rb.centerOfMass:F2}");
+        }
+
+        private void OnDestroy()
+        {
+            if (rb is object && ByBody.TryGetValue(rb, out var s) && s == this) ByBody.Remove(rb);
         }
 
         private void FixedUpdate() => Sync();
@@ -58,9 +68,9 @@ namespace B52Systems
     {
         private static void Postfix(UnitPart __instance)
         {
-            if (!(__instance.parentUnit is Aircraft a) || __instance.rb != a.rb) return;
-            var sync = a.GetComponent<MassSync>();
-            if (sync) sync.Sync();
+            // Runs on every part of every aircraft: one dictionary lookup, no component search, for non-B-52s.
+            var body = __instance.rb;
+            if (body is object && MassSync.ByBody.TryGetValue(body, out var sync) && sync) sync.Sync();
         }
     }
 

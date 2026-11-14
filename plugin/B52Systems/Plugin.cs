@@ -31,7 +31,7 @@ namespace B52Systems
             TelemetryEnabled = Config.Bind("Telemetry", "Enabled", false,
                 "Write a CSV flight log of your own B-52J flights to BepInEx/B52_telemetry (speed, altitude, attitude, " +
                 "events), for tuning and bug reports. Only the newest 20 logs are kept.");
-            VerboseAeroCfg = Config.Bind("Debug", "LogAeroCentres", true,
+            VerboseAeroCfg = Config.Bind("Debug", "LogAeroCentres", false,
                 "Log each part's aerodynamic centre (aircraft frame) when a B-52J first flies.");
             CrabLeft = Config.Bind("Gear", "CrabLeft", new KeyboardShortcut(KeyCode.LeftBracket),
                 "Crosswind crab: turn the main trucks 5 deg further left (max 20). For wind from the left, set crab left and fly the nose into the wind. " +

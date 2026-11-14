@@ -15,6 +15,9 @@ Player-facing changes in each release. The development diary with every detail i
   frame-rate cost), and the seat rails behind your head are dark instead of shiny.
 - A row of caution and warning lights under the glareshield, and a detailed throttle pedestal (lever slots,
   switch panels).
+- The B-52's mass correction no longer searches every other aircraft each time its fuel or stores change, and
+  the per-part lift-point log (`Debug.LogAeroCentres`) is off by default: about 30 fewer log lines per spawn.
+  An existing config file keeps its old setting; set it to `false` there too.
 - Without Heavy Hangar, a B-52 spawned outside a stock hangar now checks the spot is clear (no aircraft, vehicle or
   building there) and uses the next clear spot instead of landing on top of something.
 - Bay loads that didn't fit the bay: AGM-129 is 8 on one rotary ring (12 ran past the bay's ends) and GBU-54 is 8

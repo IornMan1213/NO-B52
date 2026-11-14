@@ -72,7 +72,7 @@ In `BepInEx/config/com.ironman1213.b52systems.cfg` (or in-game with the BepInEx 
 | `Telemetry.Enabled` | off | Writes a CSV log of your own flights to `BepInEx/B52_telemetry` for bug reports (keeps the newest 20). |
 | `Physics.RigidAirframe` | on | One rigid body. Off: per-part jointed physics, with visible wing flex. |
 | `Physics.GroundEffectLift` | 0.25 | Extra wing lift near the ground (ground effect), fading out by about 30 m. 0 turns it off. |
-| `Debug.LogAeroCentres` | on | Logs each part's lift point when a B-52 first flies. |
+| `Debug.LogAeroCentres` | off | Logs each part's lift point when a B-52 first flies. |
 
 ## Troubleshooting
 - **Two B-52s in the aircraft list, or a red error at load:** an older `.nobp` is still in `BepInEx/plugins`. Keep
