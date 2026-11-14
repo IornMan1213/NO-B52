@@ -477,15 +477,21 @@ for sd, sgn in (('L', -1), ('R', 1)):
     prim_obj(f'wheel_O{sd}', lambda bm: tyre(bm, hub, X_AXIS, r, 0.25), M_RUBBER, un, hub)
 
 
-# Bomb bay interior: an open-bottom dark box behind the doors, faces pointing inward.
+# Bomb bay interior: an open-bottom dark box behind the doors, faces pointing inward. Like the real bay it is wider
+# inside than the door opening: the walls flare from the door edges (BAY_HALF_W) out to BAY_TOP_HALF_W, and the roof
+# sits high enough for the rotary launcher with cruise missiles (they reach 1.26 m above the launcher, and +-1.03 m
+# across; the old 1.7 x 1.8 m box let them through the roof and walls by up to 0.35 m). The fuselage is +-1.45 m wide
+# inside from 1.9 m above the belly up, and the wing carry-through starts at z +0.1, so this stays inside the skin.
+BAY_TOP_HALF_W, BAY_FLARE_Z, BAY_ROOF_Z = 1.10 * S, -2.0 * S, -0.30 * S
 def bay_box(bm):
-    x0, x1 = -BAY_HALF_W, BAY_HALF_W
-    y0, y1 = BAY_Y0, BAY_Y1
-    z0, z1 = -2.5 * S, -0.7 * S
-    v = [bm.verts.new(p) for p in [(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
-                                     (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)]]
-    for f in [(4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)]:
-        bm.faces.new([v[i] for i in f])
+    z0 = -2.5 * S
+    profile = [(-BAY_HALF_W, z0), (-BAY_TOP_HALF_W, BAY_FLARE_Z), (-BAY_TOP_HALF_W, BAY_ROOF_Z),
+               (BAY_TOP_HALF_W, BAY_ROOF_Z), (BAY_TOP_HALF_W, BAY_FLARE_Z), (BAY_HALF_W, z0)]
+    ends = [[bm.verts.new((x, y, z)) for x, z in profile] for y in (BAY_Y0, BAY_Y1)]
+    for i in range(len(profile) - 1):                                   # flares, walls and roof; the bottom stays open
+        bm.faces.new([ends[0][i], ends[0][i + 1], ends[1][i + 1], ends[1][i]])
+    for e in ends:                                                      # forward and aft bulkheads
+        bm.faces.new(e)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bmesh.ops.reverse_faces(bm, faces=bm.faces)
 

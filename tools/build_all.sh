@@ -30,11 +30,15 @@ if [[ "$MODE" == all ]]; then
   step "Blender hull fix"        "HULLFIX"              blender_run "$PARTS" --python tools/blender_hullfix.py -- "$(winpath "$ROOT/$SRC")"
   step "Blender cockpit"         "COCKPIT"              blender_run "$PARTS" --python tools/blender_cockpit.py
   step "Blender exterior atlas"  "ATLAS"                blender_run "$PARTS" --python tools/blender_atlas.py
+  step "Livery masks"            "LIVERY"               blender_run "$PARTS" --python tools/blender_livery_masks.py
   step "Atlas image"             ""                     "$PYTHON" tools/make_atlas.py
   step "Skin damage texture"     "SKIN"                 "$PYTHON" tools/make_skin_detail.py
+  step "Clean livery"            "CLEAN"                "$PYTHON" tools/make_clean_livery.py
+  step "Camouflage liveries"     "LIVERY"               "$PYTHON" tools/make_liveries.py
   if [[ "${B52_SKIP_AO:-0}" != 1 ]]; then              # ~5 min of CPU; B52_SKIP_AO=1 keeps the committed AO map
     step "Blender skin AO"       "AO baked"             blender_run "$PARTS" --python tools/blender_ao.py -- "$(winpath "$ROOT/unity/Mods/B52")"
   fi
+  step "Blender LODs"            "LODS"                 blender_run "$PARTS" --python tools/blender_lods.py
   step "Blender FBX export"      "EXPORTED"             blender_run "$PARTS" --python tools/blender_export.py -- "$(winpath "$ROOT/unity/Mods/B52")"
 fi
 

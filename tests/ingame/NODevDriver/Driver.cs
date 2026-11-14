@@ -318,7 +318,8 @@ namespace NODevDriverB52
                     var go3 = new GameObject("devcam"); var cam = go3.AddComponent<Camera>();
                     cam.transform.position = t.position + frame.TransformDirection(new Vector3(F(1), F(2), F(3)));
                     cam.transform.LookAt(t.position, frame.up);
-                    cam.fieldOfView = Mathf.Abs(F(4)); cam.nearClipPlane = 0.05f; cam.farClipPlane = 500f;
+                    cam.fieldOfView = Mathf.Abs(F(4)); cam.nearClipPlane = 0.05f;
+                    cam.farClipPlane = Mathf.Max(500f, 2f * new Vector3(F(1), F(2), F(3)).magnitude);   // far shots (1 km+) must still reach the target
                     if (F(4) < 0f) { cam.orthographic = true; cam.orthographicSize = -F(4); cam.farClipPlane = 1.2f * new Vector3(F(1), F(2), F(3)).magnitude; }   // negative fov: orthographic, half-height in m, sees only to just past the target
                     var main = Camera.main; if (main != null) cam.cullingMask = main.cullingMask;
                     var rt = new RenderTexture(1600, 1000, 24); cam.targetTexture = rt; cam.Render();
@@ -864,6 +865,16 @@ namespace NODevDriverB52
                     var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
                     var key = ac != null && ac.definition != null ? ac.definition.jsonKey : "none";
                     Test(key == arg, $"player aircraft is {arg} (got {key})");
+                    break;
+                }
+                case "forcelod":   // forcelod <level>|off: pin the player's aircraft to one LOD level (0 = full detail, 1 = the distant model), for close-up screenshots
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    var lod = ac != null ? ac.GetComponent<LODGroup>() : null;
+                    if (lod == null) { Logger.LogWarning("  no LODGroup on the player's aircraft"); break; }
+                    lod.ForceLOD(arg == "off" ? -1 : int.Parse(arg));
+                    var lods = lod.GetLODs();
+                    Logger.LogInfo($"  forcelod {arg}: {lods.Length} levels ({string.Join(", ", lods.Select(l => $"{l.renderers.Length} renderers from {l.screenRelativeTransitionHeight:P0}"))})");
                     break;
                 }
                 case "emitfx":   // emitfx <name part> <count>: make the player's particle systems whose object name contains <name part> emit, e.g. the tyre dust, for a screenshot

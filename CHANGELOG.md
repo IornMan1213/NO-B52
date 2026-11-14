@@ -27,6 +27,22 @@ Player-facing changes in each release. The development diary with every detail i
   (they would have drawn pink too).
 - The README's takeoff numbers are now measured in game (the ones above). It used to say a full-load B-52 lifts off
   by itself at 170 kt, which didn't match the game.
+- **Performance:** distant B-52s draw a simplified model, as stock aircraft do: once one is under 5% of the screen
+  height (about 1.2 km away) it's 9,500 triangles in 38 pieces instead of 62,000 in 130, without the gear and
+  cockpit. It keeps its livery and damage.
+  The cockpit's plain colours share one material, so it draws in about 60 calls instead of 94 (every nearby
+  B-52's cockpit is drawn, seen through its windows).
+- **Three more liveries:**
+  - **USAF Gunship Gray, clean:** the same aircraft without the weathering streaks, which read as scratches up
+    close. Markings, insignia and panel lines stay.
+  - **Southeast Asia camouflage, black belly:** tan and two greens on top, black underneath and up the sides and
+    fin, like the B-52D over Vietnam.
+  - **Southeast Asia camouflage, white belly:** the same camouflage over an anti-flash white belly, the 1970s
+    nuclear alert scheme.
+  Together they add 2.4 MB to the download.
+- README: a tip for low frame rates on laptops with two graphics chips.
+- The bomb bay is bigger inside, like the real one: wider at the top than the door opening and taller, so cruise
+  missiles on the rotary launcher no longer show through the bay roof and walls when you look into the open bay.
 - Rotary-launcher missiles sit 8 cm higher, so none of them pokes below the closed bay doors.
 
 ## 0.9.0 (pre-release: the 1.0 release candidate)

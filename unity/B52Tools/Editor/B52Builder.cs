@@ -131,6 +131,7 @@ namespace B52Tools
 
                 ConvertMaterials();
                 SetLiveryTargets();
+                BuildLods();
                 var prefabPath = ModDir + "/B52.prefab";
                 var prefab = PrefabUtility.SaveAsPrefabAsset(ourRoot.gameObject, prefabPath);
                 Note("Saved " + prefabPath);
@@ -232,6 +233,14 @@ namespace B52Tools
                 ti.maxTextureSize = 4096; ti.textureCompression = TextureImporterCompression.CompressedHQ;
                 ti.mipmapEnabled = true; ti.isReadable = false; ti.SaveAndReimport();
             }
+            // The extra liveries (ExtraLiveries): same size, plain DXT1 rather than BC7, so each adds about half as much
+            // to the download; flat paint looks the same either way.
+            foreach (var (_, file, _) in ExtraLiveries)
+                if (AssetImporter.GetAtPath(ModDir + "/Textures/" + file) is TextureImporter tc)
+                {
+                    tc.maxTextureSize = 4096; tc.textureCompression = TextureImporterCompression.Compressed;
+                    tc.mipmapEnabled = true; tc.isReadable = false; tc.SaveAndReimport();
+                }
             // Skin detail maps on the same atlas layout (tools/blender_ao.py, tools/make_skin_detail.py). No normal map:
             // one made from the atlas embossed the printed markings and dirt, so they looked like dents.
             void Tex(string file, int size, bool srgb)
@@ -243,6 +252,15 @@ namespace B52Tools
             }
             Tex("B52_atlas_ao.png", 2048, false);
             Tex("B52_atlas_dmg.png", 2048, true);
+            // The cockpit's plain-colour palettes (tools/blender_cockpit.py, planner CK3): tiny, read one texel per face,
+            // so no filtering, mip-maps or compression.
+            foreach (var (file, srgb) in new[] { ("cp_palette.png", true), ("cp_palette_ms.png", false) })
+                if (AssetImporter.GetAtPath(ModDir + "/Textures/" + file) is TextureImporter p)
+                {
+                    p.textureType = TextureImporterType.Default; p.sRGBTexture = srgb; p.filterMode = FilterMode.Point;
+                    p.textureCompression = TextureImporterCompression.Uncompressed; p.mipmapEnabled = false;
+                    p.isReadable = false; p.SaveAndReimport();
+                }
         }
 
         /// <summary>The FBX nodes arrive with a +90 deg X axis-conversion rotation on every frame. Bake it into
@@ -1160,6 +1178,14 @@ namespace B52Tools
         // B-52 is lit, damaged and fogged like stock aircraft. Canopy glass uses the game's glass material.
         // The interior keeps URP/Lit (screens need emission).
         static readonly Dictionary<Material, Material> MatCache = new Dictionary<Material, Material>();
+        // Liveries after the USAF one: asset name, texture (made by the build: tools/make_clean_livery.py, make_liveries.py),
+        // name in the game. One missing from Textures is left out.
+        static readonly (string asset, string file, string name)[] ExtraLiveries =
+        {
+            ("B52_USAF_clean_livery", "B52_atlas_clean.png", "USAF Gunship Gray, clean"),
+            ("B52_SEA_livery", "B52_livery_sea.png", "Southeast Asia camouflage, black belly"),
+            ("B52_SIOP_livery", "B52_livery_siop.png", "Southeast Asia camouflage, white belly"),
+        };
         const float CockpitFill = 0.25f;  // interior paint glow, x its colour: 0 left the frames black, 0.5 washed it flat (tests/ingame/b52_cockpit_fill.txt)
 
         static Texture2D SolidTex(string name, Color c, bool linear = false)
@@ -1252,6 +1278,12 @@ namespace B52Tools
                         if (src.GetTexture("_BaseMap")) m.SetTexture("_EmissionMap", src.GetTexture("_BaseMap"));
                         m.SetColor("_EmissionColor", src.GetColor("_BaseColor") * CockpitFill);
                         m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+                    }
+                    if (src.name == "CP_Flat")                                   // metal and smoothness per colour, from its palette
+                    {
+                        m.SetTexture("_MetallicGlossMap", AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/cp_palette_ms.png"));
+                        m.EnableKeyword("_METALLICSPECGLOSSMAP");
+                        m.SetFloat("_Metallic", 1f); m.SetFloat("_Smoothness", 1f); m.SetFloat("_SmoothnessTextureChannel", 0f);
                     }
                     AssetDatabase.CreateAsset(m, Gen + "/" + m.name + ".mat");
                     MatCache[src] = m; mats[i] = m;
@@ -1526,6 +1558,24 @@ namespace B52Tools
             if (lod) Object.DestroyImmediate(lod);
         }
 
+        /// <summary>Two levels, like the stock aircraft: everything up close, and once the B-52 is under 5 % of the
+        /// screen height (about 1.2 km away) only the decimated <part>_LoD copies (tools/blender_lods.py), which leave
+        /// out the gear, wheels and cockpit. Particle effects stay outside the group.</summary>
+        static void BuildLods()
+        {
+            var all = ourRoot.GetComponentsInChildren<Renderer>(true).Where(r => !(r is ParticleSystemRenderer)).ToList();
+            var low = all.Where(r => r.name.EndsWith("_LoD")).ToArray();
+            if (low.Length == 0) { Note("  ! no _LoD meshes (run tools/blender_lods.py): no LOD group"); return; }
+            var high = all.Where(r => !r.name.EndsWith("_LoD")).ToArray();
+            var lod = ourRoot.GetComponent<LODGroup>();                 // not ??: a missing component isn't C# null
+            if (!lod) lod = ourRoot.gameObject.AddComponent<LODGroup>();
+            lod.SetLODs(new[] { new LOD(0.05f, high), new LOD(0f, low) });
+            lod.RecalculateBounds();
+            int Tris(IEnumerable<Renderer> rs) => rs.Select(r => r.GetComponent<MeshFilter>()).Where(f => f && f.sharedMesh)
+                                                    .Sum(f => (int)f.sharedMesh.triangles.LongLength / 3);
+            Note($"LODs: {high.Length} renderers ({Tris(high)} triangles) up close, {low.Length} ({Tris(low)}) from 5 % of the screen");
+        }
+
         /// <summary>The exterior is one atlas (tools/blender_atlas.py), so every part can take the livery and show damage.
         /// UnitPart.SetLivery and the _HitPoints damage shading only touch material slot 0 of each listed renderer, and a
         /// part only lists its own renderer by default (control surfaces keep theirs on a "_visible" child). Each part
@@ -1664,16 +1714,22 @@ namespace B52Tools
             }
             ps.FindProperty("DefaultFuelLevel").floatValue = 0.6f;
             ps.FindProperty("HUDExtras").objectReferenceValue = AssetDatabase.LoadAssetAtPath<GameObject>(DoNotShip + "/GameObject/SFB_HUDExtras_PLACEHOLDER.prefab");
-            // One USAF livery, offered to every faction the template had.
-            var livPath = Gen + "/B52_USAF_livery.asset";
-            AssetDatabase.DeleteAsset(livPath);
-            var liv = ScriptableObject.CreateInstance(T("LiveryData")); liv.name = "B52_USAF_livery";
-            var ls = SO(liv);
-            ls.FindProperty("Texture").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/B52_atlas.png");
-            ls.FindProperty("Glossiness").floatValue = 0.35f;
-            ls.ApplyModifiedPropertiesWithoutUndo();
-            AssetDatabase.CreateAsset(liv, livPath);
-            var livGuid = AssetDatabase.AssetPathToGUID(livPath);
+            // The USAF livery and the extra ones (ExtraLiveries), offered to every faction the template had.
+            string Livery(string name, string texture)
+            {
+                var path = Gen + "/" + name + ".asset";
+                AssetDatabase.DeleteAsset(path);
+                var liv = ScriptableObject.CreateInstance(T("LiveryData")); liv.name = name;
+                var ls = SO(liv);
+                ls.FindProperty("Texture").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/" + texture);
+                ls.FindProperty("Glossiness").floatValue = 0.35f;
+                ls.ApplyModifiedPropertiesWithoutUndo();
+                AssetDatabase.CreateAsset(liv, path);
+                return AssetDatabase.AssetPathToGUID(path);
+            }
+            var livGuid = Livery("B52_USAF_livery", "B52_atlas.png");
+            var extra = ExtraLiveries.Where(l => AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/" + l.file))
+                                     .Select(l => (guid: Livery(l.asset, l.file), l.name)).ToList();
             var lv = ps.FindProperty("liveries");
             var seen = new HashSet<Object>();
             for (int i = lv.arraySize - 1; i >= 0; i--)
@@ -1685,8 +1741,15 @@ namespace B52Tools
                 e.FindPropertyRelative("name").stringValue = "USAF Gunship Gray";
                 e.FindPropertyRelative("assetReference.m_AssetGUID").stringValue = livGuid;
                 e.FindPropertyRelative("assetReference.m_SubObjectName").stringValue = "";
+                for (int k = extra.Count - 1; k >= 0; k--)          // copies right after it, same faction, in list order
+                {
+                    lv.InsertArrayElementAtIndex(i);
+                    var c = lv.GetArrayElementAtIndex(i + 1);
+                    c.FindPropertyRelative("name").stringValue = extra[k].name;
+                    c.FindPropertyRelative("assetReference.m_AssetGUID").stringValue = extra[k].guid;
+                }
             }
-            Note($"Liveries: {lv.arraySize} -> {livGuid}");
+            Note($"Liveries: {lv.arraySize} -> {livGuid}, plus {string.Join(", ", extra.Select(e => e.name))}");
             ps.FindProperty("aircraftGLimit").floatValue = 2.5f;
             ps.FindProperty("maxSpeed").floatValue = 290f;
             ps.FindProperty("takeoffSpeed").floatValue = 90f;

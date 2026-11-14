@@ -1,0 +1,29 @@
+say START B-52J checks for the 13 Nov local work
+include spawn.txt B52J
+expectac B52J
+b52check
+b52live
+bayfit 0.05
+runway
+wait 4
+look 0 0
+wait 2
+shot b52_lc_cockpit_fwd.png
+look -35 45
+wait 2
+shot b52_lc_cockpit_panel.png
+look 35 50
+wait 2
+shot b52_lc_cockpit_pedestal.png
+look off
+forcelod 0
+camat @ac -38 10 42 45 b52_lc_lod0.png
+camat @ac 30 -12 10 50 b52_lc_lod0_below.png
+camat @ac -900 300 900 6 b52_lc_far_zoom_lod0.png
+forcelod 1
+camat @ac -38 10 42 45 b52_lc_lod1.png
+camat @ac 30 -12 10 50 b52_lc_lod1_below.png
+camat @ac -900 300 900 6 b52_lc_far_zoom_lod1.png
+forcelod off
+camat @ac -900 300 900 50 b52_lc_far.png
+say END

@@ -276,9 +276,9 @@ namespace B52Tools
                     float a = (i % perRing) * Mathf.PI * 2f / perRing;
                     int ring = i / perRing;
                     float z = rings == 1 ? 0 : (ring - (rings - 1) / 2f) * Mathf.Min(len * 1.02f, 10.3f / rings);
-                    // 8 cm above the bay centre: with fins, the missiles are taller than the bay, and measured in game
-                    // (tests/ingame bayfit) this keeps every rotary load above the door line; the overlap goes into
-                    // the bay roof, inside the fuselage.
+                    // 8 cm above the bay centre: measured in game (tests/ingame bayfit), this keeps every rotary load
+                    // above the door line, and the bay (tools/blender_prep.py bay_box) is tall and wide enough for the
+                    // finned cruise missiles: 5 cm under the roof, 8 cm inside the walls.
                     p[i] = new Vector3(Mathf.Cos(a) * 0.55f, Mathf.Sin(a) * 0.55f + 0.08f, z);
                 }
                 return p;

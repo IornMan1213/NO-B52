@@ -538,5 +538,52 @@ for o in [c for c in root.children_recursive if c.type == 'MESH']:
     bm.to_mesh(o.data); bm.free()
 print('COCKPIT trim UVs on', trimmed, 'faces')
 
+# One material for the plain colours (planner CK3): each face in a plain-colour material points its UVs at that colour's
+# cell in a small palette, so an object draws all of them in one go instead of once per colour (the cockpit's 94 draw
+# calls come down to about 60). A second palette holds metalness (R) and smoothness (A) for Unity's metallic map. A face's
+# UVs are all one point, so the palette never blurs between cells. Textured, tiling and glowing materials stay as they are.
+FLAT = ['panel', 'black', 'glare', 'frame', 'metal', 'knob', 'yellow', 'needle', 'white', 'gauge']
+CELL, COLS = 8, 4
+def srgb(c): return 12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
+size = CELL * COLS
+col_px = [0.0] * (size * size * 4); ms_px = [0.0] * (size * size * 4)
+for i, key in enumerate(FLAT):
+    p_ = M[key].node_tree.nodes['Principled BSDF']
+    rgb = [srgb(c) for c in p_.inputs['Base Color'].default_value[:3]]
+    metal, smooth = p_.inputs['Metallic'].default_value, 1 - p_.inputs['Roughness'].default_value
+    cx, cy = i % COLS, i // COLS
+    for y in range(cy * CELL, cy * CELL + CELL):
+        for x in range(cx * CELL, cx * CELL + CELL):
+            k = (y * size + x) * 4
+            col_px[k:k + 4] = rgb + [1.0]; ms_px[k:k + 4] = [metal, 0.0, 0.0, smooth]
+for name, px, data in (('cp_palette.png', col_px, False), ('cp_palette_ms.png', ms_px, True)):
+    im = bpy.data.images.new(name, size, size, alpha=True, is_data=data)
+    im.pixels = px; im.filepath_raw = os.path.join(TEX, name); im.file_format = 'PNG'; im.save()
+    im.use_fake_user = True          # kept in the .blend, so blender_export.py copies it to Unity (the _ms one has no user)
+M['flat'] = mat('CP_Flat', (1, 1, 1), 0.0, 0.6, 'cp_palette.png')
+next(n for n in M['flat'].node_tree.nodes if n.type == 'TEX_IMAGE').interpolation = 'Closest'
+cell_uv = {M[k]: ((i % COLS + 0.5) / COLS, (i // COLS + 0.5) / COLS) for i, k in enumerate(FLAT)}
+merged = 0; slots_before = slots_after = 0
+for o in [c for c in root.children_recursive if c.type == 'MESH']:
+    mats = list(o.data.materials)
+    if not any(m in cell_uv for m in mats): continue
+    bm = bmesh.new(); bm.from_mesh(o.data); uv = bm.loops.layers.uv.verify()
+    slots_before += len({f.material_index for f in bm.faces})
+    if M['flat'] not in mats: mats.append(M['flat'])
+    flat_i = mats.index(M['flat'])
+    for f in bm.faces:
+        m = mats[f.material_index]
+        if m in cell_uv:
+            for l in f.loops: l[uv].uv = cell_uv[m]
+            f.material_index = flat_i; merged += 1
+    keep = sorted({f.material_index for f in bm.faces})           # drop the slots nothing uses any more
+    remap = {old: new for new, old in enumerate(keep)}
+    for f in bm.faces: f.material_index = remap[f.material_index]
+    slots_after += len(keep)
+    o.data.materials.clear()                                     # slots first: clearing them moves the faces' indices
+    for i in keep: o.data.materials.append(mats[i])
+    bm.to_mesh(o.data); bm.free()
+print(f'COCKPIT plain colours on one material: {merged} faces; material slots on those objects {slots_before} -> {slots_after}')
+
 bpy.ops.wm.save_as_mainfile(filepath=bpy.data.filepath)
 print('COCKPIT OK', len([o for o in bpy.data.objects if o.parent == root]), 'objects under cockpit_int')

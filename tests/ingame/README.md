@@ -27,6 +27,9 @@ bash tests/ingame/run.sh tests/ingame/b52_flight.txt
   joints relative to the camera (the numbers tools/blender_cockpit.py places the seats, wheels and pedals from).
 - `b52_cockpit_fill.txt`: the cockpit's fill light at four levels (`cpfill <k>`), for choosing `CockpitFill` in the
   builder. Cockpit scenarios start with `expectac B52J`, so a spawn that picked another aircraft fails.
+- `b52_dust.txt` and `b52_fxcheck.txt`: tyre dust shots (`emitfx`) and the particle-material check on its own.
+- `b52_local_checks.txt`: one run over the 13 Nov work: bay fit against the bigger bay, particle materials, the
+  cockpit with its merged plain-colour material, and the distant model up close (`forcelod 1`) and from 1.3 km.
 - `hh_place.txt`: Heavy Hangar automatic placement: where each hangar went (the log), shots of the site from above,
   and `taxiout`: the B-52 rolls straight out of the door and must stay on paving (hangar floor, apron, taxiway).
 - `hh_outside.txt`: spawning outside a stock hangar's door (run it with Heavy Hangar's `AutoPlace = false`).

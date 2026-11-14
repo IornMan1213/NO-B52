@@ -35,10 +35,11 @@ namespace HeavyHangar
                 "Only airbases with a takeoff runway at least this long (metres) get a heavy hangar.");
             OversizeSpan = Config.Bind("Routing", "OversizeSpan", 44f,
                 "Aircraft wider than this (metres) only spawn from heavy hangars when the airbase has one. " +
-                "The largest stock hangar door is ~46 m wide.");
+                "The largest stock hangar door is ~46 m wide. In multiplayer the host's value decides where an aircraft " +
+                "spawns and each player's own value what their aircraft menu shows, so keep it the same on every PC.");
             OversizeHeight = Config.Bind("Routing", "OversizeHeight", 9f,
                 "Aircraft taller than this (metres) only spawn from heavy hangars when the airbase has one. " +
-                "Stock hangar doors are 8 m tall.");
+                "Stock hangar doors are 8 m tall. In multiplayer, keep it the same on every PC (see OversizeSpan).");
             VerboseLog = Config.Bind("Debug", "VerboseLog", false, "Log every placement candidate that was rejected and why.");
             new Harmony("com.ironman1213.heavyhangar").PatchAll();
             Log.LogInfo("Heavy Hangar loaded");

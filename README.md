@@ -81,6 +81,9 @@ In `BepInEx/config/com.ironman1213.b52systems.cfg` (or in-game with the BepInEx 
 - **It spawns outside the hangar:** that airbase has no Heavy Hangar (install it, or use a base with a long runway).
 - **Can't taxi from an automatically placed Heavy Hangar to the runway:** fixed in Heavy Hangar 0.2.0 (the hangar now
   sits against a taxiway). Update Heavy Hangar; with 0.1.0 the hangar is on grass off the runway.
+- **Low frame rate on a laptop:** a laptop with two graphics chips can run the game on the slow built-in one.
+  Linux: set the game's Steam launch options to `prime-run %command%` (NVIDIA) or `DRI_PRIME=1 %command%` (AMD).
+  Windows: Settings > System > Display > Graphics, add `NuclearOption.exe` and choose High performance.
 - **Bug reports:** turn on `Telemetry.Enabled`, fly until it happens, and attach the CSV from
   `BepInEx/B52_telemetry` and `BepInEx/LogOutput.log` to an [issue](https://github.com/IornMan1213/NO-B52/issues).
 
