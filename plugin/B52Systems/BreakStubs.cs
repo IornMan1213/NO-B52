@@ -172,19 +172,23 @@ namespace B52Systems
             float k = s.size * len;
             var v = new List<Vector3>(); var skin = new List<int>(); var soot = new List<int>();
 
-            // Skin: 48 points round the section, each torn back to its own length (alternately long and short, so the
-            // edge is jagged), in three rows that curl outward.
+            // Skin: 48 points round the section, each torn back to its own length, in three rows that curl outward. The
+            // tear line wanders: a few broad tongues and bays along the edge (smooth noise round the section) with a little
+            // raggedness on top, not a regular saw-tooth of alternating long and short spikes (testers read that as spikes).
             const int N = 48;
             var rows = new Vector3[N, 3];
             var radial = new Vector3[N];
+            var keys = new float[6]; for (int q = 0; q < keys.Length; q++) keys[q] = R();
             for (int i = 0; i < N; i++)
             {
                 float a = (i + 0.3f * R()) * Mathf.PI * 2f / N;
                 var dir = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
                 var p2 = s.Edge(s.c, dir);
                 radial[i] = s.Dir(dir);
-                float L = (0.06f + 0.5f * Mathf.Pow(R(), 1.5f) * (i % 2 == 0 ? 1f : 0.45f)) * k;
-                if (R() < 0.12f) L *= 2.2f;                               // the odd long petal
+                float tp = (float)i / N * keys.Length; int q0 = (int)tp % keys.Length, q1 = (q0 + 1) % keys.Length;
+                float wave = Mathf.Lerp(keys[q0], keys[q1], Mathf.SmoothStep(0f, 1f, tp - (int)tp));
+                float L = (0.05f + 0.28f * wave * wave + 0.05f * R()) * k;
+                if (R() < 0.05f) L *= 1.6f;                               // the odd longer tongue
                 float curl = 0.3f * R();
                 var b = s.W(p2);
                 rows[i, 0] = b;
@@ -217,9 +221,9 @@ namespace B52Systems
                     var top = s.Edge(at, s.ay); var bot = s.Edge(at, -s.ay);
                     var t3 = s.W(top) - s.Dir(s.ay) * 0.02f; var b3 = s.W(bot) + s.Dir(s.ay) * 0.02f;
                     var across = s.Dir(s.ax) * 0.035f;
-                    float lt = (0.15f + 0.4f * R()) * k, lb = (0.15f + 0.4f * R()) * k;
-                    var tipT = t3 + outW * lt + across * (R() - 0.5f) * 4f;
-                    var tipB = b3 + outW * lb + across * (R() - 0.5f) * 4f;
+                    float lt = (0.10f + 0.25f * R()) * k, lb = (0.10f + 0.25f * R()) * k;
+                    var tipT = t3 + outW * lt + across * (R() - 0.5f) * 1.5f;
+                    var tipB = b3 + outW * lb + across * (R() - 0.5f) * 1.5f;
                     Box(v, skin, new[] { t3 - across, t3 + across, b3 + across, b3 - across, tipT - across, tipT + across, tipB + across, tipB - across });
                     // A ragged bite out of the web's end, halfway up.
                     var mid = (tipT + tipB) * 0.5f - outW * (0.25f * R() * Mathf.Min(lt, lb));
@@ -253,7 +257,8 @@ namespace B52Systems
             {
                 int i = (int)((m + off) * N / count) % N;
                 var tangent = (rows[(i + 1) % N, 0] - rows[i, 0]).normalized;
-                var span = outW * (0.08f + 0.35f * R()) * k + radial[i] * 0.06f * R() * k + tangent * 0.08f * (R() - 0.5f) * k;
+                // Snapped close to the skin's tear (stringers break with the skin they're riveted to), bent only slightly.
+                var span = outW * (0.05f + 0.18f * R()) * k + radial[i] * 0.03f * R() * k + tangent * 0.04f * (R() - 0.5f) * k;
                 Rod(v, skin, rows[i, 0] - radial[i] * 0.03f, span, radial[i], 0.018f);
             }
 

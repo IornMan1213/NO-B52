@@ -12,13 +12,12 @@ the whole airframe. A B-52's Gunship Gray is a flat, weathered paint: this gives
 still in the grime and along the panel lines, a little variation panel to panel, and slightly glossier where
 the paint is cleaner. Metalness stays a trace (paint, not bare metal).
 
-Damage, in the game's own format (as its aircraft's *_skin_dmg_b maps are made): the skin shader darkens a part's
-paint by the damage colour wherever the part's damage has passed the damage order in alpha. So the colour is
-mostly white (no change), and the alpha says what shows first: bullet and shrapnel holes and their soot (low
-alpha) appear at the first hits and their scorch spreads outward as the part is hurt more; broad burn and soot
-over whole panels (high alpha) only on a part near destruction, and some paint never darkens at all. The old map
-was a dark copy of the skin with no alpha, so a damaged part, the nose most often, went uniformly black.
-The dents (normal map) follow the same holes, with a light crumple over the burnt panels.
+Damage, in the game's own format (as its aircraft's *_skin_dmg_b maps are made): the skin shader cuts the skin
+open where the part's damage has passed the alpha (low alpha = a hole, opening early), and blends the colour in by
+the part's damage. So the colour is mostly white (no change) with soft scorch only round the hits, and the alpha
+marks only the holes, a few centimetres across, opening one cluster after another and tearing a little wider as
+the part is hurt more. The old map was a dark copy of the skin with no alpha, so a damaged part, the nose most
+often, went uniformly black. The dents (normal map) follow the same holes.
 """
 import os
 import numpy as np
@@ -69,36 +68,46 @@ col = np.ones((S, S, 3), np.float32)
 order = np.full((S, S), 1.0, np.float32)
 height = np.zeros((S, S), np.float32)
 
-# Broad burn: whole panels scorch late, in blotches, and about half the skin never darkens.
-burn = noise(40, 3) * 0.6 + noise(160, 4) * 0.4
-burnt = burn > 0.47
-order = np.where(burnt, np.clip(0.95 - (burn - 0.47) * 1.2, 0.62, 0.95), 1.0).astype(np.float32)
-soot_tone = np.clip(0.55 + 0.45 * noise(220, 5), 0, 1)                # darker and lighter soot
-col *= np.where(burnt, 0.48 + 0.42 * soot_tone, 1.0)[..., None]
-col *= np.array([1.0, 0.97, 0.93], np.float32)                        # soot is a warm brown-black, not grey
-height += np.where(burnt, (noise(300, 6) - 0.5) * 0.6, 0)             # a light crumple over burnt panels
+# Measured in game (tests/ingame/b52_look_fixes.txt, 19 Nov): the shader CUTS the skin open where alpha is below the
+# part's damage (low alpha = a hole you see through, earliest first), and blends the colour in by the part's damage
+# everywhere at once. So: alpha marks only the holes themselves (each may tear a little wider as damage grows), and
+# the colour holds only scorch that belongs to hits, round the hole clusters. A first version also had broad noise
+# burn over half the skin: by 50% it covered the nose in hard-edged camouflage blotches, and its soot rings, given
+# low alpha, were cut out too, into holes half a metre wide.
 
-# Hits: clusters of holes, each with a soot ring that grows as the part is hurt more.
+# Hits: clusters of holes, each with a soft soot scorch around it.
 yy, xx = np.mgrid[0:S, 0:S].astype(np.float32)
 n_clusters = 700
 for k in range(n_clusters):
     cx, cy = rng.random(2) * S
-    first = rng.random() * 0.45                                       # when this cluster's first holes appear
-    for _ in range(rng.integers(1, 7)):
-        hx, hy = cx + rng.normal(0, 9), cy + rng.normal(0, 9)
-        r_hole = rng.uniform(0.9, 2.6)                                # 2048 px over the whole airframe: a few cm
-        r_soot = r_hole * rng.uniform(4, 9)
+    first = 0.02 + rng.random() * 0.6                                 # how early this cluster's holes open
+    spread = rng.uniform(5, 12)
+    # the cluster's scorch: one soft patch round all its holes, brown-black, never pure black
+    r_scorch = spread * rng.uniform(2.5, 4.0)
+    x0, x1 = int(max(cx - r_scorch - 2, 0)), int(min(cx + r_scorch + 3, S))
+    y0, y1 = int(max(cy - r_scorch - 2, 0)), int(min(cy + r_scorch + 3, S))
+    if x1 > x0 and y1 > y0:
+        d = np.hypot(xx[y0:y1, x0:x1] - cx, yy[y0:y1, x0:x1] - cy) / r_scorch
+        wob = 1 + 0.35 * (np.random.default_rng(k).random() - 0.5)
+        f = np.clip(1 - d * wob, 0, 1) ** 1.8                         # soft edge, densest in the middle
+        col[y0:y1, x0:x1] *= (1 - 0.45 * f)[..., None]
+    for _ in range(rng.integers(1, 6)):
+        hx, hy = cx + rng.normal(0, spread), cy + rng.normal(0, spread)
+        r_hole = rng.uniform(0.7, 2.0)                                # 2048 px over the whole airframe: a few cm
+        r_tear = r_hole * rng.uniform(1.2, 1.7)                       # how far it tears open by the end
+        r_soot = r_hole * rng.uniform(3, 6)
         x0, x1 = int(max(hx - r_soot - 2, 0)), int(min(hx + r_soot + 3, S))
         y0, y1 = int(max(hy - r_soot - 2, 0)), int(min(hy + r_soot + 3, S))
         if x1 <= x0 or y1 <= y0: continue
         d = np.hypot(xx[y0:y1, x0:x1] - hx, yy[y0:y1, x0:x1] - hy)
+        o = np.where(d < r_hole, first, np.where(d < r_tear, first + 0.15 + 0.2 * (d - r_hole) / (r_tear - r_hole + 1e-6), 1.0))
+        order[y0:y1, x0:x1] = np.minimum(order[y0:y1, x0:x1], o)
         t = np.clip(d / r_soot, 0, 1)                                 # 0 at the hole, 1 at the soot's edge
-        o = np.where(d < r_hole, first, first + 0.06 + t * rng.uniform(0.25, 0.5))
-        order[y0:y1, x0:x1] = np.minimum(order[y0:y1, x0:x1], np.where(t < 1, o, 1.0))
-        shade = np.where(d < r_hole, 0.06, 0.22 + 0.78 * t ** 1.6)    # the hole near black, soot fading out
-        col[y0:y1, x0:x1] *= shade[..., None]
+        col[y0:y1, x0:x1] *= (0.35 + 0.65 * t ** 1.3)[..., None]      # a dark ring at the edge of the hole, fading out
         petals = np.clip(1 - d / (r_hole * 2.2), 0, 1)                 # torn metal lips around the hole, then a dimple
         height[y0:y1, x0:x1] += -np.clip(1 - d / r_hole, 0, 1) * 2.0 + petals * 0.6 - np.clip(1 - t, 0, 1) ** 2 * 0.5
+
+col *= np.array([1.0, 0.94, 0.86], np.float32) ** (1 - col)          # soot is a warm brown-black, not grey
 
 col = np.clip(col, 0.03, 1.0)
 order = np.clip(order, 0.0, 1.0)
@@ -112,4 +121,4 @@ n = np.dstack([-gx * strength, gy * strength, np.ones_like(gx)])
 n /= np.linalg.norm(n, axis=2, keepdims=True)
 Image.fromarray(((n * 0.5 + 0.5) * 255 + 0.5).astype(np.uint8), 'RGB').save(DMGN, optimize=True)
 print(f'SKIN damage texture -> {DMG} and {DMGN}: {n_clusters} hit clusters; '
-      f'{(order < 0.3).mean():.1%} shows at the first hits, {(order >= 1).mean():.0%} never darkens')
+      f'{(order < 0.3).mean():.1%} shows at the first hits, {(order < 1).mean():.1%} can be cut open')
