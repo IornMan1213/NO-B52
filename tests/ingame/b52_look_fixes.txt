@@ -1,0 +1,49 @@
+say START B-52J look fixes: paint shine, damage shading, structure at a break, the cockpit at night
+include spawn.txt B52J
+expectac B52J
+wait 3
+tod 13
+wait 2
+say the paint by day (smoothness map, livery gloss 0): compare the shine with the game's own aircraft
+camat @ac -38 10 42 45 b52_lf_day_front34.png
+camat cockpit 9 1.5 -4 45 b52_lf_day_nose.png
+camat wing1_L -4 6 -6 50 b52_lf_day_wing.png
+say damage shading in stages (look only): the first hits, half, near destroyed
+skinhp 85
+wait 1
+camat cockpit 9 1.5 -4 45 b52_lf_dmg85_nose.png
+skinhp 50
+wait 1
+camat cockpit 9 1.5 -4 45 b52_lf_dmg50_nose.png
+camat @ac -38 10 42 45 b52_lf_dmg50_front34.png
+skinhp 15
+wait 1
+camat cockpit 9 1.5 -4 45 b52_lf_dmg15_nose.png
+skinhp 0
+wait 1
+camat cockpit 9 1.5 -4 45 b52_lf_dmg0_nose.png
+skinhp 100
+say the cockpit at dusk, at night, and at night with night vision
+shot b52_lf_cp_day.png
+tod 19.2
+wait 3
+shot b52_lf_cp_dusk.png
+tod 23
+wait 3
+shot b52_lf_cp_night.png
+nvg on
+wait 3
+shot b52_lf_cp_nvg.png
+look 0 -35
+wait 2
+shot b52_lf_cp_nvg_panel.png
+look off
+nvg off
+tod 13
+wait 2
+say a real break: the left wingtip shot off shows the structure inside wing2_L
+hit wingtip_L 0 1000
+wait 2
+camat wing2_L -8 2 -2 40 b52_lf_break_tip.png
+camat wing2_L -5 -1.5 3 40 b52_lf_break_tip2.png
+say END

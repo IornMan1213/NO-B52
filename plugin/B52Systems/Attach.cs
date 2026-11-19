@@ -15,13 +15,18 @@ namespace B52Systems
             if (!Plugin.IsB52(__instance)) return;
             var go = __instance.gameObject;
             EffectMaterials.Fix(__instance);
-            if (Plugin.RigidAirframe.Value) Add<MassSync>(go);
+            CanopyGlass.Apply(__instance);
+            if (Plugin.RigidAirframe.Value) { Add<MassSync>(go); Add<Structure>(go); }
+            Add<TankImpacts>(go);
+            Add<FuelTransfer>(go);
+            Add<Hydraulics>(go);
             Add<GearSystem>(go);
             Add<DragChute>(go);
             Add<SpoilerDriver>(go);
             Add<MachDrag>(go);
             Add<GroundEffect>(go);
             Add<Instruments>(go);
+            Add<CockpitLighting>(go);
             Add<ExteriorLights>(go);
             Add<EngineFans>(go);
             if (Plugin.TelemetryEnabled.Value) Add<Telemetry>(go);

@@ -1,3 +1,4 @@
+using System.Linq;
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
@@ -15,6 +16,7 @@ namespace B52Systems
         internal static ConfigEntry<float> GroundLift;
         internal static ConfigEntry<bool> TelemetryEnabled;
         internal static ConfigEntry<bool> VerboseAeroCfg;
+        internal static ConfigEntry<bool> AiTailGun;
         internal static ConfigEntry<KeyboardShortcut> CrabLeft, CrabRight, CrabCentre, HelpKey;
         internal static bool VerboseAero => VerboseAeroCfg != null && VerboseAeroCfg.Value;
         public const string JsonKey = "B52J";
@@ -43,9 +45,14 @@ namespace B52Systems
             HelpKey = Config.Bind("Interface", "HelpCard", new KeyboardShortcut(KeyCode.F1, KeyCode.LeftShift),
                 "Shows or hides the B-52J help card (keys and speeds to fly by) while you fly one. It also shows by itself " +
                 "for a few seconds the first time you fly the B-52J in a session.");
+            AiTailGun = Config.Bind("Weapons", "AiTailGun", false,
+                "Let AI-flown B-52s carry the optional B-52H tail turret (M61A1). Off: AI B-52Js fly without it, as the real " +
+                "B-52J does. Players choose it in the loadout screen either way.");
             gameObject.AddComponent<HudReadout>();
-            new Harmony("com.ironman1213.b52systems").PatchAll();
-            Log.LogInfo("B-52J Systems loaded");
+            var harmony = new Harmony("com.ironman1213.b52systems");
+            harmony.PatchAll();
+            Log.LogInfo($"B-52J Systems loaded: {harmony.GetPatchedMethods().Count()} methods patched " +
+                        $"({string.Join(", ", harmony.GetPatchedMethods().Select(m => m.DeclaringType?.Name + "." + m.Name))})");
         }
 
         internal static bool IsB52(Aircraft a) => a != null && a.definition != null && a.definition.jsonKey == JsonKey;

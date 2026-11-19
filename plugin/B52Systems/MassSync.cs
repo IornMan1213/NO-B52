@@ -42,20 +42,34 @@ namespace B52Systems
         internal void Sync()
         {
             if (!rb) return;
-            float m = 0f;
+            float m = 0f, mAll = 0f;
+            Vector3 mx = Vector3.zero, mxAll = Vector3.zero;
+            bool lost = false;
             var parts = aircraft.partLookup;
             for (int i = 0; i < parts.Count; i++)
             {
                 var p = parts[i];
-                if (p && p.rb == rb) m += p.mass;
+                if (!p) continue;
+                if (!home.TryGetValue(p, out var h)) home[p] = h = rb.transform.InverseTransformPoint(p.transform.position);
+                mAll += p.mass; mxAll += h * p.mass;
+                if (p.rb == rb) { m += p.mass; mx += h * p.mass; }
+                else lost = true;
             }
             if (m > 1f && Mathf.Abs(rb.mass - m) > 0.5f) rb.mass = m;
             if (com)
             {
+                // The designed CoM point, moved by however far the parts still on the aircraft shift the part-weighted
+                // centre once something has come off (a lost wing pulls it a long way to the other side). Each part
+                // counts where it sat on the airframe, not where its wreckage is now.
                 var local = rb.transform.InverseTransformPoint(com.position);
+                if (lost && m > 1f && mAll > 1f) local += mx / m - mxAll / mAll;
                 if ((rb.centerOfMass - local).sqrMagnitude > 1e-4f) rb.centerOfMass = local;
             }
         }
+
+        /// <summary>Each part's place on the airframe (aircraft frame), recorded while it is still attached.</summary>
+        private readonly System.Collections.Generic.Dictionary<UnitPart, Vector3> home =
+            new System.Collections.Generic.Dictionary<UnitPart, Vector3>();
     }
 
     /// <summary>

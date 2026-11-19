@@ -40,7 +40,7 @@ namespace B52Systems
                 float up = Mathf.Max(0f, a);              // + about the hinge raises the trailing edge
                 if (airbrake) up = Mathf.Max(up, OpenAmount(airbrake) * SpeedbrakeAngle);   // speedbrake: both sides up
                 panels[i].localRotation = Quaternion.AngleAxis(up, Vector3.right);
-                if (panelRenderers[i]) panelRenderers[i].enabled = up > 1f;
+                if (panelRenderers[i] && !panelRenderers[i].enabled) panelRenderers[i].enabled = true;   // the panels are the wing's skin: always shown
             }
         }
 

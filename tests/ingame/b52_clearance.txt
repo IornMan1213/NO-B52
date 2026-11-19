@@ -1,0 +1,12 @@
+say START B-52J ground clearance: how far each low collider is above the runway, at rest and braking hard
+include spawn.txt B52J
+expectac B52J
+runway
+wait 5
+clearance 8
+say braking hard from 250 km/h
+rollout 250
+wait 2
+clearance 8
+wait 12
+say END

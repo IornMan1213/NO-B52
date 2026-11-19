@@ -1,0 +1,25 @@
+say START B-52H tail turret: optional station, aims aft and fires at a fighter closing from behind
+include spawn.txt B52J
+expectac B52J
+b52check
+tailgun off
+hold 1500
+wait 3
+loadout tail B52_M61A1_tail
+wait 2
+tailgun on
+camat tailTurretMount 0 3 -12 30 b52_tg_fitted.png
+loadout tail none
+wait 2
+tailgun off
+camat fuselage_R 0 2 -30 25 b52_tg_bare.png
+loadout tail B52_M61A1_tail
+wait 2
+spawnhostile COIN 1500 172 80 0
+turretwatch 60
+wait 12
+camat tailTurretMount 0 3 -15 40 b52_tg_firing.png
+wait 50
+tailgun
+hold 0
+say END

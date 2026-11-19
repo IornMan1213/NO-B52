@@ -187,6 +187,14 @@ fus = remap_to_all(ob['Fuselage'])
 BAY_Y0, BAY_Y1 = 1.4 * S, 11.6 * S       # between the forward and aft main gear trucks
 BAY_HALF_W = 0.85 * S
 belly = lambda c: abs(c.x) < BAY_HALF_W and BAY_Y0 < c.y < BAY_Y1 and c.z < -1.95 * S
+# Cut the belly skin along the opening's four edges first: the skin is long triangles, and picking them by their
+# centres alone left a saw-tooth edge at both ends of the bay, with gaps past the bay's bulkheads that looked up through
+# the hollow fuselage to the sky.
+for co, no in (((0, BAY_Y0, 0), (0, 1, 0)), ((0, BAY_Y1, 0), (0, 1, 0)),
+               ((-BAY_HALF_W, 0, 0), (1, 0, 0)), ((BAY_HALF_W, 0, 0), (1, 0, 0))):
+    low = [f for f in fus.faces if f.calc_center_median().z < -1.5 * S]
+    geom = list({e for f in low for e in f.edges}) + list({v for f in low for v in f.verts}) + low
+    bmesh.ops.bisect_plane(fus, geom=geom, plane_co=Vector(co), plane_no=Vector(no), dist=1e-4)
 bay, fus = region(fus, belly)
 bayL, bayR = region(bay, lambda c: c.x < 0)
 add('bayDoor_L', bayL); add('bayDoor_R', bayR)
@@ -276,51 +284,79 @@ for src in ('Engines', 'EngineBlades', 'RandomStuff', 'RandomStuff2'):
         add(bin_part(c), bm)
 
 # ---- Spoilers: 7 panels per wing on the upper surface ahead of the flaps, outboard of the inner pod.
-#      Generated as thin plates; one ControlSurface per wing drives them (B52Systems makes them one-way).
-#      Their paint is a plain-colour material without the B52_ prefix, so blender_atlas.py packs it as a swatch in the
-#      skin atlas (it reads diffuse_color): the spoilers then take liveries and damage shading like the rest of the wing.
-SPOILER_MAT = bpy.data.materials.new('SpoilerPaint'); SPOILER_MAT.use_nodes = True
-SPOILER_MAT.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.61, 0.62, 0.64, 1)
-SPOILER_MAT.diffuse_color = (0.61, 0.62, 0.64, 1)   # = the wing-top paint's average, so raised panels match
-ALL_MATS.append(SPOILER_MAT)
-
-
-def wing_top_z(x, y):
-    """Highest wing-surface z at (x, y), sampled from the finished wing parts."""
-    best = None
-    for k, bm in parts.items():
-        if not (k.startswith('wing') or k.startswith('flap')):
-            continue
-        for v in bm.verts:
-            if abs(v.co.x - x) < 0.9 * S and abs(v.co.y - y) < 0.9 * S:
-                best = v.co.z if best is None else max(best, v.co.z)
-    return best if best is not None else 1.0 * S
+#      Each panel is cut out of the wing's own top skin, like the gear doors: flush, in the wing's paint (so it takes
+#      liveries, damage shading and panel lines), its edges straight cuts. The wing keeps a shallow dark well under
+#      each panel (a floor 6 cm down and walls up to the cut), seen only when the panels rise. One ControlSurface per
+#      wing drives them (B52Systems makes them one-way); they hinge at their leading edge.
+SPOILER_WELL_DEPTH = 0.06
+SPOILER_WELL = bpy.data.materials.new('B52_SpoilerWell'); SPOILER_WELL.use_nodes = True
+SPOILER_WELL.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.09, 0.095, 0.1, 1)
+SPOILER_WELL.diffuse_color = (0.09, 0.095, 0.1, 1)
+ALL_MATS.append(SPOILER_WELL)
 
 
 def make_spoilers(sgn, a, b):
     sd = 'L' if sgn < 0 else 'R'
-    bm = bmesh.new()
     hinge = (b - a).normalized()
-    fwd = Vector((0, 1, 0))
-    n_pan, t0, t1 = 7, 0.33, 0.98          # along the flap line, outboard part only
+    fwd, up = Vector((0, 1, 0)), Vector((0, 0, 1))
+    across = hinge.cross(up).normalized()                  # normal of the vertical planes along the hinge line
+    n_pan, t0, t1 = 7, 0.33, 0.98                          # along the flap line, outboard part only
+    chord = 1.05 * S
+    panels = bmesh.new()
     for i in range(n_pan):
-        s0 = t0 + (t1 - t0) * i / n_pan + 0.004
-        s1 = t0 + (t1 - t0) * (i + 1) / n_pan - 0.004
+        # neighbouring panels share a cut line: a strip of skin between them was too thin for the livery bake
+        # and kept the plain grey under the camouflage
+        s0 = t0 + (t1 - t0) * i / n_pan
+        s1 = t0 + (t1 - t0) * (i + 1) / n_pan
         p0 = a.lerp(b, s0) + fwd * 0.15 * S
         p1 = a.lerp(b, s1) + fwd * 0.15 * S
-        chord = 1.05 * S
         quad = [p0, p1, p1 + fwd * chord, p0 + fwd * chord]
-        quad = [Vector((q.x, q.y, wing_top_z(q.x, q.y) + 0.012)) for q in quad]
-        top = [bm.verts.new(q) for q in quad]
-        bot = [bm.verts.new(q - Vector((0, 0, 0.03))) for q in quad]
-        f = bm.faces.new(top if sgn > 0 else top[::-1]); f.material_index = ALL_MATS.index(SPOILER_MAT)
-        f = bm.faces.new(bot[::-1] if sgn > 0 else bot); f.material_index = ALL_MATS.index(SPOILER_MAT)
-        for k in range(4):
-            j = (k + 1) % 4
-            f = bm.faces.new((top[k], top[j], bot[j], bot[k]) if sgn > 0 else (bot[k], bot[j], top[j], top[k]))
-            f.material_index = ALL_MATS.index(SPOILER_MAT)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    add(f'spoilers_{sd}', bm)
+        lo_x, hi_x = min(q.x for q in quad), max(q.x for q in quad)
+        lo_y, hi_y = min(q.y for q in quad), max(q.y for q in quad)
+
+        def inside(c):
+            # side edges run along y (x between the two ends), the other two along the hinge line
+            if not (min(p0.x, p1.x) < c.x < max(p0.x, p1.x)): return False
+            d0 = (c - p0).dot(across); d1 = (c - (p0 + fwd * chord)).dot(across)
+            return d0 * d1 < 0
+
+        for k in [k for k in parts if k.startswith('wing') and k.endswith(sd)]:
+            bm = parts[k]
+
+            def top_near():
+                bm.normal_update()
+                return [f for f in bm.faces if f.normal.z > 0.3 and lo_x - 1 < f.calc_center_median().x < hi_x + 1
+                        and lo_y - 1 < f.calc_center_median().y < hi_y + 1]
+            for co, no in ((p0, Vector((1, 0, 0))), (p1, Vector((1, 0, 0))), (p0, across), (p0 + fwd * chord, across)):
+                near = top_near()
+                if not near: break
+                geom = list({e for f in near for e in f.edges}) + list({v for f in near for v in f.verts}) + near
+                bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, dist=1e-4)
+            bm.normal_update()
+            sel = {i for i, f in enumerate(bm.faces) if f.normal.z > 0.3 and inside(f.calc_center_median())}
+            if not sel: continue
+            cut, rest = bm.copy(), bm.copy()          # copies keep the face order, so positions carry over
+            bmesh.ops.delete(cut, geom=[f for i, f in enumerate(cut.faces) if i not in sel], context='FACES')
+            bmesh.ops.delete(rest, geom=[f for i, f in enumerate(rest.faces) if i in sel], context='FACES')
+            # the well: the cut skin copied 6 cm down as a dark floor, plus walls from the cut edge down to it
+            well = cut.copy()
+            for v in well.verts: v.co.z -= SPOILER_WELL_DEPTH
+            for f in well.faces: f.material_index = ALL_MATS.index(SPOILER_WELL)
+            centre = sum((f.calc_center_median() for f in cut.faces), Vector()) / len(cut.faces)
+            rim = [e for e in cut.edges if e.is_boundary]
+            for e in rim:
+                v0, v1 = e.verts
+                q = [well.verts.new(v0.co), well.verts.new(v1.co),
+                     well.verts.new(v1.co - up * SPOILER_WELL_DEPTH), well.verts.new(v0.co - up * SPOILER_WELL_DEPTH)]
+                f = well.faces.new(q); f.material_index = ALL_MATS.index(SPOILER_WELL); f.normal_update()
+                mid = (v0.co + v1.co) / 2
+                if f.normal.dot(centre - mid) < 0: f.normal_flip()     # walls face into the well
+            tmp = bpy.data.meshes.new('t'); cut.to_mesh(tmp); panels.from_mesh(tmp); bpy.data.meshes.remove(tmp)
+            cut.free()
+            tmp = bpy.data.meshes.new('t'); well.to_mesh(tmp); rest.from_mesh(tmp); bpy.data.meshes.remove(tmp)
+            well.free(); bm.free(); parts[k] = rest
+    if not panels.faces: raise SystemExit(f'spoilers_{sd}: no wing skin found under the panels')
+    add(f'spoilers_{sd}', panels)
 
 
 make_spoilers(-1, hingeL[0], hingeL[1])

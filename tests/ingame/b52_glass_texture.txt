@@ -1,0 +1,17 @@
+say START B-52J windscreen: the donor glass texture and the glass without it
+include spawn.txt B52J
+expectac B52J
+runway
+wait 3
+camstate orbit
+forcelod 0
+wait 2
+glassset _Color 1 1 1 1
+wait 1
+glasstex save b52_glass_texture.png
+pview 0 9.5 62 0 0.5 24.5 14 b52_gx_0_asbuilt.png
+glasstex none
+wait 1
+pview 0 9.5 62 0 0.5 24.5 14 b52_gx_1_notexture.png
+pview -14 7 50 0 0.5 24.5 14 b52_gx_1_notexture_side.png
+say END

@@ -1,0 +1,56 @@
+say START B-52J windscreen: which interior object each black patch is
+include spawn.txt B52J
+expectac B52J
+runway
+wait 3
+camstate orbit
+forcelod 0
+wait 2
+glassset _Color 1 1 1 1
+wait 1
+pview 0 9.5 62 0 0.5 24.5 14 b52_rp_none.png
+rpaint cp_shell on
+wait 1
+pview 0 9.5 62 0 0.5 24.5 14 b52_rp_cp_shell.png
+rpaint cp_shell off
+rpaint cp_skin on
+wait 1
+pview 0 9.5 62 0 0.5 24.5 14 b52_rp_cp_skin.png
+rpaint cp_skin off
+rpaint cp_consoles on
+wait 1
+pview 0 9.5 62 0 0.5 24.5 14 b52_rp_cp_consoles.png
+rpaint cp_consoles off
+rpaint cp_panel on
+wait 1
+pview 0 9.5 62 0 0.5 24.5 14 b52_rp_cp_panel.png
+rpaint cp_panel off
+rpaint cp_pedestal on
+wait 1
+pview 0 9.5 62 0 0.5 24.5 14 b52_rp_cp_pedestal.png
+rpaint cp_pedestal off
+rpaint seat_L on
+wait 1
+pview 0 9.5 62 0 0.5 24.5 14 b52_rp_seat_L.png
+rpaint seat_L off
+rpaint seat_aft_L on
+wait 1
+pview 0 9.5 62 0 0.5 24.5 14 b52_rp_seat_aft_L.png
+rpaint seat_aft_L off
+rpaint console_aft_L on
+wait 1
+pview 0 9.5 62 0 0.5 24.5 14 b52_rp_console_aft_L.png
+rpaint console_aft_L off
+rpaint Pilot on
+wait 1
+pview 0 9.5 62 0 0.5 24.5 14 b52_rp_Pilot.png
+rpaint Pilot off
+rpaint EjectionSeat on
+wait 1
+pview 0 9.5 62 0 0.5 24.5 14 b52_rp_EjectionSeat.png
+rpaint EjectionSeat off
+rpaint pilot on
+wait 1
+pview 0 9.5 62 0 0.5 24.5 14 b52_rp_pilot.png
+rpaint pilot off
+say END

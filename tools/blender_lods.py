@@ -2,7 +2,8 @@
 Level-of-detail meshes, like the stock aircraft's "LoD" children: a decimated copy of each skinned part, named
 <part>_LoD and parented to it, so it moves (and breaks off) with the part. B52Builder.BuildLods shows them once the
 B-52 is under 5 % of the screen height. Same atlas UVs and materials, so liveries and damage shading work on them.
-Left out (nothing in the distance): gear, wheels, wells, the cockpit interior, fans, spoilers and weapon pylons.
+Left out (nothing in the distance): gear, wheels, wells, the cockpit interior, fans and weapon pylons. The spoiler
+panels stay: they are cut from the wing's skin, so the wing has holes without them.
 Run last before the FBX export (the AO and livery bakes mustn't see the copies):
   blender -b blender/out/B52_parts.blend --python tools/blender_lods.py
 """
@@ -14,7 +15,7 @@ SHARP = math.radians(40)         # edges sharper than this stay hard (trailing e
 
 skin = bpy.data.materials.get('B52_Skin')
 if skin is None: raise SystemExit('no B52_Skin material: run blender_atlas.py first')
-skip = ('gear_', 'wheel_', 'tlink', 'wellBox', 'cockpit_int', 'fan_', 'spoiler', 'hsabPylon')
+skip = ('gear_', 'wheel_', 'tlink', 'wellBox', 'cockpit_int', 'fan_', 'hsabPylon')   # spoilers stay: they are wing skin
 inside = set(bpy.data.objects['cockpit_int'].children_recursive) if 'cockpit_int' in bpy.data.objects else set()
 parts = [o for o in bpy.data.objects
          if o.type == 'MESH' and not o.name.startswith(skip) and not o.name.endswith('_LoD') and o not in inside

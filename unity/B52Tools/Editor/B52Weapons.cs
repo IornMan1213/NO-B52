@@ -169,6 +169,17 @@ namespace B52Tools
                     mm.FindProperty("info").objectReferenceValue = decoyInfo; mm.ApplyModifiedPropertiesWithoutUndo();
                 }
             }
+            if (!internalBay)
+            {
+                var meshPath = $"{Dir}/{key}_rack.asset";
+                AssetDatabase.DeleteAsset(meshPath);
+                var mesh = RackMesh(positions, len, dia, key);
+                AssetDatabase.CreateAsset(mesh, meshPath);
+                var rack = new GameObject("rack");
+                rack.transform.SetParent(root.transform, false);
+                rack.AddComponent<MeshFilter>().sharedMesh = mesh;
+                rack.AddComponent<MeshRenderer>().sharedMaterial = RackMaterial();
+            }
             var prefabPath = $"{Dir}/{key}.prefab";
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
             Object.DestroyImmediate(root);
@@ -296,7 +307,13 @@ namespace B52Tools
             return p;
         }
 
-        // HSAB: a 6 m beam under the pylon carrying triple racks in tandem, extra tiers below.
+        // HSAB: the 6 m adapter beam under the pylon (tools/blender_pylons.py; the mount origin is its underside)
+        // carries an ejector rack per tandem station and tier, each holding up to three weapons side by side.
+        // Every tier hangs RackTier below the one above: the rack's crossbar, the sway braces, then the weapon.
+        const float CrossH = 0.07f, BraceH = 0.05f, TierGap = 0.06f;
+        static float TierPitch(float dia) => CrossH + BraceH + dia + TierGap;
+        static float CrossTop(int tier, float dia) => -0.02f - tier * TierPitch(dia);
+
         static Vector3[] PylonLayout(int n, float len, float dia)
         {
             var p = new Vector3[n];
@@ -306,10 +323,235 @@ namespace B52Tools
             for (int i = 0; i < n; i++)
             {
                 int tier = i / perTier, k = i % perTier, a = k / across, c = k % across;
-                p[i] = new Vector3((c - 1) * dia * 1.15f, -dia * 0.6f - tier * dia * 1.2f,
+                p[i] = new Vector3((c - 1) * dia * 1.15f, CrossTop(tier, dia) - CrossH - BraceH - dia / 2f,
                                    (a - (along - 1) / 2f) * len * 1.05f);
             }
             return p;
+        }
+
+        /// <summary>The rack hardware for a wing load: for each tandem station and tier an ejector-rack crossbar over
+        /// its weapons (with fairing ends), two pairs of sway braces and an ejector hook on each weapon, a block up to
+        /// the adapter beam for the top tier, and side posts from the lower tiers up to the beam. One mesh, in the
+        /// rack prefab, so it stays on the pylon after the weapons are released.</summary>
+        static Mesh RackMesh(Vector3[] pos, float len, float dia, string key)
+        {
+            var v = new List<Vector3>(); var t = new List<int>();
+            void Box(Vector3 c, Vector3 s, Quaternion r)
+            {
+                var h = s / 2f;
+                Vector3[] n = { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back };
+                foreach (var f in n)
+                {
+                    // two axes in the face's plane
+                    var u = Mathf.Abs(f.y) > 0.5f ? Vector3.right : Vector3.up;
+                    var w = Vector3.Cross(f, u);
+                    var fc = Vector3.Scale(f, h);
+                    var uu = Vector3.Scale(u, h); var ww = Vector3.Scale(w, h);
+                    int b = v.Count;
+                    v.Add(c + r * (fc - uu - ww)); v.Add(c + r * (fc + uu - ww)); v.Add(c + r * (fc + uu + ww)); v.Add(c + r * (fc - uu + ww));
+                    // wind so the face looks along f: Unity's front face is the one whose Cross(b - a, c - a) points
+                    // at the viewer (the same rule RecalculateNormals uses)
+                    var nrm = Vector3.Cross(v[b + 1] - v[b], v[b + 2] - v[b]);
+                    if (Vector3.Dot(nrm, r * f) > 0) { t.Add(b); t.Add(b + 1); t.Add(b + 2); t.Add(b); t.Add(b + 2); t.Add(b + 3); }
+                    else { t.Add(b); t.Add(b + 2); t.Add(b + 1); t.Add(b); t.Add(b + 3); t.Add(b + 2); }
+                }
+            }
+            var id = Quaternion.identity;
+            float crossLen = Mathf.Clamp(len * 0.5f, 0.8f, 1.8f);
+            // group the weapons by station (z) and tier (y)
+            foreach (var g in pos.GroupBy(q => (Mathf.Round(q.z * 100), Mathf.Round(q.y * 100))))
+            {
+                var ws = g.ToList();
+                float y = ws[0].y, z = ws[0].z;
+                int tier = Mathf.RoundToInt((CrossTop(0, dia) - CrossH - BraceH - dia / 2f - y) / TierPitch(dia));
+                float top = CrossTop(tier, dia);
+                float x0 = ws.Min(q => q.x), x1 = ws.Max(q => q.x);
+                float halfW = (x1 - x0) / 2f + dia * 0.32f, xc = (x0 + x1) / 2f;
+                // crossbar, with tapered fairing blocks at both ends
+                Box(new Vector3(xc, top - CrossH / 2f, z), new Vector3(halfW * 2f, CrossH, crossLen), id);
+                foreach (var e in new[] { -1f, 1f })
+                    Box(new Vector3(xc, top - CrossH * 0.35f, z + e * (crossLen / 2f + 0.09f)), new Vector3(halfW * 1.6f, CrossH * 0.6f, 0.18f),
+                        Quaternion.Euler(e * 14f, 0, 0));
+                foreach (var q in ws)
+                {
+                    float wTop = q.y + dia / 2f;
+                    // ejector hook and housing
+                    Box(new Vector3(q.x, top - CrossH - 0.02f, q.z), new Vector3(0.09f, 0.05f, 0.22f), id);
+                    // sway braces: two pairs, angled in onto the weapon's shoulders
+                    foreach (var dz in new[] { -crossLen * 0.33f, crossLen * 0.33f })
+                        foreach (var sx in new[] { -1f, 1f })
+                        {
+                            var a = new Vector3(q.x + sx * dia * 0.42f, top - CrossH, q.z + dz);
+                            var b = new Vector3(q.x + sx * dia * 0.25f, wTop - dia * 0.06f, q.z + dz);
+                            Box((a + b) / 2f, new Vector3(0.035f, (a - b).magnitude + 0.01f, 0.05f),
+                                Quaternion.FromToRotation(Vector3.up, a - b));
+                        }
+                }
+                if (tier == 0)          // adapter block up to the beam
+                    Box(new Vector3(xc, top / 2f, z), new Vector3(0.24f, Mathf.Abs(top) + 0.01f, crossLen * 0.6f), id);
+                else                    // side posts up past the tiers above to the beam
+                    foreach (var sx in new[] { -1f, 1f })
+                        foreach (var dz in new[] { -crossLen * 0.4f, crossLen * 0.4f })
+                            Box(new Vector3(xc + sx * (halfW - 0.03f), top / 2f, z + dz), new Vector3(0.05f, Mathf.Abs(top), 0.05f), id);
+            }
+            var m = new Mesh { name = key + "_rack" };
+            m.SetVertices(v); m.SetTriangles(t, 0); m.RecalculateNormals(); m.RecalculateBounds();
+            return m;
+        }
+
+        // ------------------------------------------------------------------ tail turret (B-52H)
+        // The B-52H's tail armament, an optional station (the B-52J has none: the guns came off from late 1991): the
+        // M61A1 20 mm six-barrel cannon, aimed by the AN/ASG-21 radar fire-control system and worked by the gunner from
+        // the upper deck. Built on the game's own 20 mm rotary turret mount (turret_20mm_rotary: Turret + Gun, an AI
+        // gunner that engages what the aircraft detects, manual aim along the cockpit view when its station is
+        // selected), with the model's own barrels (tools/blender_tailgun.py) and an aft-facing firing cone.
+        // Round count: 1,242 is the commonly quoted figure (not confirmed from a primary source); 4,000 rounds/min is
+        // the M61A1's low rate.
+        public const string TailTurretKey = "B52_M61A1_tail";
+        const int TailRounds = 1242;
+        const float TailRpm = 4000f;
+        const float TailCone = 60f;            // half-angle of the coverage cone behind the tail, deg
+        const float TailMuzzle = 0.71f;        // barrel tips, m aft of the pivot (blender_tailgun.py)
+
+        /// <summary>The tail turret mount. <paramref name="barrels"/>: the barrels' mesh with its origin on the
+        /// turret's pivot; <paramref name="barrelRot"/> and <paramref name="barrelScale"/> place it in the mount's frame
+        /// (the mount faces aft: its +Z is the aircraft's -Z).</summary>
+        public static ScriptableObject MakeTailTurret(Mesh barrels, Quaternion barrelRot, Vector3 barrelScale, Action<string> log)
+        {
+            var srcMount = AssetDatabase.LoadAssetAtPath<ScriptableObject>(DoNotShip + "turret_20mm_rotary_PLACEHOLDER.asset");
+            var srcInfo = AssetDatabase.LoadAssetAtPath<ScriptableObject>(DoNotShip + "Gun20mm_Rotary_Turret_PLACEHOLDER.asset");
+            var srcPrefab = srcMount ? (GameObject)new SerializedObject(srcMount).FindProperty("prefab").objectReferenceValue : null;
+            if (!srcMount || !srcInfo || !srcPrefab) { log("  ! tail turret: donor turret_20mm_rotary missing"); return null; }
+            const string key = TailTurretKey;
+            const string name = "M61A1 Vulcan 20 mm (B-52H tail turret)";
+            const string desc = "The B-52H's tail armament: an M61A1 six-barrel 20 mm cannon aimed by the AN/ASG-21 radar " +
+                "fire-control system and worked by the gunner from the upper deck. Engages fighters closing from behind on its " +
+                "own, or select it to aim it yourself. The B-52J flies without it: the tail guns came off from 1991.";
+
+            var info = ScriptableObject.CreateInstance(srcInfo.GetType()); EditorUtility.CopySerialized(srcInfo, info);
+            info.name = "info_" + key;
+            var infoPath = $"{Dir}/info_{key}.asset";
+            AssetDatabase.DeleteAsset(infoPath); AssetDatabase.CreateAsset(info, infoPath);
+            var isx = new SerializedObject(info);
+            isx.FindProperty("weaponName").stringValue = name;
+            isx.FindProperty("shortName").stringValue = "M61 TAIL";
+            isx.FindProperty("description").stringValue = desc;
+            isx.ApplyModifiedPropertiesWithoutUndo();
+
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(srcPrefab);
+            PrefabUtility.UnpackPrefabInstance(go, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+            go.name = key;
+            Transform Kid(string n) => go.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == n);
+            var turretT = Kid("turret"); var gunT = Kid("gun"); var muzzleT = Kid("muzzle"); var barrelT = Kid("barrel");
+            if (!turretT || !gunT || !muzzleT || !barrelT) { Object.DestroyImmediate(go); log("  ! tail turret: donor layout changed (turret/gun/muzzle/barrel)"); return null; }
+
+            // Visuals: the donor's turret head and gun body go; the boot they sit in is the hull's (it stays on the tail).
+            foreach (var t in new[] { turretT, gunT })
+            {
+                Object.DestroyImmediate(t.GetComponent<MeshRenderer>());
+                Object.DestroyImmediate(t.GetComponent<MeshFilter>());
+            }
+            var colorable = go.GetComponent(T("ColorableMount"));
+            if (colorable) Object.DestroyImmediate(colorable);     // nothing left to paint (Hardpoint looks for it with TryGetComponent)
+            gunT.localPosition = Vector3.zero;                       // elevation pivot = traverse pivot = the boot's centre
+            muzzleT.localPosition = new Vector3(0f, 0f, TailMuzzle);
+            muzzleT.localRotation = Quaternion.identity;
+            barrelT.localPosition = Vector3.zero;                    // spun by the Gun round its local Z: the barrels' axis
+            barrelT.localRotation = barrelRot;
+            barrelT.localScale = barrelScale;
+            barrelT.GetComponent<MeshFilter>().sharedMesh = barrels;
+            barrelT.GetComponent<MeshRenderer>().sharedMaterial = PaintMaterial("B52_GunMetal", "gunmetal", new Color(0.16f, 0.16f, 0.17f, 1f), new Color(0.8f, 0.8f, 0.8f, 0.55f));
+
+            // One firing cone straight aft; the donor's (a chin turret's: forward-down, with up and down exclusions) go.
+            foreach (var n in new[] { "firingCone_positiveForward", "firingCone_negativeDown", "firingCone_negativeUp" })
+            { var c = Kid(n); if (c) Object.DestroyImmediate(c.gameObject); }
+            var cone = new GameObject("firingCone_aft").transform;
+            cone.SetParent(go.transform, false);
+
+            var turret = turretT.GetComponent(T("Turret"));
+            var ts = new SerializedObject(turret);
+            ts.FindProperty("targetAcquisitionMode").enumValueIndex = 0;   // parentUnitTargetDetector: what the B-52 detects
+            ts.FindProperty("traverseRange").floatValue = TailCone;        // +-60 deg either side
+            ts.FindProperty("traverseRate").floatValue = 90f;              // radar-slaved: fast
+            ts.FindProperty("elevationRate").floatValue = 90f;
+            ts.FindProperty("minElevation").floatValue = -TailCone;
+            ts.FindProperty("maxElevation").floatValue = TailCone;
+            ts.FindProperty("lockTime").floatValue = 0.4f;                 // radar lock-on before the first burst
+            var fc = ts.FindProperty("firingCones");
+            fc.arraySize = 1;
+            var c0 = fc.GetArrayElementAtIndex(0);
+            c0.FindPropertyRelative("transform").objectReferenceValue = cone;
+            c0.FindPropertyRelative("coneAngle").floatValue = TailCone;
+            c0.FindPropertyRelative("exclusion").boolValue = false;
+            ts.ApplyModifiedPropertiesWithoutUndo();
+
+            var gun = gunT.GetComponent(T("Gun"));
+            var gs = new SerializedObject(gun);
+            gs.FindProperty("info").objectReferenceValue = info;
+            gs.FindProperty("fireRate").floatValue = TailRpm;
+            gs.FindProperty("magazineCapacity").intValue = TailRounds;
+            gs.FindProperty("recoilTransform").objectReferenceValue = null;   // the donor's kick would push the barrels out of the boot
+            gs.ApplyModifiedPropertiesWithoutUndo();
+
+            var prefabPath = $"{Dir}/{key}.prefab";
+            AssetDatabase.DeleteAsset(prefabPath);
+            var prefab = PrefabUtility.SaveAsPrefabAsset(go, prefabPath);
+            Object.DestroyImmediate(go);
+
+            var mount = ScriptableObject.CreateInstance(srcMount.GetType());
+            EditorUtility.CopySerialized(srcMount, mount);
+            mount.name = key;
+            var so = new SerializedObject(mount);
+            so.FindProperty("prefab").objectReferenceValue = prefab;
+            so.FindProperty("jsonKey").stringValue = key;
+            so.FindProperty("info").objectReferenceValue = info;
+            so.FindProperty("mountName").stringValue = $"M61A1 tail turret ({TailRounds:N0} rounds, B-52H)";
+            so.FindProperty("ammo").intValue = TailRounds;
+            so.FindProperty("turret").boolValue = true;
+            so.FindProperty("colorable").boolValue = false;
+            so.FindProperty("mass").floatValue = TailRounds * 0.30f;     // 20 mm rounds with links
+            so.FindProperty("emptyMass").floatValue = 550f;              // gun, drive, ammunition can and ASG-21 electronics
+            so.FindProperty("drag").floatValue = 0f; so.FindProperty("emptyDrag").floatValue = 0f;   // already part of the tail cone
+            so.FindProperty("RCS").floatValue = 0f; so.FindProperty("emptyRCS").floatValue = 0f;
+            so.FindProperty("disabled").boolValue = false;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            var path = $"{Dir}/{key}.asset";
+            AssetDatabase.DeleteAsset(path);
+            AssetDatabase.CreateAsset(mount, path);
+            log($"  tail turret {key}: {TailRounds} rounds at {TailRpm} rpm, +-{TailCone} deg cone, barrels {barrels.vertexCount} vertices");
+            return mount;
+        }
+
+        static Material rackMat;
+        static Material RackMaterial() =>
+            rackMat ? rackMat : rackMat = PaintMaterial("B52_RackPaint", "rack", new Color(0.36f, 0.37f, 0.38f, 1f), new Color(0.35f, 0.35f, 0.35f, 0.38f));
+
+        /// <summary>A plain-colour skin material (the game's aircraft skin shader): <paramref name="metalSmooth"/> R = metal, A = smoothness.</summary>
+        static Material PaintMaterial(string matName, string tex, Color colour, Color metalSmooth)
+        {
+            var path = $"{Dir}/{matName}.mat";
+            AssetDatabase.DeleteAsset(path);
+            var shader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Blueprinter/_donotship/Shader/Shader Graphs_AircraftSkin_PLACEHOLDER.shader");
+            Texture2D Tex(string name, Color c, bool linear)
+            {
+                var p = $"{Dir}/{name}.png";
+                var tx = new Texture2D(4, 4, TextureFormat.RGBA32, false, linear);
+                tx.SetPixels(Enumerable.Repeat(c, 16).ToArray()); tx.Apply();
+                System.IO.File.WriteAllBytes(p, tx.EncodeToPNG()); Object.DestroyImmediate(tx);
+                AssetDatabase.ImportAsset(p);
+                var ti = (TextureImporter)AssetImporter.GetAtPath(p); ti.sRGBTexture = !linear; ti.SaveAndReimport();
+                return AssetDatabase.LoadAssetAtPath<Texture2D>(p);
+            }
+            var col = Tex(tex + "_colour", colour, false);
+            var nrm = Tex(tex + "_normal", new Color(0.5f, 0.5f, 1f, 1f), true);
+            var ms = Tex(tex + "_ms", metalSmooth, true);
+            var white = Tex(tex + "_white", Color.white, true);
+            var mat = new Material(shader) { name = matName };
+            mat.SetTexture("_Basecolor", col); mat.SetTexture("_Livery", col); mat.SetTexture("_BasecolorDmg", col);
+            mat.SetTexture("_Normal", nrm); mat.SetTexture("_NormalDmg", nrm);
+            mat.SetTexture("_Metallic", ms); mat.SetTexture("_AO", white); mat.SetFloat("_HitPoints", 100f);
+            AssetDatabase.CreateAsset(mat, path);
+            return mat;
         }
     }
 }

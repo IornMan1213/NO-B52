@@ -17,7 +17,7 @@ namespace B52Tools
     /// template is remapped or cleared.
     /// Run: Unity -batchmode -executeMethod B52Tools.B52Builder.Build
     /// </summary>
-    public static class B52Builder
+    public static partial class B52Builder
     {
         const string ModDir = "Assets/Blueprinter/Mods/B52";
         const string Fbx = ModDir + "/B52.fbx";
@@ -102,12 +102,14 @@ namespace B52Tools
                 ConfigureFbx();
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
                 var tmpl = Spawn(TemplatePrefab); tmplRoot = tmpl.transform;
+                B52DonorAudit.Begin(tmplRoot);
                 var ours = Spawn(Fbx);
                 ourRoot = ours.transform.Find("B52") ?? ours.transform;
                 if (ourRoot != ours.transform) { ourRoot.SetParent(null, true); Object.DestroyImmediate(ours); }
                 ourRoot.name = "B52";
                 if (!AssetDatabase.IsValidFolder(Gen)) AssetDatabase.CreateFolder(ModDir, "Generated");
                 NormalizeFrames();
+                TakeTailGun();
 
                 CopyRoot();
                 foreach (var p in Parts) CopyPart(p.ours, p.donor, p.comps);
@@ -124,8 +126,14 @@ namespace B52Tools
                 ApplyPhysics();
                 WireJoints();
                 AddColliders();
+                SpecParts();
+                SpecStructure();
                 RemapReferences();
                 FixLeftovers();
+                SpecSystems();
+                SpecAudioAndLights();
+                SpecEffects();
+                SpecVapor();
                 ClearLiveryTargets();
                 Object.DestroyImmediate(tmplRoot.gameObject);
 
@@ -136,6 +144,8 @@ namespace B52Tools
                 var prefab = PrefabUtility.SaveAsPrefabAsset(ourRoot.gameObject, prefabPath);
                 Note("Saved " + prefabPath);
                 MakeDefinition(prefab);
+                B52DonorAudit.Write(ourRoot, TemplatePrefab, "B52DonorAudit.md", DoNotShip);
+                Note("Donor audit: B52DonorAudit.md");
                 MakeOps();
                 AssetDatabase.SaveAssets();
             }
@@ -181,6 +191,7 @@ namespace B52Tools
             var c = dst.AddComponent(src.GetType());
             if (c == null) { Note($"  ! could not add {src.GetType().Name} to {dst.name}"); return null; }
             EditorUtility.CopySerialized(src, c);
+            B52DonorAudit.Copied(src, c);
             if (!Remap.ContainsKey(src)) Remap[src] = c;
             return c;
         }
@@ -191,7 +202,41 @@ namespace B52Tools
         {
             var so = SO(o); var p = so.FindProperty(prop);
             if (p == null) { Note($"  ! {o.GetType().Name}.{prop} not found"); return; }
+            // A single setting set here is the B-52's choice even where it equals the donor's. For a group (a struct or
+            // an array) only the settings the edit actually changed count, so a field left as it was stays the donor's
+            // in the audit.
+            // (Unity reports object references and vectors as having children too: those are single settings.)
+            bool group = p.propertyType == SerializedPropertyType.Generic || (p.isArray && p.propertyType != SerializedPropertyType.String);
+            var before = group ? Leaves(p) : null;
             act(p); so.ApplyModifiedPropertiesWithoutUndo();
+            if (!group) { B52DonorAudit.Chose(o, prop); return; }
+            var after = Leaves(SO(o).FindProperty(prop));
+            foreach (var kv in after)
+                if (!before.TryGetValue(kv.Key, out var v) || v != kv.Value) B52DonorAudit.Chose(o, kv.Key);
+        }
+
+        // Every leaf setting under a property, with a printable value, for telling what an edit changed.
+        static Dictionary<string, string> Leaves(SerializedProperty p)
+        {
+            var d = new Dictionary<string, string>();
+            if (p == null) return d;
+            var it = p.Copy(); var end = p.GetEndProperty();
+            bool enter = true;
+            while (it.Next(enter) && !SerializedProperty.EqualContents(it, end))
+            {
+                enter = it.propertyType == SerializedPropertyType.Generic || (it.isArray && it.propertyType != SerializedPropertyType.String);
+                if (it.isArray && it.propertyType != SerializedPropertyType.String) d[it.propertyPath + ".Array.size"] = it.arraySize.ToString();
+                if (enter) continue;
+                string v;
+                switch (it.propertyType)
+                {
+                    case SerializedPropertyType.ObjectReference: v = it.objectReferenceValue ? it.objectReferenceValue.GetInstanceID().ToString() : "null"; break;
+                    case SerializedPropertyType.AnimationCurve: v = it.animationCurveValue == null ? "null" : string.Join(";", it.animationCurveValue.keys.Select(k => $"{k.time},{k.value},{k.inTangent},{k.outTangent}")); break;
+                    default: try { v = it.boxedValue?.ToString() ?? "null"; } catch { v = "?"; } break;
+                }
+                d[it.propertyPath] = v;
+            }
+            return d;
         }
 
         static void SetF(Object o, string prop, float v) => Set(o, prop, p => p.floatValue = v);
@@ -227,10 +272,13 @@ namespace B52Tools
             imp.bakeAxisConversion = true;
             imp.materialImportMode = ModelImporterMaterialImportMode.ImportViaMaterialDescription;
             imp.SaveAndReimport();
-            // The exterior atlas (and livery template) is 4096 px; Unity would import it at 2048.
+            // The exterior atlas is 8192 px (tools/make_atlas_hd.py: the paintings enlarged and sharpened); Unity would
+            // import it at 2048. Crunched DXT keeps the download near the old 4096 BC7 one; the paint is soft colour,
+            // so crunch's slight loss doesn't show.
             if (AssetImporter.GetAtPath(ModDir + "/Textures/B52_atlas.png") is TextureImporter ti)
             {
-                ti.maxTextureSize = 4096; ti.textureCompression = TextureImporterCompression.CompressedHQ;
+                ti.maxTextureSize = 8192; ti.textureCompression = TextureImporterCompression.Compressed;
+                ti.crunchedCompression = true; ti.compressionQuality = 80; ti.anisoLevel = 4;
                 ti.mipmapEnabled = true; ti.isReadable = false; ti.SaveAndReimport();
             }
             // The extra liveries (ExtraLiveries): same size, plain DXT1 rather than BC7, so each adds about half as much
@@ -252,6 +300,13 @@ namespace B52Tools
             }
             Tex("B52_atlas_ao.png", 2048, false);
             Tex("B52_atlas_dmg.png", 2048, true);
+            Tex("B52_atlas_ms.png", 2048, false);
+            if (AssetImporter.GetAtPath(ModDir + "/Textures/B52_atlas_dmg_n.png") is TextureImporter tn)
+            {
+                // dents round the damage map's holes (not made from the paint, so no markings are embossed)
+                tn.textureType = TextureImporterType.NormalMap; tn.maxTextureSize = 2048;
+                tn.textureCompression = TextureImporterCompression.CompressedHQ; tn.mipmapEnabled = true; tn.SaveAndReimport();
+            }
             // The cockpit's plain-colour palettes (tools/blender_cockpit.py, planner CK3): tiny, read one texel per face,
             // so no filtering, mip-maps or compression.
             foreach (var (file, srgb) in new[] { ("cp_palette.png", true), ("cp_palette_ms.png", false) })
@@ -342,6 +397,8 @@ namespace B52Tools
                 if (c is Transform) continue;
                 var tn = c.GetType().Name;
                 if (tn == "SwingWingController") continue;
+                // The donor's collider is its own fuselage's collision mesh: the B-52's centre section gets its own (AddColliders).
+                if (tn == "MeshCollider") continue;
                 CopyComponent(c, ourRoot.gameObject);
             }
             Note("Root components: " + string.Join(", ", ourRoot.GetComponents<Component>().Select(c => c.GetType().Name)));
@@ -407,6 +464,7 @@ namespace B52Tools
 
             // Place the crew at the pilot / copilot eye points (Pilot = left seat, WSO = right seat).
             PlaceAt("Pilot", "eye_L"); PlaceAt("WSO", "eye_R");
+            AddCrew();
             // Put the CoM at ~25% MAC (between the forward and aft main gear, nearer the wing box).
             var com = Find(ourRoot, "CoM");
             if (com) com.position = new Vector3(0f, 0.3f, 5.8f);
@@ -424,6 +482,51 @@ namespace B52Tools
             var t = Find(tmplRoot, name);
             if (!t) { Note($"  ! subsystem missing: {name}"); return; }
             t.SetParent(newParent, true);
+        }
+
+        // The rest of the B-52H crew, at their stations (eye points in Blender metres, tools/blender_cockpit.py frame:
+        // x right, y forward, z up; the pilots' eyes are at (+-0.55, 24.31, 0.77)).
+        // - EWO: the aft-facing seat on the left of the upper deck (seat_aft_L at y 22.25; the head leans back toward
+        //   the seat back, 0.18 m from the seat as on the pilots' seats). The right aft seat (the old gunner's, now
+        //   the instructor's) stays empty: six seats, five crew.
+        // - Radar navigator (left) and navigator (right): side by side on the lower deck under the flight deck, facing
+        //   forward, on downward ejection seats (B52Systems.DownwardSeats). Their deck floor is at z -2.10, just above the belly skin.
+        static readonly (string name, Vector3 eye, float yaw)[] Stations =
+        {
+            ("EWO", new Vector3(-0.55f, 22.43f, 0.77f), 180f),
+            ("RadarNav", new Vector3(-0.45f, 23.70f, -1.05f), 0f),
+            ("Navigator", new Vector3(0.45f, 23.70f, -1.05f), 0f),
+        };
+
+        static void AddCrew()
+        {
+            var ac = ourRoot.GetComponent(T("Aircraft"));
+            var pilotT = T("Pilot");
+            var pilot = Find(ourRoot, "Pilot"); var wso = Find(ourRoot, "WSO");
+            var eyeL = Find(ourRoot, "eye_L"); var eyeR = Find(ourRoot, "eye_R");
+            if (!ac || !pilot || !wso || !eyeL || !eyeR) { Note("  ! crew: missing Aircraft, Pilot, WSO or eye points"); return; }
+            // Blender -> aircraft frame from the two eye points: their difference is Blender +x.
+            var right = (eyeR.position - eyeL.position).normalized;
+            Vector3 ToWorld(Vector3 b) => eyeL.position + right * (b.x + 0.55f) + ourRoot.forward * (b.y - 24.31f) + ourRoot.up * (b.z - 0.77f);
+            var head = Find(wso, "helmetCamPoint2");
+            var headLocal = head ? Quaternion.Inverse(wso.rotation) * (head.position - wso.position) : new Vector3(0, 0.75f, 0);
+            var crew = new List<Object> { pilot.GetComponent(pilotT), wso.GetComponent(pilotT) };
+            foreach (var (name, eye, yaw) in Stations)
+            {
+                var go = Object.Instantiate(wso.gameObject, wso.parent);
+                B52DonorAudit.Cloned(wso.gameObject, go);
+                go.name = name;
+                var rot = ourRoot.rotation * Quaternion.Euler(0, yaw, 0);
+                go.transform.rotation = rot;
+                go.transform.position = ToWorld(eye) - rot * headLocal;
+                crew.Add(go.GetComponent(pilotT));
+                Note($"  crew {name} at {ourRoot.InverseTransformPoint(go.transform.position):F2}, facing {(yaw == 0 ? "forward" : "aft")}");
+            }
+            // Every B-52 crew station has an ejection seat. The donor bomber's crew bail out (no seats): left like that,
+            // all five climbed out of the side one by one, 1.5 s apart.
+            foreach (var c in crew) Set(c, "ejectionSeat", p => p.boolValue = true);
+            SetRefArray(ac, "pilots", crew);
+            Note($"Crew: {crew.Count} ({string.Join(", ", crew.Select(c => ((Component)c).name))})");
         }
 
         static void PlaceAt(string crew, string eye)
@@ -454,6 +557,7 @@ namespace B52Tools
                     float sgn = pod.EndsWith("_L") ? -1f : 1f;
                     float ex = sgn * (inboard ? (k == 0 ? 10.93f : 12.21f) : (k == 0 ? 18.08f : 19.39f));
                     var go = Object.Instantiate(srcEngine.gameObject, p);
+                    B52DonorAudit.Cloned(srcEngine.gameObject, go);
                     go.name = "engine" + n;
                     go.transform.position = new Vector3(ex, inboard ? -0.6f : -0.2f, inboard ? 11.7f : 6.35f);
                     go.transform.rotation = ourRoot.rotation;
@@ -461,9 +565,9 @@ namespace B52Tools
                     SetF(tf, "staticThrust", 75600f);          // F130: ~17,000 lbf
                     Set(tf, "altitudeThrust", q => q.animationCurveValue = F130Altitude());
                     Set(tf, "speedThrust", q => q.animationCurveValue = F130Speed());
-                    SetF(tf, "spoolRate", 260f);                 // big high-bypass fans spool slowly
                     // Exhaust nozzle at the back of the engine: drives the IR signature and heat haze (no afterburner).
                     var nz = Object.Instantiate(srcNozzle, p);
+                    B52DonorAudit.Cloned(srcNozzle, nz);
                     nz.name = "nozzle" + n;
                     nz.transform.position = go.transform.position - ourRoot.forward * 2.6f;
                     nz.transform.rotation = srcNozzle.transform.rotation;
@@ -474,11 +578,26 @@ namespace B52Tools
                     SetRef(jn, "part", p.GetComponent(T("UnitPart")));
                     SetRef(jn, "engine", go);
                     SetRef(jn, "turbojet", null);
-                    SetRef(jn, "failureEffect", null);
+                    // failureEffect stays: the game's turbine fire, which JetNozzle spawns when its engine fails (null threw
+                    // there and cut short whatever failed the engine, e.g. a pod coming off).
                     SetRefArray(jn, "vectorTransforms", new Object[0]);
                     SetRefArray(tf, "nozzles", new Object[] { jn });
-                    Set(tf, "criticalParts", q => q.arraySize = 0);
+                    B52DonorAudit.Chose(tf, "nozzles");      // one exhaust nozzle per engine
+                    // The pod is the engine's critical part: once the pod is down to 60 hp every further point of damage
+                    // to it reaches both its engines, and a pod that comes off takes its engines with it (100 damage).
+                    var podPart = p.GetComponent(T("UnitPart"));
+                    Set(tf, "criticalParts", q =>
+                    {
+                        q.arraySize = 1;
+                        var c = q.GetArrayElementAtIndex(0);
+                        c.FindPropertyRelative("part").objectReferenceValue = podPart;
+                        c.FindPropertyRelative("threshold").floatValue = 60f;
+                        c.FindPropertyRelative("weight").floatValue = 1f;
+                    });
+                    // F130 core: a bigger engine than the donor's, still the softest thing in the pod.
+                    SetArmor(tf, 5f, 3f, 3f, 2f);
                     SetRefArray(tf, "vectoringTransforms", new Object[0]);
+                    B52DonorAudit.Chose(tf, "vectoringTransforms"); B52DonorAudit.Chose(jn, "vectorTransforms");   // fixed nozzles: nothing vectors
                     SetF(tf, "fuelConsumptionMin", 0.08f * 0.7f);
                     SetF(tf, "fuelConsumptionMax", 0.95f * 0.7f);   // CERP: ~30% better than TF33
                     var part = p.GetComponent(T("UnitPart"));
@@ -488,16 +607,21 @@ namespace B52Tools
                     // (FastBomber1 has four engines). Keep them on the first engine of each pod, pitched a little
                     // differently per pod, and silence the second (it still runs and burns fuel, it just makes no sound).
                     int podIndex = (n - 1) / 2;
-                    if (k == 0)
-                        SetF(tf, "turbineMaxPitch", SO(tf).FindProperty("turbineMaxPitch").floatValue * (0.97f + 0.02f * podIndex));
-                    else
+                    if (k != 0)
                     {
                         var turbine = SO(tf).FindProperty("turbineAudio").objectReferenceValue as AudioSource;
                         if (turbine) turbine.volume = 0f;
-                        SetF(jn, "thrustMaxVolume", 0f);
                     }
+                    SpecEngine(tf, jn, n, k != 0, podIndex);
                     var cap = go.GetComponent<CapsuleCollider>();
-                    if (cap) { cap.direction = 2; cap.radius = 0.75f; cap.height = 4.5f; cap.center = Vector3.zero; }
+                    // Hit volume of the engine inside its nacelle: the F130's fan case (about 1.3 m across) and core, 4.5 m long.
+                    if (cap)
+                    {
+                        cap.direction = 2; cap.radius = 0.68f; cap.height = 4.5f; cap.center = Vector3.zero; cap.isTrigger = false;
+                        foreach (var f in new[] { "m_Material", "m_IncludeLayers", "m_ExcludeLayers", "m_LayerOverridePriority", "m_IsTrigger",
+                                                  "m_ProvidesContacts", "m_Radius", "m_Height", "m_Direction", "m_Center" })
+                            B52DonorAudit.Chose(cap, f);
+                    }
                     n++;
                 }
             }
@@ -603,7 +727,9 @@ namespace B52Tools
                 SetF(lg, "foldSpeed", outrigger ? 30f : 25f);                   // ~3.6 s fold for the mains
                 Set(lg, "steering", p => p.boolValue = k[0] == 'F');   // the forward trucks steer (taxi)
                 Set(lg, "braked", p => p.boolValue = !outrigger);
-                SetF(lg, "steeringLock", 25f);
+                // Truck steering for taxiing, +-45 deg: at 25 deg over the B-52's 15 m wheelbase it turned on a 32 m
+                // radius, and the AI, unable to line up at the runway entrance, circled it for minutes.
+                SetF(lg, "steeringLock", 45f);
                 SetF(lg, "steeringSpeed", 30f);                 // the main-gear donor has 0, which locks the trucks
                 SetF(lg, "aligningStrength", 2f);
                 SetF(lg, "differentialBrakeFactor", 0f);        // all trucks are on the centreline; the donor's value braked every truck on any rudder input
@@ -819,11 +945,12 @@ namespace B52Tools
                 if (name.StartsWith("spoilers"))
                 {
                     // The aero surface stays hidden (it swings both ways); B52Systems.SpoilerDriver raises this
-                    // visible copy only on the wing whose spoilers go up.
+                    // visible copy only on the wing whose spoilers go up. The panels are cut from the wing's skin, so
+                    // the copy is always shown: lying flat it is the wing's top surface.
                     var vr2 = vis.GetComponent<MeshRenderer>();
                     var panel = Child(t, "spoilerPanels_" + name.Substring(name.Length - 1), vis.position, vis.rotation);
                     panel.gameObject.AddComponent<MeshFilter>().sharedMesh = vis.GetComponent<MeshFilter>().sharedMesh;
-                    var pr2 = panel.gameObject.AddComponent<MeshRenderer>(); pr2.sharedMaterials = vr2.sharedMaterials; pr2.enabled = false;
+                    var pr2 = panel.gameObject.AddComponent<MeshRenderer>(); pr2.sharedMaterials = vr2.sharedMaterials; pr2.enabled = true;
                     if (vr2) vr2.enabled = false;
                 }
                 SetRef(cs, "attachedSurface", t.GetComponent(T("UnitPart")));
@@ -992,6 +1119,7 @@ namespace B52Tools
             var src = Find(tmplRoot, "cockpit_int").GetComponent(T("Cockpit"));
             var ck = CopyComponent(src, ci.gameObject);
             MapGO(Find(tmplRoot, "cockpit_int"), ci);
+            B52DonorAudit.Chose(ck, "joysticks"); B52DonorAudit.Chose(ck, "throttles");   // the two yokes and eight throttle levers, set below
             Set(ck, "joysticks", p =>
             {
                 var yokes = new[] { "yoke_L", "yoke_R" };
@@ -1037,7 +1165,10 @@ namespace B52Tools
             // the windows from inside. Listing every renderer hid the wings and engines from the cockpit.
             var ac = ourRoot.GetComponent(T("Aircraft"));
             var cockpitPart = Find(ourRoot, "cockpit").GetComponent(T("UnitPart"));
-            var interior = ci.GetComponentsInChildren<Renderer>(true).Cast<Object>().ToList();
+            // The game turns cockpitRenderers off outside cockpit view, so listing the interior there left the windows
+            // showing an empty, black cabin from outside. The flight deck stays on in every view (the far LOD drops it),
+            // so other players and the external camera see the real panels, seats and crew through the glass.
+            var interior = new List<Object>();
             var exterior = ourRoot.GetComponentsInChildren<Renderer>(true).Where(r => !r.transform.IsChildOf(ci)
                 && r.GetComponentInParent(T("UnitPart")) == cockpitPart
                 && !(r is SkinnedMeshRenderer) && !(r is ParticleSystemRenderer)).Cast<Object>().ToList();
@@ -1073,15 +1204,151 @@ namespace B52Tools
                 SetF(ap, "dragArea", kv.Value.drag);
                 totalMass += kv.Value.mass; totalArea += kv.Value.area;
                 var ft = t.GetComponent(T("FuelTank"));
-                if (ft) { SetF(ft, "fuelCapacity", kv.Value.fuel); totalFuel += kv.Value.fuel; }
-                else if (kv.Value.fuel > 0)
+                if (kv.Value.fuel > 0)
                 {
-                    var donor = Find(tmplRoot, "wing2_L").GetComponent(T("FuelTank"));
-                    var nf = CopyComponent(donor, t.gameObject);
-                    SetF(nf, "fuelCapacity", kv.Value.fuel); totalFuel += kv.Value.fuel;
+                    BuildTank(t, ft ? ft : Find(tmplRoot, "wing2_L").GetComponent(T("FuelTank")), kv.Value.fuel);
+                    totalFuel += kv.Value.fuel;
                 }
+                if (ft) Object.DestroyImmediate(ft);
             }
             Note($"Physics: structure {totalMass:F0} kg, fuel {totalFuel:F0} kg, wing area {totalArea:F1} m2");
+
+            // Tanks feed through the part inboard of them: a part that comes off tears the line into the next tank in.
+            foreach (var kv in TankFeeds)
+            {
+                var a = Find(ourRoot, "tank_" + kv.Key)?.GetComponent(T("FuelTank"));
+                var b = Find(ourRoot, "tank_" + kv.Value)?.GetComponent(T("FuelTank"));
+                if (a && b) SetRefArray(a, "connectedTanks", new Object[] { b });
+                else Note($"  ! no tank pair {kv.Key} -> {kv.Value}");
+            }
+
+
+            foreach (var kv in Armour)
+            {
+                var t = Find(ourRoot, kv.Key); if (!t) { Note("  ! no part for armour " + kv.Key); continue; }
+                var up = t.GetComponent(T("UnitPart"));
+                var a = kv.Value;
+                SetArmor(up, a.pierceArmor, a.pierceTol, a.blastTol, a.fireTol);
+                SetF(up, "structuralThreshold", a.threshold);
+            }
+            Note($"Armour: {Armour.Count} parts");
+        }
+
+        // Damage resistance per part, from the real structure. The donor bomber (a 30 t aircraft) gives every part
+        // pierce armour 20, pierce tolerance 5 and blast tolerance 6. B-52 structure is two to five times heavier part for
+        // part; tolerances scale with skin and spar size (about the square root of the mass ratio), highest for the wing
+        // box and centre section, lowest for control surfaces. The structural threshold is the hit points at which a
+        // part's root has no strength left (B52Systems.Structure): the deep wing-box and fuselage frames keep carrying
+        // load far into the negative, a control surface comes off soon after it is shot through.
+        // The game applies pierce armour as a deduction and the tolerances as divisors (blast armour is not used).
+        static readonly Dictionary<string, (float pierceArmor, float pierceTol, float blastTol, float fireTol, float threshold)> Armour =
+            new Dictionary<string, (float, float, float, float, float)>
+            {
+                { "B52",        (25, 10, 12, 2, -100) },   // centre wing box, bomb bay, main gear: the keel of the aircraft
+                { "wingroot_L", (25, 9, 10, 2, -50) },    { "wingroot_R", (25, 9, 10, 2, -50) },
+                { "wing1_L",    (22, 8, 9, 1.5f, -40) },  { "wing1_R", (22, 8, 9, 1.5f, -40) },
+                { "wing2_L",    (20, 7, 8, 1.5f, -30) },  { "wing2_R", (20, 7, 8, 1.5f, -30) },
+                { "wingtip_L",  (20, 6, 7, 1, -25) },     { "wingtip_R", (20, 6, 7, 1, -25) },
+                { "fuselage_F", (20, 8, 10, 1.5f, -60) },
+                { "cockpit",    (20, 7, 8, 1.5f, -40) },
+                { "fuselage_R", (20, 8, 9, 1.5f, -60) },
+                { "tail",       (20, 6, 6, 1, -25) },
+                { "hstab_L",    (20, 6, 6, 1, -25) },     { "hstab_R", (20, 6, 6, 1, -25) },
+                { "rudder",     (15, 4, 4, 1, -25) },
+                { "elevator_L", (15, 4, 4, 1, -25) },     { "elevator_R", (15, 4, 4, 1, -25) },
+                { "flap1_L",    (15, 5, 5, 1, -25) },     { "flap1_R", (15, 5, 5, 1, -25) },
+                { "flap2_L",    (15, 5, 5, 1, -25) },     { "flap2_R", (15, 5, 5, 1, -25) },
+                { "spoilers_L", (15, 4, 4, 1, -25) },     { "spoilers_R", (15, 4, 4, 1, -25) },
+                { "pod1_L",     (20, 6, 8, 1, -50) },     { "pod1_R", (20, 6, 8, 1, -50) },   // strut and cowl; the engines
+                { "pod2_L",     (20, 6, 8, 1, -50) },     { "pod2_R", (20, 6, 8, 1, -50) },   // inside have their own
+            };
+
+        // Which tank each tank feeds into (and whose line tears when its part comes off).
+        static readonly Dictionary<string, string> TankFeeds = new Dictionary<string, string>
+        {
+            { "wingtip_L", "wing2_L" }, { "wing2_L", "wing1_L" }, { "wing1_L", "wingroot_L" }, { "wingroot_L", "B52" },
+            { "wingtip_R", "wing2_R" }, { "wing2_R", "wing1_R" }, { "wing1_R", "wingroot_R" }, { "wingroot_R", "B52" },
+            { "fuselage_F", "B52" }, { "fuselage_R", "B52" },
+        };
+
+        // A fuel tank of its own at the centroid of the fuel, so leaks, fires and fireballs start there and a tank fire
+        // burns what is around the tank. The game finds a part's tank on the part itself for its fire / rupture message;
+        // B52Systems.FuelTanks routes that message to the child tank, and passes crash impacts on to it.
+        static void BuildTank(Transform part, Component donor, float capacity)
+        {
+            var at = part.name == "B52" ? CentreWingTank() : part.name.StartsWith("wing") ? WingTankCentre(part) : MeshCentre(part);
+            var go = Child(part, "tank_" + part.name, at ?? part.position);
+            var ft = CopyComponent(donor, go.gameObject);
+            SetF(ft, "fuelCapacity", capacity);
+            SetRef(ft, "part", part.GetComponent(T("UnitPart")));
+            SetRefArray(ft, "connectedTanks", new Object[0]);
+            B52DonorAudit.Chose(ft, "connectedTanks");   // set below for every tank but the centre one, which feeds nothing further in
+            // Sizes from the tank, rates from the hole. A tank torn open empties in about a minute. Integral wing tanks
+            // (the skin is the tank wall) leak from the first serious hit; the body tanks are bladders inside the
+            // fuselage. With the part at its structural threshold, the holes leak 60% as fast as an open tear.
+            bool wing = part.name.StartsWith("wing");
+            float maxLeak = Mathf.Max(30f, capacity / 60f);
+            float leakAt = wing ? 75f : 55f;
+            float threshold = Armour.TryGetValue(part.name, out var a) ? a.threshold : -50f;
+            SetF(ft, "maxLeakRate", maxLeak);
+            SetF(ft, "leakThreshold", leakAt);
+            SetF(ft, "leakPerHP", 0.6f * maxLeak / (leakAt - threshold));
+            SetF(ft, "fireIntensity", 1.5f + 1.5f * Mathf.Clamp01(capacity / 17000f));
+            Note($"Tank {part.name}: {capacity:F0} kg at {ourRoot.InverseTransformPoint(go.position):F2}, leaks below {leakAt} hp, " +
+                 $"max {maxLeak:F0} kg/s");
+        }
+
+        static Vector3[] WorldVerts(Transform t)
+        {
+            var mf = t.GetComponent<MeshFilter>();
+            return mf && mf.sharedMesh ? mf.sharedMesh.vertices.Select(v => t.TransformPoint(v)).ToArray() : new Vector3[0];
+        }
+
+        static Vector3? MeshCentre(Transform t)
+        {
+            var v = WorldVerts(t);
+            if (v.Length == 0) return null;
+            var b = new Bounds(v[0], Vector3.zero);
+            foreach (var p in v) b.Encapsulate(p);
+            return b.center;
+        }
+
+        // Wing tanks fill the box between the spars, so the fuel sits where the chord (and depth) is biggest: strips
+        // along the span weighted by chord squared, at 35% chord and mid depth.
+        static Vector3? WingTankCentre(Transform t)
+        {
+            var v = WorldVerts(t);
+            if (v.Length == 0) return null;
+            float x0 = v.Min(p => p.x), x1 = v.Max(p => p.x);
+            const int N = 12;
+            Vector3 sum = Vector3.zero; float w = 0;
+            for (int i = 0; i < N; i++)
+            {
+                float a = x0 + (x1 - x0) * i / N, b = x0 + (x1 - x0) * (i + 1) / N;
+                var s = v.Where(p => p.x >= a && p.x <= b).ToArray();
+                if (s.Length < 4) continue;
+                float le = s.Max(p => p.z), te = s.Min(p => p.z), c = le - te;
+                var at = new Vector3((a + b) / 2, (s.Min(p => p.y) + s.Max(p => p.y)) / 2, le - 0.35f * c);
+                sum += at * c * c; w += c * c;
+            }
+            return w > 0 ? sum / w : MeshCentre(t);
+        }
+
+        // The centre wing tank is the wing box through the fuselage: on the centreline, in line with the wing roots' tanks.
+        static Vector3? CentreWingTank()
+        {
+            var l = WingTankCentre(Find(ourRoot, "wingroot_L")); var r = WingTankCentre(Find(ourRoot, "wingroot_R"));
+            if (!l.HasValue || !r.HasValue) return null;
+            var c = (l.Value + r.Value) / 2;
+            return new Vector3(ourRoot.position.x, c.y, c.z);
+        }
+
+        static void SetArmor(Object o, float pierceArmor, float pierceTol, float blastTol, float fireTol)
+        {
+            SetF(o, "armorProperties.pierceArmor", pierceArmor);
+            SetF(o, "armorProperties.pierceTolerance", pierceTol);
+            SetF(o, "armorProperties.blastTolerance", blastTol);
+            SetF(o, "armorProperties.fireTolerance", fireTol);
         }
 
         static void WireJoints()
@@ -1093,7 +1360,7 @@ namespace B52Tools
             float PartMass(Component ap)
             {
                 float m = SO(ap).FindProperty("mass").floatValue;
-                var ft = ap.GetComponent(T("FuelTank"));
+                var ft = Find(ap.transform, "tank_" + ap.name)?.GetComponent(T("FuelTank"));
                 if (ft) m += SO(ft).FindProperty("fuelCapacity").floatValue;
                 return m;
             }
@@ -1217,7 +1484,9 @@ namespace B52Tools
             // The skin's own maps: baked contact shadows and a scorched damage texture (normals stay flat).
             var skinAO = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/B52_atlas_ao.png");
             var skinDmg = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/B52_atlas_dmg.png");
-            Note($"Skin maps: AO {(skinAO ? "yes" : "MISSING")}, damage {(skinDmg ? "yes" : "MISSING")}");
+            var skinDmgN = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/B52_atlas_dmg_n.png");
+            var skinMS = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/B52_atlas_ms.png");
+            Note($"Skin maps: AO {(skinAO ? "yes" : "MISSING")}, damage {(skinDmg ? "yes" : "MISSING")}, dents {(skinDmgN ? "yes" : "MISSING")}, metal/smoothness {(skinMS ? "yes" : "MISSING")}");
             int converted = 0;
             foreach (var r in ourRoot.GetComponentsInChildren<MeshRenderer>(true))
             {
@@ -1243,8 +1512,16 @@ namespace B52Tools
                         bool isSkin = src.name == "B52_Skin";
                         m.SetTexture("_Basecolor", tex); m.SetTexture("_Livery", tex);
                         m.SetTexture("_BasecolorDmg", isSkin && skinDmg ? skinDmg : tex);
-                        m.SetTexture("_Normal", flatNormal); m.SetTexture("_NormalDmg", flatNormal);
-                        m.SetTexture("_Metallic", black); m.SetTexture("_AO", isSkin && skinAO ? skinAO : white);
+                        m.SetTexture("_Normal", flatNormal); m.SetTexture("_NormalDmg", isSkin && skinDmgN ? skinDmgN : flatNormal);
+                        // The skin shader reads metalness from R and smoothness from A of _Metallic. A plain black map
+                        // (alpha 1) made the whole aircraft mirror-smooth. FastBomber1's map averages R 0.08, A 0.46:
+                        // painted skin gets about that, bare gear metal more, dark interiors and rubber less.
+                        Texture2D ms;
+                        if (src.name.Contains("Chrome")) ms = SolidTex("ms_chrome", new Color(0.9f, 0.9f, 0.9f, 0.7f), true);
+                        else if (src.name.Contains("GearMetal") || src.name.Contains("EngineMetal")) ms = SolidTex("ms_metal", new Color(0.6f, 0.6f, 0.6f, 0.45f), true);
+                        else if (isSkin) ms = skinMS ? skinMS : SolidTex("ms_paint", new Color(0.05f, 0.05f, 0.05f, 0.20f), true);   // tools/make_skin_detail.py: flat weathered paint
+                        else ms = SolidTex("ms_matte", new Color(0.02f, 0.02f, 0.02f, 0.16f), true);
+                        m.SetTexture("_Metallic", ms); m.SetTexture("_AO", isSkin && skinAO ? skinAO : white);
                         m.SetFloat("_HitPoints", 100f);
                         AssetDatabase.CreateAsset(m, Gen + "/" + m.name + ".mat");
                         converted++;
@@ -1278,6 +1555,24 @@ namespace B52Tools
                         if (src.GetTexture("_BaseMap")) m.SetTexture("_EmissionMap", src.GetTexture("_BaseMap"));
                         m.SetColor("_EmissionColor", src.GetColor("_BaseColor") * CockpitFill);
                         m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+                    }
+                    if (src.name == "CP_Atlas" || src.name == "CP_Dials")
+                    {
+                        // The panel art (tools/make_cockpit_atlas.py) at full size: its lettering is a few pixels high.
+                        var atlasPath = ModDir + "/Textures/" + (src.name == "CP_Atlas" ? "cp_atlas.png" : "cp_dials.png");
+                        if (AssetImporter.GetAtPath(atlasPath) is TextureImporter ai && (ai.maxTextureSize < 4096 || ai.mipmapEnabled == false))
+                        { ai.maxTextureSize = 4096; ai.mipmapEnabled = true; ai.anisoLevel = 8; ai.SaveAndReimport(); }
+                        m.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(atlasPath));
+                        m.SetTexture("_EmissionMap", AssetDatabase.LoadAssetAtPath<Texture2D>(atlasPath));
+                        if (src.name == "CP_Atlas")
+                        {
+                            // its relief: raised sub-panels, sunken gaps, fasteners, nuts and knob skirts
+                            var nPath = ModDir + "/Textures/cp_atlas_n.png";
+                            if (AssetImporter.GetAtPath(nPath) is TextureImporter ni && (ni.textureType != TextureImporterType.NormalMap || ni.maxTextureSize < 4096))
+                            { ni.textureType = TextureImporterType.NormalMap; ni.maxTextureSize = 4096; ni.SaveAndReimport(); }
+                            var nTex = AssetDatabase.LoadAssetAtPath<Texture2D>(nPath);
+                            if (nTex) { m.SetTexture("_BumpMap", nTex); m.SetFloat("_BumpScale", 1f); m.EnableKeyword("_NORMALMAP"); }
+                        }
                     }
                     if (src.name == "CP_Flat")                                   // metal and smoothness per colour, from its palette
                     {
@@ -1382,6 +1677,25 @@ namespace B52Tools
 
         static List<ScriptableObject> BayMounts, PylonMounts;
 
+        // The B-52H's M61A1 barrels (tools/blender_tailgun.py split them out of the tail cone): off the aircraft, kept for
+        // the optional tail turret mount (B52Weapons.MakeTailTurret), so the B-52J flies without a gun unless it's loaded.
+        static Mesh tailGunMesh; static Vector3 tailGunPos; static Quaternion tailGunRot; static Vector3 tailGunScale;
+        static int hardpointSetCount = 2;
+
+        static void TakeTailGun()
+        {
+            tailGunMesh = null;
+            var t = Find(ourRoot, "tailgun");
+            var mf = t ? t.GetComponent<MeshFilter>() : null;
+            if (!mf || !mf.sharedMesh) { Note("  ! tailgun not in the FBX (run tools/blender_tailgun.py): no tail turret station"); return; }
+            tailGunMesh = mf.sharedMesh;
+            tailGunPos = ourRoot.InverseTransformPoint(t.position);
+            tailGunRot = Quaternion.Inverse(ourRoot.rotation) * t.rotation;
+            tailGunScale = t.lossyScale;
+            Object.DestroyImmediate(t.gameObject);
+            Note($"Tail gun: barrels taken off the hull for the tail turret mount, pivot {tailGunPos:F3}");
+        }
+
         static ScriptableObject Mount(string code, bool bay) =>
             (bay ? BayMounts : PylonMounts).FirstOrDefault(m => m && m.name.StartsWith("B52_" + code + "_"));
 
@@ -1430,9 +1744,20 @@ namespace B52Tools
                 pylons.Add((mt, pr, wr.GetComponent(T("UnitPart"))));
             }
 
+            // Tail turret (optional, B-52H): the mount faces aft from the barrels' pivot, on the rear fuselage.
+            ScriptableObject tailMount = null; Transform tailPoint = null;
+            if (tailGunMesh)
+            {
+                var hpRot = ourRoot.rotation * Quaternion.Euler(0f, 180f, 0f);
+                tailPoint = Child(Find(ourRoot, "fuselage_R"), "tailTurretMount", ourRoot.TransformPoint(tailGunPos), hpRot);
+                tailMount = B52Weapons.MakeTailTurret(tailGunMesh, Quaternion.Inverse(hpRot) * (ourRoot.rotation * tailGunRot), tailGunScale, Note);
+            }
+            hardpointSetCount = tailMount ? 3 : 2;
+
+            B52DonorAudit.Chose(wm, "hardpointSets");      // every station written here: the bay, the two wing pylons and the tail turret
             Set(wm, "hardpointSets", p =>
             {
-                p.arraySize = 2;
+                p.arraySize = hardpointSetCount;
                 void Fill(SerializedProperty set, string name, List<ScriptableObject> options)
                 {
                     set.FindPropertyRelative("name").stringValue = name;
@@ -1474,8 +1799,14 @@ namespace B52Tools
                 Fill(s1, "Wing Pylons (HSAB)", PylonMounts);
                 var h1 = s1.FindPropertyRelative("hardpoints"); h1.arraySize = 2;
                 for (int i = 0; i < 2; i++) Point(h1.GetArrayElementAtIndex(i), pylons[i].mount, pylons[i].part, new Object[0], pylons[i].r);
+
+                if (!tailMount) return;
+                var s2 = p.GetArrayElementAtIndex(2);
+                Fill(s2, "Tail Turret (B-52H)", new List<ScriptableObject> { tailMount });
+                var h2 = s2.FindPropertyRelative("hardpoints"); h2.arraySize = 1;
+                Point(h2.GetArrayElementAtIndex(0), tailPoint, Find(ourRoot, "fuselage_R").GetComponent(T("UnitPart")), new Object[0], null);
             });
-            Note($"Hardpoints: bay {BayMounts.Count} options (doors {doors.Count}), pylons {PylonMounts.Count} options");
+            Note($"Hardpoints: bay {BayMounts.Count} options (doors {doors.Count}), pylons {PylonMounts.Count} options, tail turret {(tailMount ? "yes" : "NO")}");
         }
 
         static void DropNulls(Object comp, string prop)
@@ -1527,7 +1858,7 @@ namespace B52Tools
                         // Adding the ParticleSystem also added a blank renderer, with no material: the tyre dust drew
                         // as pink squares. Copy the donor's renderer onto it.
                         var srcR = go.GetComponent<ParticleSystemRenderer>(); var dstR = holder.GetComponent<ParticleSystemRenderer>();
-                        if (srcR && dstR) EditorUtility.CopySerialized(srcR, dstR);
+                        if (srcR && dstR) { EditorUtility.CopySerialized(srcR, dstR); B52DonorAudit.Copied(srcR, dstR); }
                         else if (srcR) CopyComponent(srcR, holder);
                     }
                 }
@@ -1536,6 +1867,7 @@ namespace B52Tools
                     if (!clones.TryGetValue(go, out var copy))
                     {
                         copy = Object.Instantiate(go, newParent); copy.name = go.name; copy.transform.localPosition = Vector3.zero;
+                        B52DonorAudit.Cloned(go, copy);
                         clones[go] = copy;
                     }
                     rep = copy;
@@ -1567,6 +1899,9 @@ namespace B52Tools
             var low = all.Where(r => r.name.EndsWith("_LoD")).ToArray();
             if (low.Length == 0) { Note("  ! no _LoD meshes (run tools/blender_lods.py): no LOD group"); return; }
             var high = all.Where(r => !r.name.EndsWith("_LoD")).ToArray();
+            // the nozzle liners (tools/blender_fans.py) are a few hundred triangles: keep them far away too, or the
+            // distant engines show the sky through them
+            low = low.Concat(high.Where(r => r.name.StartsWith("nozzle_"))).ToArray();
             var lod = ourRoot.GetComponent<LODGroup>();                 // not ??: a missing component isn't C# null
             if (!lod) lod = ourRoot.gameObject.AddComponent<LODGroup>();
             lod.SetLODs(new[] { new LOD(0.05f, high), new LOD(0f, low) });
@@ -1680,9 +2015,10 @@ namespace B52Tools
             lo.arraySize = 2;
             void SetWeapons(SerializedProperty weapons, ScriptableObject bayM, ScriptableObject pylonM)
             {
-                weapons.arraySize = 2;
+                weapons.arraySize = hardpointSetCount;     // one entry per station: the game resets a loadout whose count differs
                 weapons.GetArrayElementAtIndex(0).objectReferenceValue = bayM;
                 weapons.GetArrayElementAtIndex(1).objectReferenceValue = pylonM;
+                for (int i = 2; i < hardpointSetCount; i++) weapons.GetArrayElementAtIndex(i).objectReferenceValue = null;   // the tail turret: off (a B-52J)
             }
             SetWeapons(lo.GetArrayElementAtIndex(0).FindPropertyRelative("weapons"), null, null);
             SetWeapons(lo.GetArrayElementAtIndex(1).FindPropertyRelative("weapons"), Mount("MK82", true), Mount("MK82", false));
@@ -1713,6 +2049,8 @@ namespace B52Tools
                            presets[i].pylon == null ? null : Mount(presets[i].pylon, false));
             }
             ps.FindProperty("DefaultFuelLevel").floatValue = 0.6f;
+            var status = BuildStatusDisplay();                    // the B-52's own damage display (B52Spec.StatusDisplay)
+            if (status) ps.FindProperty("StatusDisplay").objectReferenceValue = status;
             ps.FindProperty("HUDExtras").objectReferenceValue = AssetDatabase.LoadAssetAtPath<GameObject>(DoNotShip + "/GameObject/SFB_HUDExtras_PLACEHOLDER.prefab");
             // The USAF livery and the extra ones (ExtraLiveries), offered to every faction the template had.
             string Livery(string name, string texture)
@@ -1722,7 +2060,7 @@ namespace B52Tools
                 var liv = ScriptableObject.CreateInstance(T("LiveryData")); liv.name = name;
                 var ls = SO(liv);
                 ls.FindProperty("Texture").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/" + texture);
-                ls.FindProperty("Glossiness").floatValue = 0.35f;
+                ls.FindProperty("Glossiness").floatValue = 0f;   // the game's own skins use 0; 0.35 added gloss on top of the smoothness map, too shiny
                 ls.ApplyModifiedPropertiesWithoutUndo();
                 AssetDatabase.CreateAsset(liv, path);
                 return AssetDatabase.AssetPathToGUID(path);
@@ -1753,7 +2091,11 @@ namespace B52Tools
             ps.FindProperty("aircraftGLimit").floatValue = 2.5f;
             ps.FindProperty("maxSpeed").floatValue = 290f;
             ps.FindProperty("takeoffSpeed").floatValue = 90f;
-            ps.FindProperty("takeoffDistance").floatValue = 2900f;
+            // The shortest runway the B-52 uses. The game's AI lands only on a runway longer than this, and with none
+            // in reach it bails out: at 2900 m no runway on Heartland (its longest is 2416 m) would do, and every AI
+            // B-52 ejected after takeoff. The B-52 normally flies from 8000 ft (2440 m) runways; at landing weight
+            // with its chute it stops in well under 2 km (tests/ingame/b52_flight.txt, rollout).
+            ps.FindProperty("takeoffDistance").floatValue = 2200f;
             ps.FindProperty("approachSpeed").floatValue = 82f;
             ps.FindProperty("landingSpeed").floatValue = 72f;
             ps.FindProperty("shortLandingSpeed").floatValue = 68f;
@@ -1780,6 +2122,21 @@ namespace B52Tools
             ds.FindProperty("manpower").intValue = 5;
             ds.FindProperty("radarSize").floatValue = 0.1f;          // the B-52's RCS is famously large
             ds.FindProperty("unitPrefab").objectReferenceValue = prefab;
+            // The aircraft menu and the map show mapIcon: the B-52's own top-down silhouette (tools/blender_icon.py),
+            // not the donor's Alkyon. The HUD's friendly/hostile markers stay the game's generic aircraft icon.
+            var iconPath = ModDir + "/Textures/B52_icon.png";
+            if (AssetImporter.GetAtPath(iconPath) is TextureImporter iti)
+            {
+                if (iti.textureType != TextureImporterType.Sprite || !iti.alphaIsTransparency)
+                {
+                    iti.textureType = TextureImporterType.Sprite; iti.spriteImportMode = SpriteImportMode.Single;
+                    iti.alphaIsTransparency = true; iti.mipmapEnabled = true; iti.SaveAndReimport();
+                }
+                var icon = AssetDatabase.LoadAssetAtPath<Sprite>(iconPath);
+                if (icon) ds.FindProperty("mapIcon").objectReferenceValue = icon;
+                Note(icon ? "Icon: B52_icon.png" : "  ! B52_icon.png has no sprite: the donor's icon stays");
+            }
+            else Note("  ! no Textures/B52_icon.png (run tools/blender_icon.py): the donor's icon stays");
             ds.FindProperty("spawnOffset").vector3Value = new Vector3(0, 3.9f, 0);
             ds.FindProperty("aircraftParameters").objectReferenceValue = par;
             ds.FindProperty("aircraftInfo.emptyWeight").floatValue = 83250f;
@@ -1790,8 +2147,11 @@ namespace B52Tools
             ds.FindProperty("restRotation").vector3Value = Vector3.zero;
             ds.ApplyModifiedPropertiesWithoutUndo();
 
+            SpecDefinition(def, par);
             AssetDatabase.CreateAsset(par, Gen + "/B52J_Parameters.asset");
             AssetDatabase.CreateAsset(def, Gen + "/B52J.asset");
+            B52DonorAudit.CopiedAsset("Aircraft parameters", par, parSrc);
+            B52DonorAudit.CopiedAsset("Aircraft definition", def, defSrc);
             // The prefab's Unit.definition points at our definition.
             var root = PrefabUtility.LoadPrefabContents(AssetDatabase.GetAssetPath(prefab));
             SetRef(root.GetComponent(T("Aircraft")), "definition", def);

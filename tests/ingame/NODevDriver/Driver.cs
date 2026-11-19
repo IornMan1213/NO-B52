@@ -45,6 +45,19 @@ namespace NODevDriverB52
         }
     }
 
+    // Logs who starts an ejection (the AI decides for itself, in several of the game's pilot states): a postfix only,
+    // it changes nothing.
+    [HarmonyLib.HarmonyPatch(typeof(Aircraft), nameof(Aircraft.StartEjectionSequence))]
+    static class EjectionWatch
+    {
+        static void Postfix(Aircraft __instance)
+        {
+            var st = new System.Diagnostics.StackTrace(1, false);
+            var frames = string.Join(" <- ", System.Linq.Enumerable.Take(System.Linq.Enumerable.Select(st.GetFrames() ?? new System.Diagnostics.StackFrame[0], f => f.GetMethod() is System.Reflection.MethodBase m ? m.DeclaringType?.Name + "." + m.Name : "?"), 6));
+            BepInEx.Logging.Logger.CreateLogSource("NO Dev Driver B-52 eject").LogInfo($"ejection started on {__instance.name} (player {(__instance.Player != null)}), {__instance.speed:F0} m/s, radar alt {__instance.radarAlt:F0} m: {frames}");
+        }
+    }
+
     [BepInPlugin("iornman.nodevdriver.b52", "NO Dev Driver B-52", "0.0.1")]
     public class Driver : BaseUnityPlugin
     {
@@ -54,7 +67,7 @@ namespace NODevDriverB52
 
         void Awake()
         {
-            new HarmonyLib.Harmony("nodev.driver.b52").PatchAll(typeof(StickHold));
+            new HarmonyLib.Harmony("nodev.driver.b52").PatchAll(typeof(StickHold)); new HarmonyLib.Harmony("nodev.driver.b52.eject").PatchAll(typeof(EjectionWatch));
             var go = new GameObject("NODevDriverB52"); DontDestroyOnLoad(go); go.hideFlags = HideFlags.HideAndDontSave;
             go.AddComponent<Runner>().owner = this;
         }
@@ -395,6 +408,62 @@ namespace NODevDriverB52
                     StartCoroutine(GearLog(4f));
                     break;
                 }
+                case "expectlocked":   // expectlocked <control surface part> true|false: whether that ControlSurface of the player's jet is locked (no hydraulic power)
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var a = arg.Split(' ');
+                    var cs = ac.GetComponentsInChildren<ControlSurface>(true).FirstOrDefault(x => x.name == a[0]);
+                    if (cs == null) { Test(false, $"no control surface {a[0]}"); break; }
+                    bool locked = (bool)typeof(ControlSurface).GetField("locked", Priv).GetValue(cs);
+                    Test(locked == (a[1] == "true"), $"{a[0]} locked {locked}, expected {a[1]}");
+                    break;
+                }
+                case "expectobj":   // expectobj <name>: an object of that name exists in the scene (active)
+                {
+                    var t = Resources.FindObjectsOfTypeAll<Transform>().FirstOrDefault(x => x.gameObject.scene.IsValid() && x.gameObject.activeInHierarchy && x.name == arg);
+                    Test(t != null, $"object {arg}: {(t != null ? "on " + (t.parent ? t.parent.name : "-") : "not found")}");
+                    break;
+                }
+                case "expecthidden":   // expecthidden <name>: an object of that name exists in the scene, shown or not
+                {
+                    var t = Resources.FindObjectsOfTypeAll<Transform>().FirstOrDefault(x => x.gameObject.scene.IsValid() && x.name == arg);
+                    Test(t != null, $"object {arg} (shown or hidden): {(t != null ? "under " + (t.parent ? t.parent.name : "-") + (t.gameObject.activeInHierarchy ? ", shown" : ", hidden") : "not found")}");
+                    break;
+                }
+                case "clearance":   // clearance [n]: the n (default 6) lowest colliders of the player's jet and how far each is above the ground under it
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    int count = arg.Length > 0 ? int.Parse(arg) : 6;
+                    foreach (var col in ac.GetComponentsInChildren<Collider>().Where(x => x.enabled && !x.isTrigger).OrderBy(x => x.bounds.min.y).Take(count))
+                    {
+                        var p = col.bounds.center; p.y = col.bounds.min.y;
+                        string gap = "no ground";
+                        foreach (var h in Physics.RaycastAll(p + Vector3.up * 20f, Vector3.down, 60f, ~0, QueryTriggerInteraction.Ignore).OrderBy(h => h.distance))
+                            if (h.collider.GetComponentInParent<Aircraft>() != ac) { gap = $"{col.bounds.min.y - h.point.y:F2} m"; break; }
+                        Logger.LogInfo($"  {col.name} ({col.GetType().Name}{(col is MeshCollider mc ? (mc.convex ? ", convex" : "") + ", " + (mc.sharedMesh ? mc.sharedMesh.name : "-") : "")}): lowest point {gap} above the ground");
+                    }
+                    break;
+                }
+                case "bellyhold":   // bellyhold <clearance m>: freeze the player's (held) jet level with its lowest collider that far above the ground below it
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    float c = float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture);
+                    var cols = ac.GetComponentsInChildren<Collider>().Where(x => x.enabled && !x.isTrigger && x.GetComponentInParent<UnitPart>() != null).ToList();
+                    float low = cols.Min(x => x.bounds.min.y);
+                    float ground = float.NaN;
+                    foreach (var h in Physics.RaycastAll(ac.transform.position + Vector3.up * 50f, Vector3.down, 200f, ~0, QueryTriggerInteraction.Ignore).OrderBy(h => h.distance))
+                        if (h.collider.GetComponentInParent<Aircraft>() != ac) { ground = h.point.y; break; }
+                    if (float.IsNaN(ground)) { Logger.LogWarning("  no ground below"); break; }
+                    float dy = ground + c - low;
+                    var lowest = cols.OrderBy(x => x.bounds.min.y).First();
+                    foreach (var r in FindObjectsOfType<UnitPart>().Where(p => p.parentUnit == ac).Select(p => p.rb).Where(r => r != null).Distinct())
+                    { r.isKinematic = true; r.velocity = Vector3.zero; r.angularVelocity = Vector3.zero; r.position += Vector3.up * dy; r.transform.position += Vector3.up * dy; }
+                    Logger.LogInfo($"  bellyhold {c}: lowest point {lowest.name} moved {dy:F2} m to {c} m above the ground");
+                    break;
+                }
                 case "hold":   // hold <height m>: lift the player's jet and freeze it (kinematic) there; "hold 0" releases it
                 {
                     var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
@@ -444,7 +513,7 @@ namespace NODevDriverB52
                     foreach (var r in FindObjectsOfType<Renderer>())   // complex physics re-parents the parts
                     {
                         var m = r.sharedMaterial;
-                        if (m == null || !m.HasProperty("_HitPoints") || !r.name.StartsWith("MiG29_skin")) continue;
+                        if (m == null || !m.HasProperty("_HitPoints") || !(r.name.StartsWith("MiG29_skin") || m.name.StartsWith("B52_B52_Skin"))) continue;
                         m = r.material; count++;
                         if (verb == "dmgtex") { if (b != null) m.SetTexture("_BasecolorDmg", b); if (n != null) m.SetTexture("_NormalDmg", n); }
                         else if (verb == "skintex") m.SetTexture(a[0], b);
@@ -452,6 +521,56 @@ namespace NODevDriverB52
                         else m.SetFloat(a[0], float.Parse(a[1], System.Globalization.CultureInfo.InvariantCulture));
                     }
                     Logger.LogInfo($"  {verb} {arg}: {count} skin renderers");
+                    break;
+                }
+                case "hit":       // hit <part> <pierce> <blast> [fire]: real damage through UnitPart.TakeDamage (armour, networked; server only)
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var a = arg.Split(' ');
+                    var inv = System.Globalization.CultureInfo.InvariantCulture;
+                    var p = FindObjectsOfType<UnitPart>().FirstOrDefault(u => u.parentUnit == ac && u.name == a[0]);
+                    if (p == null) { Logger.LogWarning($"  no part {a[0]}"); break; }
+                    float before = p.hitPoints;
+                    p.TakeDamage(float.Parse(a[1], inv), float.Parse(a[2], inv), 1f, a.Length > 3 ? float.Parse(a[3], inv) : 0f, 0f, PersistentID.None);
+                    Logger.LogInfo($"  hit {p.name}: hp {before:F0} -> {p.hitPoints:F0}");
+                    break;
+                }
+                case "structure":   // structure: the B-52's load and strength left at every part root (B52Systems.Structure)
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    var st = BepInEx.Bootstrap.Chainloader.PluginInfos.TryGetValue("com.ironman1213.b52systems", out var pi) ? pi.Instance.GetType().Assembly.GetType("B52Systems.Structure") : null;
+                    if (ac == null || st == null) { Logger.LogWarning("  no aircraft or no B52Systems"); break; }
+                    var rep = (string)st.GetMethod("Report").Invoke(null, new object[] { ac });
+                    foreach (var line in rep.Split('\n')) Logger.LogInfo("  " + line);
+                    break;
+                }
+                case "expectoff":   // expectoff <part> [<part>...]: those parts have come off the player's jet, every other part is still on
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var want = new HashSet<string>(arg.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries));
+                    var acParts2 = FindObjectsOfType<UnitPart>().Where(u => u.parentUnit == ac).ToList();
+                    var off = acParts2.Where(u => u.IsDetached()).Select(u => u.name).OrderBy(s => s).ToList();
+                    bool ok = want.SetEquals(off);
+                    Test(ok, $"detached parts: [{string.Join(" ", off)}], expected [{string.Join(" ", want.OrderBy(s => s))}]");
+                    break;
+                }
+                case "expectdead":   // expectdead [engine...]: exactly those engines of the player's jet have failed (Turbofan.operable false)
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var bf = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+                    var want = new HashSet<string>(arg.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries));
+                    var dead = new List<string>();
+                    foreach (var e in Resources.FindObjectsOfTypeAll<Turbofan>().Where(e => e.GetUnit() == ac && e.gameObject.scene.IsValid()).OrderBy(e => e.name))
+                    {
+                        bool op = (bool)typeof(Turbofan).GetField("operable", bf).GetValue(e);
+                        float hp = (float)typeof(Turbofan).GetField("hitPoints", bf).GetValue(e);
+                        Logger.LogInfo($"  {e.name}: {(op ? "running" : "failed")}, hp {hp:F0}, thrust {e.GetThrust() / 1000f:F1} kN");
+                        if (!op) dead.Add(e.name);
+                    }
+                    Test(want.SetEquals(dead), $"failed engines: [{string.Join(" ", dead)}], expected [{string.Join(" ", want.OrderBy(s => s))}]");
                     break;
                 }
                 case "hurt":      // hurt <part substring|all> <amount>: ApplyDamage on the player's jet's parts (shading/effects, no detaching)
@@ -534,6 +653,109 @@ namespace NODevDriverB52
                     File.WriteAllBytes(Path.Combine(Paths.BepInExRootPath, a[5]), tex.EncodeToPNG());
                     Destroy(tex); rt.Release(); Destroy(rt); Destroy(go3);
                     Logger.LogInfo($"  wview {a[0]} at {target.position} -> {a[5]}");
+                    break;
+                }
+                case "glassprops":   // glassprops: every renderer of the player's jet with a glass material: on/off, then the material's shader, queue, keywords and property values
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var seen = new HashSet<Material>();
+                    foreach (var r in ac.GetComponentsInChildren<Renderer>(true))
+                        foreach (var m in r.sharedMaterials.Where(m => m != null && m.name.ToLowerInvariant().Contains("glass")))
+                        {
+                            Logger.LogInfo($"  {r.name}: enabled {r.enabled}, active {r.gameObject.activeInHierarchy}, material {m.name}");
+                            if (!seen.Add(m)) continue;
+                            var s = m.shader;
+                            Logger.LogInfo($"    shader {s.name}, queue {m.renderQueue}, keywords [{string.Join(",", m.shaderKeywords)}]");
+                            for (int i = 0; i < s.GetPropertyCount(); i++)
+                            {
+                                var n = s.GetPropertyName(i); var t = s.GetPropertyType(i);
+                                string v = t == UnityEngine.Rendering.ShaderPropertyType.Color ? m.GetColor(n).ToString("F3")
+                                         : t == UnityEngine.Rendering.ShaderPropertyType.Vector ? m.GetVector(n).ToString("F3")
+                                         : t == UnityEngine.Rendering.ShaderPropertyType.Texture ? (m.GetTexture(n) != null ? m.GetTexture(n).name : "-")
+                                         : m.GetFloat(n).ToString("F3");
+                                Logger.LogInfo($"    {n} ({t}) = {v}");
+                            }
+                        }
+                    break;
+                }
+                case "lights":   // lights: every light (type, intensity, which of layers 0/3/14 it lights, shadows), the ambient settings, and the main camera's layers
+                {
+                    string L(int mask) => $"0:{((mask >> 0) & 1) == 1} 3:{((mask >> 3) & 1) == 1} 14:{((mask >> 14) & 1) == 1}";
+                    foreach (var l in FindObjectsOfType<Light>())
+                        Logger.LogInfo($"  light {l.name} ({l.type}) on {l.enabled && l.gameObject.activeInHierarchy}, intensity {l.intensity:F2}, colour {l.color}, layers {L(l.cullingMask)}, shadows {l.shadows}, mode {l.renderMode}");
+                    Logger.LogInfo($"  ambient {RenderSettings.ambientMode}, sky {RenderSettings.ambientSkyColor}, equator {RenderSettings.ambientEquatorColor}, ground {RenderSettings.ambientGroundColor}, intensity {RenderSettings.ambientIntensity:F2}, reflections {RenderSettings.defaultReflectionMode} x{RenderSettings.reflectionIntensity:F2}");
+                    var cm = Camera.main; if (cm != null) Logger.LogInfo($"  main camera {cm.name}: layers {L(cm.cullingMask)}");
+                    for (int i = 0; i < 32; i++) { var n = LayerMask.LayerToName(i); if (i == 0 || i == 3 || i == 14) Logger.LogInfo($"  layer {i} = {n}"); }
+                    break;
+                }
+                case "matinfo":   // matinfo <renderer name>: that renderer of the player's jet: layer, shadows, and every property of each material
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    var r = ac != null ? ac.GetComponentsInChildren<Renderer>(true).FirstOrDefault(x => x.name == arg) : null;
+                    if (r == null) { Logger.LogWarning("  no renderer " + arg); break; }
+                    Logger.LogInfo($"  {r.name}: layer {r.gameObject.layer}, cast {r.shadowCastingMode}, receive {r.receiveShadows}, probes {r.reflectionProbeUsage}/{r.lightProbeUsage}");
+                    foreach (var m in r.sharedMaterials.Where(m => m != null))
+                    {
+                        var s = m.shader;
+                        Logger.LogInfo($"    material {m.name}: shader {s.name}, queue {m.renderQueue}, keywords [{string.Join(",", m.shaderKeywords)}]");
+                        for (int i = 0; i < s.GetPropertyCount(); i++)
+                        {
+                            var n = s.GetPropertyName(i); var t = s.GetPropertyType(i);
+                            string v = t == UnityEngine.Rendering.ShaderPropertyType.Color ? m.GetColor(n).ToString("F3")
+                                     : t == UnityEngine.Rendering.ShaderPropertyType.Vector ? m.GetVector(n).ToString("F3")
+                                     : t == UnityEngine.Rendering.ShaderPropertyType.Texture ? (m.GetTexture(n) != null ? m.GetTexture(n).name : "-")
+                                     : m.GetFloat(n).ToString("F3");
+                            if (!n.StartsWith("unity_")) Logger.LogInfo($"      {n} = {v}");
+                        }
+                    }
+                    break;
+                }
+                case "glasspass":   // glasspass [<pass> on|off]: the player's jet's glass shader passes (ShadowCaster etc.) and whether each is enabled; with arguments, switch one on that jet's own copy
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var a = arg.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var r in ac.GetComponentsInChildren<Renderer>(true))
+                    {
+                        var mats = r.sharedMaterials; bool changed = false;
+                        for (int i = 0; i < mats.Length; i++)
+                        {
+                            var m = mats[i];
+                            if (m == null || !m.name.ToLowerInvariant().Contains("glass")) continue;
+                            if (a.Length >= 2)
+                            {
+                                if (!m.name.EndsWith("(test)")) { m = mats[i] = new Material(m) { name = m.name + " (test)" }; changed = true; }
+                                m.SetShaderPassEnabled(a[0], a[1] == "on");
+                            }
+                            var passes = new List<string>();
+                            for (int p = 0; p < m.passCount; p++) passes.Add($"{m.GetPassName(p)}={(m.GetShaderPassEnabled(m.GetPassName(p)) ? "on" : "off")}");
+                            Logger.LogInfo($"  {r.name} [{m.name}] cast {r.shadowCastingMode}: {string.Join(" ", passes)}");
+                        }
+                        if (changed) r.sharedMaterials = mats;
+                    }
+                    break;
+                }
+                case "glassset":   // glassset <property> <v> [g b a]: set a float (one value) or colour (four) on the player's jet's glass (its own copy of the material, runtime only)
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var a = arg.Split(' ');
+                    float F(int i) => float.Parse(a[i], System.Globalization.CultureInfo.InvariantCulture);
+                    int n = 0;
+                    foreach (var r in ac.GetComponentsInChildren<Renderer>(true))
+                    {
+                        var mats = r.sharedMaterials; bool changed = false;
+                        for (int i = 0; i < mats.Length; i++)
+                        {
+                            if (mats[i] == null || !mats[i].name.ToLowerInvariant().Contains("glass")) continue;
+                            if (!mats[i].name.EndsWith("(test)")) { mats[i] = new Material(mats[i]) { name = mats[i].name + " (test)" }; changed = true; }
+                            if (a.Length >= 5) mats[i].SetColor(a[0], new Color(F(1), F(2), F(3), F(4))); else mats[i].SetFloat(a[0], F(1));
+                            n++;
+                        }
+                        if (changed) r.sharedMaterials = mats;
+                    }
+                    Logger.LogInfo($"  glassset {arg}: {n} glass slots");
                     break;
                 }
                 case "shaderprops":   // shaderprops: the skin shader's properties
@@ -646,7 +868,14 @@ namespace NODevDriverB52
                     var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
                     if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
                     var inp = ac.GetInputs();
-                    Logger.LogInfo($"  speed {ac.speed:F1} m/s, radar alt {ac.radarAlt:F2}, throttle {(inp != null ? inp.throttle : -1f):F2}, gear {ac.gearState}, chute {ChuteOut()}");
+                    Logger.LogInfo($"  speed {ac.speed:F1} m/s, radar alt {ac.radarAlt:F2}, throttle {(inp != null ? inp.throttle : -1f):F2}, gear {ac.gearState}, chute {ChuteOut()}, g {ac.gForce:F2}, pitch {Pitch(ac):F1}");
+                    break;
+                }
+                case "gwatch":   // gwatch <seconds>: the player's jet's lowest and highest g (Aircraft.gForce) each second, and its speed and pitch
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    StartCoroutine(GWatch(ac, float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture)));
                     break;
                 }
                 case "setgear":   // setgear true|false
@@ -867,6 +1096,25 @@ namespace NODevDriverB52
                     Test(key == arg, $"player aircraft is {arg} (got {key})");
                     break;
                 }
+                case "camstate":   // camstate orbit|cockpit|chase: switch the game's camera, so the aircraft renders as in that view (cockpit view hides the exterior, the others hide the cockpit list)
+                {
+                    var csm = FindObjectOfType<CameraStateManager>();
+                    if (csm == null) { Logger.LogWarning("  no CameraStateManager"); break; }
+                    CameraBaseState st = arg == "cockpit" ? csm.cockpitState : arg == "chase" ? (CameraBaseState)csm.chaseState : csm.orbitState;
+                    csm.SwitchState(st);
+                    Logger.LogInfo($"  camstate {arg}: now {csm.currentState?.GetType().Name}");
+                    break;
+                }
+                case "bayopen":   // bayopen [seconds]: open every bay door on the player's aircraft for that long (default 60 s), for screenshots of the bay
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no player aircraft"); break; }
+                    float secs = string.IsNullOrEmpty(arg) ? 60f : float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture);
+                    var doors = ac.GetComponentsInChildren<BayDoor>(true);
+                    foreach (var d in doors) d.OpenDoor(secs);
+                    Logger.LogInfo($"  bayopen: {doors.Length} doors open for {secs:F0} s");
+                    break;
+                }
                 case "forcelod":   // forcelod <level>|off: pin the player's aircraft to one LOD level (0 = full detail, 1 = the distant model), for close-up screenshots
                 {
                     var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
@@ -905,6 +1153,25 @@ namespace NODevDriverB52
                     Logger.LogInfo($"  cockpit fill {k:F2} on {done.Count} materials: {string.Join(", ", done.Select(m => m.name))}");
                     break;
                 }
+                case "tod":   // tod <hours>: set the time of day (0-24) with the game's lighting, sky and reflections updated at once
+                {
+                    var li = NetworkSceneSingleton<LevelInfo>.i;
+                    if (li == null) { Logger.LogWarning("  no LevelInfo"); break; }
+                    li.SetTimeOfDay(float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture));
+                    Logger.LogInfo($"  time of day {li.timeOfDay:F1} h, ambient light {li.GetAmbientLight():F3}");
+                    break;
+                }
+                case "nvg":   // nvg on|off: switch the game's night vision as its key would (it takes effect on its next Update)
+                {
+                    var nv = NightVision.i;
+                    var vol = nv != null ? HarmonyLib.AccessTools.Field(typeof(NightVision), "postProcessing").GetValue(nv) as Behaviour : null;
+                    if (vol == null) { Logger.LogWarning("  no night vision"); break; }
+                    bool want = arg.Trim() == "on";
+                    var sel = HarmonyLib.AccessTools.Field(typeof(NightVision), "nightVisSelected");
+                    sel.SetValue(nv, want);   // as Toggle does, without its block while a menu or the cursor is up
+                    Logger.LogInfo($"  night vision {(want ? "on" : "off")} (selected {(bool)sel.GetValue(nv)})");
+                    break;
+                }
                 case "b52live":   // b52live: checks on the player's own B-52 (B52Check.Live: crab reset, engine sound, altimeter) and its fans turning
                 {
                     var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
@@ -921,6 +1188,54 @@ namespace NODevDriverB52
                     Logger.LogInfo($"  crab {arg} deg");
                     break;
                 }
+                case "crew":   // crew [count]: every crew member of the player's aircraft: station (aircraft frame), facing, hit points, dead / ejected; passes if there are that many
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null || ac.pilots == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var hpF = typeof(Pilot).GetField("hitPoints", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                    foreach (var pl in ac.pilots.Where(x => x != null))
+                    {
+                        var at = ac.transform.InverseTransformPoint(pl.transform.position);
+                        bool aft = Vector3.Dot(pl.transform.forward, ac.transform.forward) < 0;
+                        Logger.LogInfo($"  {pl.name}: at {at:F2}, facing {(aft ? "aft" : "forward")}, hp {(float)hpF.GetValue(pl):F0}, seat {pl.HasEjectionSeat()}, dead {pl.dead}, ejected {pl.ejected}");
+                    }
+                    if (arg.Length > 0) Test(ac.pilots.Length == int.Parse(arg), $"crew: {ac.pilots.Length} ({string.Join(", ", ac.pilots.Select(x => x.name))}), expected {arg}");
+                    break;
+                }
+                case "tanks":   // tanks: every fuel tank of the player's aircraft: its part, where it sits (aircraft frame, and from the part's pivot), fuel, leak rate, fire
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    foreach (var t in ac.GetFuelTanks()) Logger.LogInfo("  " + TankLine(ac, t));
+                    break;
+                }
+                case "expecttank":   // expecttank <part> leak|fire|dry|sealed: the tank on that part is leaking, burning, empty, or neither leaking nor burning
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var a = arg.Split(' ');
+                    var t = ac.GetFuelTanks().FirstOrDefault(x => TankPart(x)?.name == a[0]);
+                    if (t == null) { Test(false, $"no tank on {a[0]}"); break; }
+                    float leak = TankF(t, "leakRate"); bool fire = TankB(t, "onFire");
+                    bool ok = a[1] == "leak" ? leak > 0 : a[1] == "fire" ? fire : a[1] == "dry" ? t.fuelMass <= 0 : leak <= 0 && !fire;
+                    Test(ok, $"tank {a[0]} {a[1]}: {TankLine(ac, t)}");
+                    break;
+                }
+                case "fuelwatch":   // fuelwatch <seconds> <part...>: fly that long; passes if fuel came only out of the tanks on the named parts (and the leaking ones)
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var a = arg.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+                    StartCoroutine(FuelWatch(ac, float.Parse(a[0], System.Globalization.CultureInfo.InvariantCulture), new HashSet<string>(a.Skip(1))));
+                    break;
+                }
+                case "ejectwatch":   // ejectwatch <seconds>: eject, then follow each crewman's first 1.5 s in the aircraft frame; passes if the lower deck's two went down through the belly and the rest up
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    StartCoroutine(EjectWatch(ac, float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture)));
+                    break;
+                }
                 case "eject":   // eject: the player's aircraft starts its ejection sequence; passes if the crew's seats leave it within 5 s
                 {
                     var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
@@ -931,10 +1246,23 @@ namespace NODevDriverB52
                 case "b52check":   // B-52 mod checks (B52Check.cs): "[TEST] PASS/FAIL" lines
                     B52Check.Run(Logger, Test);
                     break;
-                case "stick":   // stick <pitch> <roll> <yaw> | stick off: hold the game's inputs there (-1..1, pitch + = nose down) until "stick off"
+                case "loadout":   // loadout <station name part> <mount jsonKey|none>: change one station of the player's loadout (TailGun.cs)
+                    TailGun.Loadout(arg, Logger, Test);
+                    break;
+                case "spawnhostile":   // spawnhostile <jsonKey> <m> <bearing deg, 180 astern> [m/s] [loadout index]: an AI aircraft of the other side (TailGun.cs)
+                    TailGun.SpawnHostile(arg, Logger);
+                    break;
+                case "tailgun":   // tailgun [on|off]: the player's tail turret, its station and aim (TailGun.cs)
+                    TailGun.Report(arg, Logger, Test);
+                    break;
+                case "turretwatch":   // turretwatch <seconds>: log the tail turret each second; passes if it took a target and fired (TailGun.cs)
+                    StartCoroutine(TailGun.Watch(float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture), Logger, Test));
+                    break;
+                case "stick":   // stick <pitch> <roll> <yaw> | stick off: hold the game's inputs there (-1..1, pitch + = nose down) until "stick off"; ends a cruise hold
                 {
                     var a = arg.Split(' ');
                     float F(int i) => float.Parse(a[i], System.Globalization.CultureInfo.InvariantCulture);
+                    if (arg != "off") ++flightGen;   // takes the stick from the cruise hold (it would set it back next frame)
                     StickHold.Held = arg == "off" ? (Vector3?)null : new Vector3(F(0), F(1), F(2));
                     break;
                 }
@@ -996,6 +1324,44 @@ namespace NODevDriverB52
                         }
                     }
                     Logger.LogInfo($"  hitray: {best}");
+                    break;
+                }
+                case "rayall":   // rayall <ox oy oz> <tx ty tz>: every mesh triangle of the player's jet on the ray from o towards t (aircraft frame), in order: object, material, front or back face, distance
+                {
+                    var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
+                    if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
+                    var a = arg.Split(' ');
+                    float F(int i) => float.Parse(a[i], System.Globalization.CultureInfo.InvariantCulture);
+                    var o = ac.transform.TransformPoint(new Vector3(F(0), F(1), F(2)));
+                    var d = (ac.transform.TransformPoint(new Vector3(F(3), F(4), F(5))) - o).normalized;
+                    var hits = new List<(float t, string s)>();
+                    foreach (var mf in ac.GetComponentsInChildren<MeshFilter>(true))
+                    {
+                        var mr = mf.GetComponent<MeshRenderer>();
+                        var mesh = mf.sharedMesh;
+                        if (mesh == null || mr == null || !mr.enabled || !mr.gameObject.activeInHierarchy || !mesh.isReadable) continue;
+                        var lo = mf.transform.InverseTransformPoint(o); var ld = mf.transform.InverseTransformDirection(d);
+                        var v = mesh.vertices;
+                        for (int sm = 0; sm < mesh.subMeshCount; sm++)
+                        {
+                            var tri = mesh.GetTriangles(sm);
+                            var mat = sm < mr.sharedMaterials.Length && mr.sharedMaterials[sm] != null ? mr.sharedMaterials[sm].name : "?";
+                            for (int i = 0; i < tri.Length; i += 3)
+                            {
+                                Vector3 p0 = v[tri[i]], e1 = v[tri[i + 1]] - p0, e2 = v[tri[i + 2]] - p0, h = Vector3.Cross(ld, e2);
+                                float det = Vector3.Dot(e1, h); if (Mathf.Abs(det) < 1e-9f) continue;
+                                float inv = 1f / det; var sv = lo - p0; float u = Vector3.Dot(sv, h) * inv; if (u < 0 || u > 1) continue;
+                                var q = Vector3.Cross(sv, e1); float w = Vector3.Dot(ld, q) * inv; if (w < 0 || u + w > 1) continue;
+                                float tt = Vector3.Dot(e2, q) * inv; if (tt <= 0.01f) continue;
+                                bool front = Vector3.Dot(Vector3.Cross(e1, e2), ld) < 0;
+                                var hp = ac.transform.InverseTransformPoint(mf.transform.TransformPoint(lo + ld * tt));
+                                string path = mf.name; for (var pt = mf.transform.parent; pt != null && pt != ac.transform; pt = pt.parent) path = pt.name + "/" + path;
+                                hits.Add((tt * mf.transform.lossyScale.x, $"{path} [{mat}] {(front ? "front" : "back")} at {hp:F2}"));
+                            }
+                        }
+                    }
+                    Logger.LogInfo($"  rayall to ({a[3]} {a[4]} {a[5]}): {hits.Count} hits");
+                    foreach (var hh in hits.OrderBy(x => x.t).Take(8)) Logger.LogInfo($"    {hh.t:F2} m: {hh.s}");
                     break;
                 }
                 case "salvo":   // salvo <station> <trigger pulls> [interval s]: select that weapon station and pull the trigger; checks something left
@@ -1222,6 +1588,76 @@ namespace NODevDriverB52
             Test(fans.Count > 0 && turned == fans.Count, $"engine fans: {turned} of {fans.Count} turned in a second");
         }
 
+        static readonly System.Reflection.BindingFlags Priv = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        static UnitPart TankPart(FuelTank t) => typeof(FuelTank).GetField("part", Priv).GetValue(t) as UnitPart;
+        static float TankF(FuelTank t, string f) => (float)typeof(FuelTank).GetField(f, Priv).GetValue(t);
+        static bool TankB(FuelTank t, string f) => (bool)typeof(FuelTank).GetField(f, Priv).GetValue(t);
+
+        static string TankLine(Aircraft ac, FuelTank t)
+        {
+            var p = TankPart(t);
+            var at = ac.transform.InverseTransformPoint(t.transform.position);
+            var fromPivot = p != null ? at - ac.transform.InverseTransformPoint(p.transform.position) : Vector3.zero;
+            return $"{(p != null ? p.name : "?")}: {t.fuelMass:F0} / {t.GetCapacity():F0} kg at {at:F2} ({fromPivot:F2} from the pivot), " +
+                   $"leak {TankF(t, "leakRate"):F1} kg/s, fire {TankB(t, "onFire")}, ruptured {TankB(t, "ruptured")}, part hp {(p != null ? p.hitPoints : 0):F0}";
+        }
+
+        System.Collections.IEnumerator FuelWatch(Aircraft ac, float seconds, HashSet<string> feeding)
+        {
+            var tanks = ac.GetFuelTanks().ToList();
+            var before = tanks.Select(t => t.fuelMass).ToArray();
+            yield return new WaitForSeconds(seconds);
+            var wrong = new List<string>(); float used = 0;
+            for (int i = 0; i < tanks.Count; i++)
+            {
+                var name = TankPart(tanks[i])?.name ?? "?";
+                float d = before[i] - tanks[i].fuelMass; used += d;
+                Logger.LogInfo($"  {name}: {before[i]:F0} -> {tanks[i].fuelMass:F0} kg ({d:F1})");
+                if (d > 0.5f && !feeding.Contains(name) && TankF(tanks[i], "leakRate") <= 0) wrong.Add(name);
+            }
+            Test(wrong.Count == 0 && used > 0, $"fuel: {used:F0} kg used in {seconds:F0} s, from [{string.Join(" ", feeding)}] only; also drawn from: [{string.Join(" ", wrong)}]");
+        }
+
+        System.Collections.IEnumerator EjectWatch(Aircraft ac, float seconds)
+        {
+            var lower = new HashSet<string> { "RadarNav", "Navigator" };
+            var names = ac.pilots.Select(p => p.name).ToArray();
+            var start = new Dictionary<PilotDismounted, (Vector3 at, float t)>();
+            var minY = new Dictionary<int, float>(); var maxY = new Dictionary<int, float>();
+            var belly = new Dictionary<int, bool>();
+            var cmf = ac.cockpit != null ? ac.cockpit.GetComponent<MeshFilter>() : null;
+            float bellyY = cmf != null && cmf.sharedMesh != null && cmf.sharedMesh.isReadable
+                ? cmf.sharedMesh.vertices.Min(v => ac.transform.InverseTransformPoint(cmf.transform.TransformPoint(v)).y) : -2.6f;
+            Logger.LogInfo($"  cockpit belly at {bellyY:F2} m (aircraft frame)");
+            ac.StartEjectionSequence();
+            float t0 = Time.time;
+            while (Time.time - t0 < seconds)
+            {
+                yield return new WaitForFixedUpdate();
+                foreach (var pd in FindObjectsOfType<PilotDismounted>())
+                {
+                    if (pd.parentUnit != ac.persistentID) continue;
+                    int n = pd.pilotNumber;
+                    var at = ac.transform.InverseTransformPoint(pd.transform.position);
+                    if (!start.ContainsKey(pd)) { start[pd] = (at, Time.time); minY[n] = maxY[n] = 0; Logger.LogInfo($"  {names[n]} leaves at {at:F2}"); }
+                    if (Time.time - start[pd].t > 1.5f) continue;
+                    float dy = at.y - start[pd].at.y;
+                    minY[n] = Mathf.Min(minY[n], dy); maxY[n] = Mathf.Max(maxY[n], dy);
+                    if (at.y < bellyY) belly[n] = true;   // the crewman's origin is below the cockpit's lowest skin
+                }
+            }
+            bool ok = start.Count == names.Length;
+            for (int n = 0; n < names.Length; n++)
+            {
+                if (!minY.ContainsKey(n)) { Logger.LogInfo($"  {names[n]}: did not leave"); ok = false; continue; }
+                bool down = lower.Contains(names[n]);
+                bool good = down ? minY[n] < -2f && belly.ContainsKey(n) : maxY[n] > 1.5f;
+                Logger.LogInfo($"  {names[n]}: first 1.5 s from {minY[n]:F2} to {maxY[n]:F2} m (aircraft up), {(down ? "down" : "up")}{(down ? $", clear of the belly {belly.ContainsKey(n)}" : "")}: {(good ? "ok" : "WRONG")}");
+                ok &= good;
+            }
+            Test(ok, $"ejection: {start.Count} of {names.Length} crew left, lower deck down through the belly, the rest up");
+        }
+
         System.Collections.IEnumerator Eject(Aircraft ac)
         {
             int seats0 = FindObjectsOfType<EjectionSeat>().Length;
@@ -1355,15 +1791,41 @@ namespace NODevDriverB52
 
         // Between test steps the jet flies on: wings as they are, the nose 5 deg up, 85 % throttle, until the next flight step starts.
         int flightGen;
+        Material paintMat;
+        readonly Dictionary<Renderer, Material[]> painted = new Dictionary<Renderer, Material[]>();
         System.Collections.IEnumerator Cruise(Aircraft ac, int gen)
         {
             StickHold.Throttle = 0.85f;
             while (gen == flightGen && ac != null && !ac.disabled)
             {
-                StickHold.Held = new Vector3(-Mathf.Clamp((5f - Pitch(ac)) * 0.1f, -0.5f, 0.5f), 0f, 0f);
+                // Hold 5 deg nose up, damped by the pitch rate (without it the hold porpoises once the B-52 picks up
+                // speed, pulling 3 g and more at the top of each swing).
+                float noseUpRate = ac.rb ? -Vector3.Dot(ac.rb.angularVelocity, ac.transform.right) * Mathf.Rad2Deg : 0f;
+                // Wings level too (roll + is right, as "stick 0 -1 0" rolls left): left alone, the B-52 slowly banks
+                // and the pitch hold pulls it round a 2 g turn.
+                float bankRight = ac.rb ? -Mathf.Asin(Mathf.Clamp(ac.transform.right.y, -1f, 1f)) * Mathf.Rad2Deg : 0f;
+                float rollRateRight = ac.rb ? -Vector3.Dot(ac.rb.angularVelocity, ac.transform.forward) * Mathf.Rad2Deg : 0f;
+                float roll = -Mathf.Clamp(bankRight * 0.04f + rollRateRight * 0.05f, -0.5f, 0.5f);
+                StickHold.Held = new Vector3(-Mathf.Clamp((5f - Pitch(ac)) * 0.1f - noseUpRate * 0.15f, -0.5f, 0.5f), roll, 0f);
                 yield return null;
             }
             if (gen == flightGen) { StickHold.Held = null; StickHold.Throttle = null; }
+        }
+
+        System.Collections.IEnumerator GWatch(Aircraft ac, float seconds)
+        {
+            float end = Time.time + seconds, lo = 99f, hi = -99f, next = Time.time + 1f, worst = 1f;
+            while (Time.time < end && ac != null)
+            {
+                yield return new WaitForFixedUpdate();
+                lo = Mathf.Min(lo, ac.gForce); hi = Mathf.Max(hi, ac.gForce);
+                if (Time.time >= next)
+                {
+                    Logger.LogInfo($"  g {lo:F2} to {hi:F2}, {ac.speed:F0} m/s, pitch {Pitch(ac):F1}, bank {-Mathf.Asin(Mathf.Clamp(ac.transform.right.y, -1f, 1f)) * Mathf.Rad2Deg:F0} right, alt {ac.radarAlt:F0}");
+                    worst = Mathf.Max(worst, hi); lo = 99f; hi = -99f; next += 1f;
+                }
+            }
+            Logger.LogInfo($"  gwatch: highest {worst:F2} g");
         }
 
         System.Collections.IEnumerator Rollout(Aircraft ac, float kmh)

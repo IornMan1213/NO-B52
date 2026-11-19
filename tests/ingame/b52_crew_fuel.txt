@@ -1,0 +1,35 @@
+say START B-52J crew and fuel tanks (docs/DAMAGE_MODEL.md steps 3, 5, 6)
+include spawn.txt B52J
+expectac B52J
+crew 5
+tanks
+runway
+wait 3
+takeoff 1.0 300 0.5
+wait 40
+setgear false
+wait 10
+fuel 0.6
+wait 2
+tanks
+say fuel order: the fuselage tanks feed first, the wing keeps its fuel
+fuelwatch 30 fuselage_F fuselage_R
+wait 31
+expecttank wing1_L sealed
+say a hit on the left inner wing: its integral tank leaks, from the tank
+hit wing1_L 0 650
+wait 1
+expecttank wing1_L leak
+camat tank_wing1_L -14 6 -22 45 b52_cf_leak.png
+say a fire hit on the leaking tank lights it
+hit wing1_L 0 0 5
+wait 2
+expecttank wing1_L fire
+camat tank_wing1_L -14 6 -22 45 b52_cf_fire.png
+tanks
+crew 5
+say all five eject (before the burning wing gives way): the two navigators downward through the belly, the rest upward
+ejectwatch 8
+wait 9
+tanks
+say END

@@ -1,0 +1,18 @@
+say START B-52J structure loads: the game's lift split, slow with flaps out and faster in clean cruise
+include spawn.txt B52J
+expectac B52J
+runway
+wait 3
+takeoff 1.0 300 0.5
+wait 50
+setgear false
+wait 10
+state
+hld
+structure
+gwatch 90
+wait 90
+state
+hld
+structure
+say END

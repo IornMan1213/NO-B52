@@ -1,0 +1,1569 @@
+{
+ "size": 4096,
+ "regions": {
+  "console_L": [
+   0,
+   0,
+   380,
+   1943,
+   0.27,
+   1.38
+  ],
+  "console_R": [
+   384,
+   0,
+   380,
+   1943,
+   0.27,
+   1.38
+  ],
+  "overhead": [
+   768,
+   0,
+   1098,
+   872,
+   0.78,
+   0.62
+  ],
+  "centre": [
+   1870,
+   0,
+   535,
+   872,
+   0.38,
+   0.62
+  ],
+  "main": [
+   0,
+   1947,
+   2095,
+   664,
+   1.86,
+   0.59
+  ],
+  "aft_L": [
+   2099,
+   1947,
+   1337,
+   352,
+   0.95,
+   0.25
+  ],
+  "aft_R": [
+   0,
+   2615,
+   1337,
+   352,
+   0.95,
+   0.25
+  ],
+  "wall_L": [
+   1341,
+   2615,
+   1408,
+   337,
+   1.0,
+   0.24
+  ],
+  "wall_R": [
+   0,
+   2971,
+   1408,
+   337,
+   1.0,
+   0.24
+  ],
+  "ped_front": [
+   1412,
+   2971,
+   535,
+   309,
+   0.38,
+   0.22
+  ],
+  "ped_L": [
+   1951,
+   2971,
+   563,
+   281,
+   0.4,
+   0.2
+  ],
+  "ped_R": [
+   2518,
+   2971,
+   563,
+   281,
+   0.4,
+   0.2
+  ],
+  "shelf": [
+   3085,
+   2971,
+   704,
+   168,
+   0.5,
+   0.12
+  ],
+  "low_L": [
+   0,
+   3312,
+   985,
+   140,
+   0.7,
+   0.1
+  ],
+  "low_R": [
+   989,
+   3312,
+   985,
+   140,
+   0.7,
+   0.1
+  ]
+ },
+ "main_panel": [
+  -0.93,
+  0.93,
+  -0.3,
+  0.29
+ ],
+ "instruments": [
+  {
+   "kind": "screen",
+   "name": "mfd_L1_screen",
+   "mat": "pfd",
+   "x": -0.515,
+   "v": 0.07,
+   "w": 0.19,
+   "h": 0.2375
+  },
+  {
+   "kind": "screen",
+   "name": "mfd_C_screen",
+   "mat": "tsd",
+   "x": -0.26,
+   "v": 0.07,
+   "w": 0.2,
+   "h": 0.2
+  },
+  {
+   "kind": "gauge",
+   "name": "asi",
+   "x": -0.818,
+   "v": 0.15,
+   "r": 0.042,
+   "live": true
+  },
+  {
+   "kind": "gauge",
+   "name": "adi",
+   "x": -0.7,
+   "v": 0.15,
+   "r": 0.048,
+   "live": true
+  },
+  {
+   "kind": "gauge",
+   "name": "vsi",
+   "x": -0.818,
+   "v": 0.035,
+   "r": 0.042,
+   "live": true
+  },
+  {
+   "kind": "gauge",
+   "name": "alt",
+   "x": -0.7,
+   "v": 0.035,
+   "r": 0.042,
+   "live": true
+  },
+  {
+   "kind": "dial",
+   "name": "FUEL QTY",
+   "x": -0.818,
+   "v": -0.075,
+   "r": 0.028
+  },
+  {
+   "kind": "dial",
+   "name": "HYD",
+   "x": -0.7,
+   "v": -0.075,
+   "r": 0.028
+  },
+  {
+   "kind": "screen",
+   "name": "mfd_R1_screen",
+   "mat": "pfd",
+   "x": 0.515,
+   "v": 0.07,
+   "w": 0.19,
+   "h": 0.2375
+  },
+  {
+   "kind": "screen",
+   "name": "mfd_R2_screen",
+   "mat": "tsd",
+   "x": 0.26,
+   "v": 0.07,
+   "w": 0.2,
+   "h": 0.2
+  },
+  {
+   "kind": "gauge",
+   "name": "asi",
+   "x": 0.818,
+   "v": 0.15,
+   "r": 0.042,
+   "live": false
+  },
+  {
+   "kind": "gauge",
+   "name": "adi",
+   "x": 0.7,
+   "v": 0.15,
+   "r": 0.048,
+   "live": false
+  },
+  {
+   "kind": "gauge",
+   "name": "vsi",
+   "x": 0.818,
+   "v": 0.035,
+   "r": 0.042,
+   "live": false
+  },
+  {
+   "kind": "gauge",
+   "name": "alt",
+   "x": 0.7,
+   "v": 0.035,
+   "r": 0.042,
+   "live": false
+  },
+  {
+   "kind": "dial",
+   "name": "CABIN ALT",
+   "x": 0.818,
+   "v": -0.075,
+   "r": 0.028
+  },
+  {
+   "kind": "dial",
+   "name": "OXYGEN",
+   "x": 0.7,
+   "v": -0.075,
+   "r": 0.028
+  },
+  {
+   "kind": "screen",
+   "name": "mfd_E_screen",
+   "mat": "eng",
+   "x": 0.0,
+   "v": 0.07,
+   "w": 0.19,
+   "h": 0.2375
+  },
+  {
+   "kind": "dial",
+   "name": "CLOCK",
+   "x": 0.3,
+   "v": -0.215,
+   "r": 0.034
+  },
+  {
+   "kind": "ann",
+   "x0": -0.64,
+   "x1": -0.27,
+   "v": 0.247,
+   "h": 0.028
+  },
+  {
+   "kind": "ann",
+   "x0": 0.27,
+   "x1": 0.64,
+   "v": 0.247,
+   "h": 0.028
+  }
+ ],
+ "controls": [
+  {
+   "region": "console_L",
+   "type": "guard",
+   "u": 0.23128858024691357,
+   "v": 0.07246376811594203,
+   "colour": "red",
+   "up": false
+  },
+  {
+   "region": "console_L",
+   "type": "toggle",
+   "u": 0.49710648148148145,
+   "v": 0.07246376811594203,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "console_L",
+   "type": "toggle",
+   "u": 0.23128858024691357,
+   "v": 0.17776268115942032,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_L",
+   "type": "toggle",
+   "u": 0.49710648148148145,
+   "v": 0.17776268115942032,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_L",
+   "type": "toggle",
+   "u": 0.7629243827160492,
+   "v": 0.17776268115942032,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_L",
+   "type": "toggle",
+   "u": 0.23128858024691357,
+   "v": 0.5819746376811594,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "console_L",
+   "type": "toggle",
+   "u": 0.49710648148148145,
+   "v": 0.5819746376811594,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "console_L",
+   "type": "toggle",
+   "u": 0.7629243827160492,
+   "v": 0.5819746376811594,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_L",
+   "type": "toggle",
+   "u": 0.23128858024691357,
+   "v": 0.7019927536231885,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_L",
+   "type": "toggle",
+   "u": 0.49710648148148145,
+   "v": 0.7019927536231885,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "console_L",
+   "type": "toggle",
+   "u": 0.7629243827160492,
+   "v": 0.7019927536231885,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_L",
+   "type": "toggle",
+   "u": 0.23128858024691357,
+   "v": 0.8220108695652174,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_L",
+   "type": "toggle",
+   "u": 0.49710648148148145,
+   "v": 0.8220108695652174,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "console_L",
+   "type": "toggle",
+   "u": 0.7629243827160492,
+   "v": 0.8220108695652174,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_L",
+   "type": "knob",
+   "u": 0.49710648148148145,
+   "v": 0.9420289855072465,
+   "r": 0.01875
+  },
+  {
+   "region": "console_L",
+   "type": "knob",
+   "u": 0.7629243827160492,
+   "v": 0.9420289855072465,
+   "r": 0.01875
+  },
+  {
+   "region": "console_R",
+   "type": "toggle",
+   "u": 0.23128858024691357,
+   "v": 0.19248188405797104,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "console_R",
+   "type": "guard",
+   "u": 0.7629243827160492,
+   "v": 0.19248188405797104,
+   "colour": "red",
+   "up": true
+  },
+  {
+   "region": "console_R",
+   "type": "toggle",
+   "u": 0.23128858024691357,
+   "v": 0.3226902173913044,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_R",
+   "type": "toggle",
+   "u": 0.7629243827160492,
+   "v": 0.3226902173913044,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_R",
+   "type": "toggle",
+   "u": 0.23128858024691357,
+   "v": 0.6691576086956522,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_R",
+   "type": "toggle",
+   "u": 0.49710648148148145,
+   "v": 0.6691576086956522,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_R",
+   "type": "toggle",
+   "u": 0.7629243827160492,
+   "v": 0.6691576086956522,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_R",
+   "type": "toggle",
+   "u": 0.23128858024691357,
+   "v": 0.7846467391304348,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_R",
+   "type": "toggle",
+   "u": 0.49710648148148145,
+   "v": 0.7846467391304348,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "console_R",
+   "type": "knob",
+   "u": 0.23128858024691357,
+   "v": 0.906929347826087,
+   "r": 0.01875
+  },
+  {
+   "region": "console_R",
+   "type": "toggle",
+   "u": 0.49710648148148145,
+   "v": 0.906929347826087,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "console_R",
+   "type": "toggle",
+   "u": 0.7629243827160492,
+   "v": 0.906929347826087,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "overhead",
+   "type": "guard",
+   "u": 0.07852564102564102,
+   "v": 0.1684727822580645,
+   "colour": "red",
+   "up": false
+  },
+  {
+   "region": "overhead",
+   "type": "knob",
+   "u": 0.17147435897435898,
+   "v": 0.1684727822580645,
+   "r": 0.01875
+  },
+  {
+   "region": "overhead",
+   "type": "knob",
+   "u": 0.07852564102564102,
+   "v": 0.37941028225806456,
+   "r": 0.01875
+  },
+  {
+   "region": "overhead",
+   "type": "knob",
+   "u": 0.17147435897435898,
+   "v": 0.37941028225806456,
+   "r": 0.01875
+  },
+  {
+   "region": "overhead",
+   "type": "knob",
+   "u": 0.07852564102564102,
+   "v": 0.6653225806451613,
+   "r": 0.01875
+  },
+  {
+   "region": "overhead",
+   "type": "guard",
+   "u": 0.17147435897435898,
+   "v": 0.6653225806451613,
+   "colour": "red",
+   "up": true
+  },
+  {
+   "region": "overhead",
+   "type": "knob",
+   "u": 0.17147435897435898,
+   "v": 0.8750000000000001,
+   "r": 0.01875
+  },
+  {
+   "region": "overhead",
+   "type": "knob",
+   "u": 0.32852564102564097,
+   "v": 0.1546875,
+   "r": 0.01875
+  },
+  {
+   "region": "overhead",
+   "type": "knob",
+   "u": 0.42147435897435903,
+   "v": 0.1546875,
+   "r": 0.01875
+  },
+  {
+   "region": "overhead",
+   "type": "toggle",
+   "u": 0.32852564102564097,
+   "v": 0.338054435483871,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "overhead",
+   "type": "knob",
+   "u": 0.42147435897435903,
+   "v": 0.338054435483871,
+   "r": 0.01875
+  },
+  {
+   "region": "overhead",
+   "type": "guard",
+   "u": 0.32852564102564097,
+   "v": 0.5214213709677419,
+   "colour": "red",
+   "up": true
+  },
+  {
+   "region": "overhead",
+   "type": "toggle",
+   "u": 0.42147435897435903,
+   "v": 0.5214213709677419,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "overhead",
+   "type": "toggle",
+   "u": 0.32852564102564097,
+   "v": 0.7047883064516128,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "overhead",
+   "type": "guard",
+   "u": 0.578525641025641,
+   "v": 0.1684727822580645,
+   "colour": "yellow",
+   "up": false
+  },
+  {
+   "region": "overhead",
+   "type": "toggle",
+   "u": 0.671474358974359,
+   "v": 0.1684727822580645,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "overhead",
+   "type": "toggle",
+   "u": 0.671474358974359,
+   "v": 0.37941028225806456,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "overhead",
+   "type": "toggle",
+   "u": 0.578525641025641,
+   "v": 0.6653225806451613,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "overhead",
+   "type": "toggle",
+   "u": 0.671474358974359,
+   "v": 0.6653225806451613,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "overhead",
+   "type": "knob",
+   "u": 0.671474358974359,
+   "v": 0.8750000000000001,
+   "r": 0.01875
+  },
+  {
+   "region": "overhead",
+   "type": "toggle",
+   "u": 0.828525641025641,
+   "v": 0.1684727822580645,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "overhead",
+   "type": "guard",
+   "u": 0.921474358974359,
+   "v": 0.1684727822580645,
+   "colour": "red",
+   "up": true
+  },
+  {
+   "region": "overhead",
+   "type": "toggle",
+   "u": 0.828525641025641,
+   "v": 0.37941028225806456,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "overhead",
+   "type": "toggle",
+   "u": 0.921474358974359,
+   "v": 0.37941028225806456,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "overhead",
+   "type": "guard",
+   "u": 0.828525641025641,
+   "v": 0.6653225806451613,
+   "colour": "red",
+   "up": true
+  },
+  {
+   "region": "overhead",
+   "type": "toggle",
+   "u": 0.921474358974359,
+   "v": 0.6653225806451613,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "overhead",
+   "type": "toggle",
+   "u": 0.828525641025641,
+   "v": 0.8750000000000001,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "overhead",
+   "type": "toggle",
+   "u": 0.921474358974359,
+   "v": 0.8750000000000001,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "centre",
+   "type": "guard",
+   "u": 0.17691200657894737,
+   "v": 0.18397177419354838,
+   "colour": "red",
+   "up": true
+  },
+  {
+   "region": "centre",
+   "type": "toggle",
+   "u": 0.3909333881578947,
+   "v": 0.18397177419354838,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "centre",
+   "type": "guard",
+   "u": 0.17691200657894737,
+   "v": 0.47379032258064513,
+   "colour": "yellow",
+   "up": true
+  },
+  {
+   "region": "centre",
+   "type": "toggle",
+   "u": 0.3909333881578947,
+   "v": 0.47379032258064513,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "centre",
+   "type": "knob",
+   "u": 0.6049547697368421,
+   "v": 0.47379032258064513,
+   "r": 0.01875
+  },
+  {
+   "region": "centre",
+   "type": "knob",
+   "u": 0.8189761513157895,
+   "v": 0.47379032258064513,
+   "r": 0.01875
+  },
+  {
+   "region": "centre",
+   "type": "toggle",
+   "u": 0.17691200657894737,
+   "v": 0.7081653225806451,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "centre",
+   "type": "toggle",
+   "u": 0.3909333881578947,
+   "v": 0.7081653225806451,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "centre",
+   "type": "knob",
+   "u": 0.6049547697368421,
+   "v": 0.7081653225806451,
+   "r": 0.01875
+  },
+  {
+   "region": "centre",
+   "type": "knob",
+   "u": 0.8189761513157895,
+   "v": 0.7081653225806451,
+   "r": 0.01875
+  },
+  {
+   "region": "centre",
+   "type": "toggle",
+   "u": 0.3909333881578947,
+   "v": 0.9107862903225805,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "centre",
+   "type": "knob",
+   "u": 0.8189761513157895,
+   "v": 0.9107862903225805,
+   "r": 0.01875
+  },
+  {
+   "region": "ped_front",
+   "type": "toggle",
+   "u": 0.15789473684210525,
+   "v": 0.5603693181818182,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "ped_front",
+   "type": "toggle",
+   "u": 0.8421052631578947,
+   "v": 0.5603693181818182,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "ped_L",
+   "type": "toggle",
+   "u": 0.15625,
+   "v": 0.56640625,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "ped_L",
+   "type": "toggle",
+   "u": 0.34375,
+   "v": 0.56640625,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "ped_L",
+   "type": "toggle",
+   "u": 0.65625,
+   "v": 0.56640625,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "ped_L",
+   "type": "toggle",
+   "u": 0.84375,
+   "v": 0.56640625,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "ped_R",
+   "type": "guard",
+   "u": 0.15625,
+   "v": 0.56640625,
+   "colour": "red",
+   "up": true
+  },
+  {
+   "region": "ped_R",
+   "type": "knob",
+   "u": 0.65625,
+   "v": 0.56640625,
+   "r": 0.01875
+  },
+  {
+   "region": "ped_R",
+   "type": "guard",
+   "u": 0.84375,
+   "v": 0.56640625,
+   "colour": "red",
+   "up": true
+  },
+  {
+   "region": "wall_L",
+   "type": "knob",
+   "u": 0.0625,
+   "v": 0.3590494791666667,
+   "r": 0.01875
+  },
+  {
+   "region": "wall_L",
+   "type": "knob",
+   "u": 0.1375,
+   "v": 0.3590494791666667,
+   "r": 0.01875
+  },
+  {
+   "region": "wall_L",
+   "type": "toggle",
+   "u": 0.0625,
+   "v": 0.7516276041666666,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "wall_L",
+   "type": "guard",
+   "u": 0.1375,
+   "v": 0.7516276041666666,
+   "colour": "yellow",
+   "up": false
+  },
+  {
+   "region": "wall_L",
+   "type": "toggle",
+   "u": 0.4625,
+   "v": 0.3590494791666667,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "wall_L",
+   "type": "toggle",
+   "u": 0.5375,
+   "v": 0.3590494791666667,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "wall_L",
+   "type": "guard",
+   "u": 0.4625,
+   "v": 0.7516276041666666,
+   "colour": "yellow",
+   "up": true
+  },
+  {
+   "region": "wall_L",
+   "type": "knob",
+   "u": 0.5375,
+   "v": 0.7516276041666666,
+   "r": 0.01875
+  },
+  {
+   "region": "wall_L",
+   "type": "toggle",
+   "u": 0.7375,
+   "v": 0.3590494791666667,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "wall_L",
+   "type": "knob",
+   "u": 0.7375,
+   "v": 0.7516276041666666,
+   "r": 0.01875
+  },
+  {
+   "region": "wall_R",
+   "type": "knob",
+   "u": 0.0625,
+   "v": 0.3590494791666667,
+   "r": 0.01875
+  },
+  {
+   "region": "wall_R",
+   "type": "toggle",
+   "u": 0.1375,
+   "v": 0.3590494791666667,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "wall_R",
+   "type": "toggle",
+   "u": 0.0625,
+   "v": 0.7516276041666666,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "aft_L",
+   "type": "knob",
+   "u": 0.0756578947368421,
+   "v": 0.3546875,
+   "r": 0.01875
+  },
+  {
+   "region": "aft_L",
+   "type": "toggle",
+   "u": 0.17434210526315788,
+   "v": 0.3546875,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "aft_L",
+   "type": "knob",
+   "u": 0.17434210526315788,
+   "v": 0.7515625,
+   "r": 0.01875
+  },
+  {
+   "region": "aft_L",
+   "type": "knob",
+   "u": 0.3256578947368421,
+   "v": 0.3546875,
+   "r": 0.01875
+  },
+  {
+   "region": "aft_L",
+   "type": "toggle",
+   "u": 0.3256578947368421,
+   "v": 0.7515625,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "aft_L",
+   "type": "knob",
+   "u": 0.4243421052631579,
+   "v": 0.7515625,
+   "r": 0.01875
+  },
+  {
+   "region": "aft_L",
+   "type": "knob",
+   "u": 0.6743421052631579,
+   "v": 0.3546875,
+   "r": 0.01875
+  },
+  {
+   "region": "aft_L",
+   "type": "toggle",
+   "u": 0.5756578947368421,
+   "v": 0.7515625,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "aft_L",
+   "type": "knob",
+   "u": 0.6743421052631579,
+   "v": 0.7515625,
+   "r": 0.01875
+  },
+  {
+   "region": "aft_L",
+   "type": "toggle",
+   "u": 0.9243421052631579,
+   "v": 0.3546875,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "aft_L",
+   "type": "toggle",
+   "u": 0.8256578947368421,
+   "v": 0.7515625,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "aft_L",
+   "type": "toggle",
+   "u": 0.9243421052631579,
+   "v": 0.7515625,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "aft_R",
+   "type": "toggle",
+   "u": 0.17434210526315788,
+   "v": 0.3546875,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "aft_R",
+   "type": "guard",
+   "u": 0.0756578947368421,
+   "v": 0.7515625,
+   "colour": "red",
+   "up": true
+  },
+  {
+   "region": "aft_R",
+   "type": "toggle",
+   "u": 0.17434210526315788,
+   "v": 0.7515625,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "aft_R",
+   "type": "toggle",
+   "u": 0.3256578947368421,
+   "v": 0.3546875,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "aft_R",
+   "type": "toggle",
+   "u": 0.4243421052631579,
+   "v": 0.3546875,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "aft_R",
+   "type": "knob",
+   "u": 0.3256578947368421,
+   "v": 0.7515625,
+   "r": 0.01875
+  },
+  {
+   "region": "aft_R",
+   "type": "toggle",
+   "u": 0.5756578947368421,
+   "v": 0.3546875,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "aft_R",
+   "type": "toggle",
+   "u": 0.5756578947368421,
+   "v": 0.7515625,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "aft_R",
+   "type": "knob",
+   "u": 0.9243421052631579,
+   "v": 0.3546875,
+   "r": 0.01875
+  },
+  {
+   "region": "aft_R",
+   "type": "toggle",
+   "u": 0.8256578947368421,
+   "v": 0.7515625,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "aft_R",
+   "type": "knob",
+   "u": 0.9243421052631579,
+   "v": 0.7515625,
+   "r": 0.01875
+  },
+  {
+   "region": "low_L",
+   "type": "toggle",
+   "u": 0.08928571428571429,
+   "v": 0.6328125,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "low_L",
+   "type": "toggle",
+   "u": 0.19642857142857142,
+   "v": 0.6328125,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "low_L",
+   "type": "guard",
+   "u": 0.30357142857142855,
+   "v": 0.6328125,
+   "colour": "yellow",
+   "up": false
+  },
+  {
+   "region": "low_L",
+   "type": "toggle",
+   "u": 0.4107142857142857,
+   "v": 0.6328125,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "low_L",
+   "type": "knob",
+   "u": 0.5892857142857143,
+   "v": 0.6328125,
+   "r": 0.01875
+  },
+  {
+   "region": "low_L",
+   "type": "knob",
+   "u": 0.6964285714285714,
+   "v": 0.6328125,
+   "r": 0.01875
+  },
+  {
+   "region": "low_R",
+   "type": "knob",
+   "u": 0.08928571428571429,
+   "v": 0.6328125,
+   "r": 0.01875
+  },
+  {
+   "region": "low_R",
+   "type": "knob",
+   "u": 0.30357142857142855,
+   "v": 0.6328125,
+   "r": 0.01875
+  },
+  {
+   "region": "low_R",
+   "type": "toggle",
+   "u": 0.4107142857142857,
+   "v": 0.6328125,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "low_R",
+   "type": "toggle",
+   "u": 0.8035714285714286,
+   "v": 0.6328125,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "low_R",
+   "type": "guard",
+   "u": 0.9107142857142857,
+   "v": 0.6328125,
+   "colour": "yellow",
+   "up": true
+  },
+  {
+   "region": "shelf",
+   "type": "toggle",
+   "u": 0.11666666666666665,
+   "v": 0.6106770833333334,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "shelf",
+   "type": "toggle",
+   "u": 0.25,
+   "v": 0.6106770833333334,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "shelf",
+   "type": "guard",
+   "u": 0.6166666666666667,
+   "v": 0.6106770833333334,
+   "colour": "red",
+   "up": true
+  },
+  {
+   "region": "shelf",
+   "type": "toggle",
+   "u": 0.8833333333333334,
+   "v": 0.6106770833333334,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "main",
+   "type": "toggle",
+   "u": 0.033154121863799284,
+   "v": 0.8882415254237288,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "main",
+   "type": "toggle",
+   "u": 0.07258064516129033,
+   "v": 0.8882415254237288,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "main",
+   "type": "toggle",
+   "u": 0.11200716845878134,
+   "v": 0.8882415254237288,
+   "colour": null,
+   "up": false
+  },
+  {
+   "region": "main",
+   "type": "toggle",
+   "u": 0.18346774193548387,
+   "v": 0.8882415254237288,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "main",
+   "type": "toggle",
+   "u": 0.2278225806451613,
+   "v": 0.8882415254237288,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "main",
+   "type": "guard",
+   "u": 0.9668458781362007,
+   "v": 0.8882415254237288,
+   "colour": "yellow",
+   "up": false
+  },
+  {
+   "region": "main",
+   "type": "toggle",
+   "u": 0.7468637992831542,
+   "v": 0.8882415254237288,
+   "colour": null,
+   "up": true
+  },
+  {
+   "region": "main",
+   "type": "guard",
+   "u": 0.7836021505376343,
+   "v": 0.8882415254237288,
+   "colour": "red",
+   "up": false
+  },
+  {
+   "region": "main",
+   "type": "guard",
+   "u": 0.8203405017921146,
+   "v": 0.8882415254237288,
+   "colour": "red",
+   "up": true
+  },
+  {
+   "region": "main",
+   "type": "fire",
+   "u": 0.384744623655914,
+   "v": 0.07033898305084745
+  },
+  {
+   "region": "main",
+   "type": "fire",
+   "u": 0.4176747311827957,
+   "v": 0.07033898305084745
+  },
+  {
+   "region": "main",
+   "type": "fire",
+   "u": 0.4506048387096774,
+   "v": 0.07033898305084745
+  },
+  {
+   "region": "main",
+   "type": "fire",
+   "u": 0.4835349462365591,
+   "v": 0.07033898305084745
+  },
+  {
+   "region": "main",
+   "type": "fire",
+   "u": 0.5164650537634408,
+   "v": 0.07033898305084745
+  },
+  {
+   "region": "main",
+   "type": "fire",
+   "u": 0.5493951612903225,
+   "v": 0.07033898305084745
+  },
+  {
+   "region": "main",
+   "type": "fire",
+   "u": 0.5823252688172043,
+   "v": 0.07033898305084745
+  },
+  {
+   "region": "main",
+   "type": "fire",
+   "u": 0.615255376344086,
+   "v": 0.07033898305084745
+  },
+  {
+   "region": "main",
+   "type": "gear",
+   "u": 0.33870967741935487,
+   "v": 0.8559322033898306
+  }
+ ],
+ "dials": [
+  {
+   "slot": 0,
+   "name": "EPR",
+   "uv": [
+    0.0,
+    0.875,
+    0.125,
+    1.0
+   ]
+  },
+  {
+   "slot": 1,
+   "name": "%RPM",
+   "uv": [
+    0.125,
+    0.875,
+    0.25,
+    1.0
+   ]
+  },
+  {
+   "slot": 2,
+   "name": "EGT",
+   "uv": [
+    0.25,
+    0.875,
+    0.375,
+    1.0
+   ]
+  },
+  {
+   "slot": 3,
+   "name": "%RPM",
+   "uv": [
+    0.375,
+    0.875,
+    0.5,
+    1.0
+   ]
+  },
+  {
+   "slot": 4,
+   "name": "FUEL FLOW",
+   "uv": [
+    0.5,
+    0.875,
+    0.625,
+    1.0
+   ]
+  },
+  {
+   "slot": 5,
+   "name": "OIL",
+   "uv": [
+    0.625,
+    0.875,
+    0.75,
+    1.0
+   ]
+  },
+  {
+   "slot": 6,
+   "name": "HYD",
+   "uv": [
+    0.75,
+    0.875,
+    0.875,
+    1.0
+   ]
+  },
+  {
+   "slot": 7,
+   "name": "FUEL QTY",
+   "uv": [
+    0.875,
+    0.875,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "slot": 8,
+   "name": "FLAPS",
+   "uv": [
+    0.0,
+    0.75,
+    0.125,
+    0.875
+   ]
+  },
+  {
+   "slot": 9,
+   "name": "CABIN ALT",
+   "uv": [
+    0.125,
+    0.75,
+    0.25,
+    0.875
+   ]
+  },
+  {
+   "slot": 10,
+   "name": "OXYGEN",
+   "uv": [
+    0.25,
+    0.75,
+    0.375,
+    0.875
+   ]
+  },
+  {
+   "slot": 11,
+   "name": "AC VOLTS",
+   "uv": [
+    0.375,
+    0.75,
+    0.5,
+    0.875
+   ]
+  },
+  {
+   "slot": 12,
+   "name": "LOAD",
+   "uv": [
+    0.5,
+    0.75,
+    0.625,
+    0.875
+   ]
+  },
+  {
+   "slot": 13,
+   "name": "G",
+   "uv": [
+    0.625,
+    0.75,
+    0.75,
+    0.875
+   ]
+  },
+  {
+   "slot": 14,
+   "name": "AOA",
+   "uv": [
+    0.75,
+    0.75,
+    0.875,
+    0.875
+   ]
+  },
+  {
+   "slot": 15,
+   "name": "CLOCK",
+   "uv": [
+    0.875,
+    0.75,
+    1.0,
+    0.875
+   ]
+  }
+ ]
+}

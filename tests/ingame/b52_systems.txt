@@ -1,0 +1,30 @@
+say START B-52J damaged systems (damage model steps 7 and 8): spoiler hydraulics, torn stubs
+include spawn.txt B52J
+expectac B52J
+runway
+wait 3
+takeoff 1.0 300 0.5
+wait 40
+setgear false
+wait 10
+expectlocked spoilers_L false
+expectlocked spoilers_R false
+say the damage display is the B-52's own: eight engine-fire lights
+expecthidden ENGINE 8 FIRE
+say both left pods shot away: the left wing's engines are gone, so its spoilers lose hydraulic power
+hit pod1_L 0 1200
+hit pod2_L 0 1200
+wait 3
+expectdead engine1 engine2 engine3 engine4
+expectlocked spoilers_L true
+expectlocked spoilers_R false
+say the left wingtip shot away: a torn stub closes the break on the outer wing
+hit wingtip_L 0 1000
+wait 2
+expectoff pod1_L pod2_L wingtip_L
+expectobj wingtip_L_stub
+expectobj pod1_L_stub
+expectobj wingtip_L_rootstub
+expectobj pod1_L_rootstub
+camat wing2_L -6 4 -10 50 b52_sys_stub.png
+say END

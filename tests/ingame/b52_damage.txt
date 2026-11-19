@@ -1,0 +1,49 @@
+say START B-52J damage model: armour, parts breaking off, engines with their pods
+include spawn.txt B52J
+expectac B52J
+runway
+wait 3
+structure
+say on the runway nothing is near its strength
+expectoff
+takeoff 1.0 300 0.5
+wait 50
+setgear false
+wait 10
+state
+say 1 g climb-out: every root well inside its strength
+structure
+expectoff
+expectdead
+say a hard hit on the left wingtip (143 net damage, past its structural threshold): it comes off
+hit wingtip_L 0 1000
+wait 1
+camat wing2_L -6 3 -10 50 b52_d_tip_off.png
+expectoff wingtip_L
+say the right outboard pod shot away: both its engines fail with it
+hit pod2_R 0 1200
+wait 1
+camat wing2_R 6 3 -10 50 b52_d_pod_off.png
+expectoff wingtip_L pod2_R
+expectdead engine7 engine8
+say a badly damaged left outer wing (about 0 hp left, 20% strength; the outer tanks' fuel relieves its bending): holds at 1 g
+hit wing2_L 0 778
+wait 1
+structure
+expectoff wingtip_L pod2_R
+say full pull (as much g as a slow B-52 can make): the weakened wing folds and takes its pod
+stick -1 0 0
+gwatch 4
+wait 4
+stick off
+wait 1
+structure
+camat @ac 0 25 -70 45 b52_d_after_pull.png
+expectoff wingtip_L pod2_R wing2_L pod2_L
+expectdead engine1 engine2 engine7 engine8
+mass
+say past the ultimate load: a 3.3 g pull at 220 m/s (gtest), what gives first (log only)
+gtest 1.3
+wait 2
+structure
+say END

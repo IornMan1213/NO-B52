@@ -34,8 +34,9 @@ namespace B52Systems
 
         internal static void Apply(AeroPart part)
         {
+            // Detached parts too: a piece that broke off tumbles about its own centre of mass with the same lever arms.
             var rb = part.rb;
-            if (!rb || !(part.parentUnit is Aircraft a) || rb != a.rb) return;          // detached parts fly on their own
+            if (!rb || !(part.parentUnit is Aircraft a)) return;
             if (!localAC.TryGetValue(part, out var ac))
             {
                 ac = Compute(part);
@@ -62,6 +63,10 @@ namespace B52Systems
 
         internal static void Forget(AeroPart part) => localAC.Remove(part);
 
+        /// <summary>Where the aero force acts (world space): the aerodynamic centre once worked out, else the part origin.</summary>
+        internal static Vector3 WorldAC(AeroPart part) =>
+            localAC.TryGetValue(part, out var ac) && ac.HasValue ? part.transform.TransformPoint(ac.Value) : part.transform.position;
+
         /// <summary>The aero force the job worked out for this part (world space), zero before the first step.</summary>
         internal static Vector3 Force(AeroPart part)
         {
@@ -69,7 +74,7 @@ namespace B52Systems
             return jf.IsCreated ? jf.Ref().force : Vector3.zero;
         }
 
-        private static Vector3? Compute(AeroPart part)
+        internal static Vector3? Compute(AeroPart part)
         {
             var t = part.transform;
             var ln = LiftNormal(part) ?? t;

@@ -28,6 +28,9 @@ namespace NODevDriverB52
                 test(keys.Contains(k), $"decoy {k} registered");
             int racks = keys.Count(n => n.StartsWith("B52_") && (n.Contains("_bayx") || n.Contains("_hsabx")));
             test(racks >= 60, $"B-52 weapon racks registered ({racks})");
+            test(keys.Contains("B52_M61A1_tail"), "B-52H tail turret mount registered (B52_M61A1_tail)");
+            var cfgTail = Chainloader.PluginInfos.TryGetValue("com.ironman1213.b52systems", out var pi2) && pi2.Instance.Config.TryGetEntry<bool>("Weapons", "AiTailGun", out var tail) && !(bool)tail.DefaultValue;
+            test(cfgTail, "AI B-52Js fly without the tail gun by default (Weapons.AiTailGun off)");
             test(keys.Contains("B52_AGM86C_hsabx4") && !keys.Contains("B52_AGM86C_hsabx6"), "CALCM pylon rack is x4 (payload limit)");
             var heavy = Chainloader.PluginInfos.ContainsKey("com.ironman1213.heavyhangar");
             log.LogInfo($"  Heavy Hangar installed: {heavy}");

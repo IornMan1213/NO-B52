@@ -1,0 +1,28 @@
+say START B-52J impacts (damage model step 9): a gentle belly landing scrapes, a hard one breaks what touches
+include spawn.txt B52J
+expectac B52J
+runway
+wait 3
+say gear up, held just above the runway
+hold 4
+setgear false
+wait 10
+bellyhold 0.05
+wait 1
+parts
+say gentle: 1 m/s sink at 60 m/s
+drop 0 1.0 60
+wait 12
+parts
+structure
+expectoff
+say hard: 4 m/s sink at 60 m/s
+hold 3
+wait 1
+bellyhold 0.05
+wait 1
+drop 0 4.0 60
+wait 12
+parts
+structure
+say END

@@ -24,7 +24,17 @@ fi
 
 if ! pgrep -x "NuclearOption.e" >/dev/null; then
     rm -f "$bep/nodev_b52_cmd.txt"   # a stale scenario would start before the menu exists
-    steam -applaunch 2168680 >/dev/null 2>&1 &
+    if [ "${LAUNCH:-steam}" = proton ]; then
+        # Straight through Proton, beside the running Steam client rather than through it: each launch through the
+        # Steam client leaves it holding about a dozen more X server connections, and when the X server runs out
+        # (about 256) Wine crashes at startup and the game freezes. Long unattended test runs use this.
+        si="${STEAM_ROOT:-$HOME/.steam/debian-installation}"
+        proton="$(ls -d "$si/steamapps/common/Proton "* 2>/dev/null | sort -V | tail -1)"
+        (cd "$game" && STEAM_COMPAT_CLIENT_INSTALL_PATH="$si" STEAM_COMPAT_DATA_PATH="$si/steamapps/compatdata/2168680" \
+            SteamAppId=2168680 SteamGameId=2168680 WINEDLLOVERRIDES="winhttp=n,b" "$proton/proton" run ./NuclearOption.exe >/dev/null 2>&1 &)
+    else
+        steam -applaunch 2168680 >/dev/null 2>&1 &
+    fi
     echo "launching Nuclear Option..."
     for _ in $(seq 60); do pgrep -x "NuclearOption.e" >/dev/null && break; sleep 2; done
 fi

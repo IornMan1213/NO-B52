@@ -1,0 +1,35 @@
+say START B-52J windscreen: the view from the cockpit, what the game shows in cockpit view, and the glass material
+include spawn.txt B52J
+expectac B52J
+runway
+wait 3
+camstate cockpit
+wait 2
+say cockpit view: which of the cockpit section's renderers (skin, glass, interior) the game shows
+renderers cockpit
+glassprops
+look 0 -5
+wait 1
+shot b52_gl_in_fwd.png
+wait 1
+look -50 -10
+wait 1
+shot b52_gl_in_left.png
+wait 1
+look 50 -10
+wait 1
+shot b52_gl_in_right.png
+wait 1
+look 0 25
+wait 1
+shot b52_gl_in_up.png
+wait 1
+look off
+camstate orbit
+wait 2
+say outside view: the same renderers
+renderers cockpit
+pview 0 9.5 62 0 0.5 24.5 14 b52_gl_out_front.png
+pview -14 7 50 0 0.5 24.5 14 b52_gl_out_side.png
+pview 0 20 130 0 0 18 22 b52_gl_out_far.png
+say END

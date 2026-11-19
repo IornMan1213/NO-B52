@@ -1,0 +1,67 @@
+say START B-52J bay, wells and engine views from many angles
+include spawn.txt B52J
+expectac B52J
+runway
+wait 3
+takeoff 1.0 300 0.5
+wait 50
+setgear true
+bayopen 120
+wait 15
+state
+say views with the game's own LOD choice
+camat bombBay 0 -9 0 60 b52_h_bay_below.png
+camat bombBay 5 -6 -7 55 b52_h_bay_aftright.png
+camat bombBay -5 -6 7 55 b52_h_bay_fwdleft.png
+camat bombBay 9 -2.5 0 50 b52_h_bay_side.png
+camat gear_RL -4 -6 -4 55 b52_h_wellR.png
+camat gear_FL 4 -6 4 55 b52_h_wellF.png
+camat gear_RL 0 -3 -1 75 b52_h_wellR_close.png
+camat gear_FL 1.5 -3 1 75 b52_h_wellF_close.png
+camat bombBay 0 -4 -6.5 70 b52_h_bay_aftend.png
+camat bombBay 0 -4 6.5 70 b52_h_bay_fwdend.png
+camat pod1_L 0 0.3 -14 40 b52_h_eng1L_rear.png
+camat pod1_L 2.5 -1.5 -7 45 b52_h_eng1L_rear_low.png
+camat pod2_R 0 0.3 -14 40 b52_h_eng2R_rear.png
+camat pod1_L 0 0.3 14 40 b52_h_eng1L_front.png
+camat @ac 45 -25 -50 45 b52_h_ac_aftbelow.png
+camat @ac -60 -30 40 45 b52_h_ac_fwdbelow.png
+camat @ac 0 -70 0 50 b52_h_ac_below.png
+camat @ac 90 10 -90 40 b52_h_ac_rear34.png
+camat @ac -250 -80 250 20 b52_h_ac_mid.png
+camat @ac 600 -150 -600 10 b52_h_ac_far.png
+say cockpit from outside (in the game's external view), pylon racks, damage setup
+camstate orbit
+wait 1
+camat cockpit 4 1.2 3 40 b52_h_cockpit_out_side.png
+camat cockpit 0 2.5 8 35 b52_h_cockpit_out_front.png
+camat cockpit -2 3 -3 45 b52_h_cockpit_out_above.png
+camstate cockpit
+wait 1
+camat pylonMount_L -3 -2.5 4 50 b52_h_rack_L.png
+camat pylonMount_L 4 -1 -1 55 b52_h_rack_L_side.png
+camat pylonMount_R 2 -4 -5 50 b52_h_rack_R.png
+parts
+say spoilers flat, then raised by a full roll input
+camat spoilers_L 2 8 -2 50 b52_h_spoilers_flat.png
+camat spoilers_L 0 3 0.5 75 b52_h_spoilers_flat_close.png
+camat spoilers_L 0 2.5 -5 55 b52_h_spoilers_flat_aft.png
+camat spoilers_R 0 2.5 -5 55 b52_h_spoilersR_flat_aft.png
+stick 0 -1 0
+wait 2.5
+camat spoilers_L 2 8 -2 50 b52_h_spoilers_up.png
+camat spoilers_L 0 3 0.5 75 b52_h_spoilers_up_close.png
+camat spoilers_L 0 2.5 -5 55 b52_h_spoilers_up_aft.png
+camat spoilers_R 0 2.5 -5 55 b52_h_spoilersR_up_aft.png
+stick off
+wait 2
+say same views at full detail
+forcelod 0
+camat bombBay 0 -9 0 60 b52_h0_bay_below.png
+camat bombBay 5 -6 -7 55 b52_h0_bay_aftright.png
+camat gear_RL -4 -6 -4 55 b52_h0_wellR.png
+camat pod1_L 0 0.3 -14 40 b52_h0_eng1L_rear.png
+camat @ac 45 -25 -50 45 b52_h0_ac_aftbelow.png
+camat @ac -250 -80 250 20 b52_h0_ac_mid.png
+forcelod off
+say END

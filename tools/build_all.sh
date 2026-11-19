@@ -28,7 +28,9 @@ if [[ "$MODE" == all ]]; then
   step "Blender wing pylons"     "PYLONS|  hsab"        blender_run "$PARTS" --python tools/blender_pylons.py
   step "Blender engine fans"     "FANS"                 blender_run "$PARTS" --python tools/blender_fans.py
   step "Blender hull fix"        "HULLFIX"              blender_run "$PARTS" --python tools/blender_hullfix.py -- "$(winpath "$ROOT/$SRC")"
-  step "Blender cockpit"         "COCKPIT"              blender_run "$PARTS" --python tools/blender_cockpit.py
+  step "Blender inner shell"     "INNERSHELL"           blender_run "$PARTS" --python tools/blender_innershell.py
+  step "Cockpit panel art"       "ATLAS"                "$PYTHON" tools/make_cockpit_atlas.py
+  step "Blender cockpit"         "COCKPIT"            blender_run "$PARTS" --python tools/blender_cockpit.py
   step "Blender exterior atlas"  "ATLAS"                blender_run "$PARTS" --python tools/blender_atlas.py
   step "Livery masks"            "LIVERY"               blender_run "$PARTS" --python tools/blender_livery_masks.py
   step "Atlas image"             ""                     "$PYTHON" tools/make_atlas.py
@@ -39,7 +41,13 @@ if [[ "$MODE" == all ]]; then
     step "Blender skin AO"       "AO baked"             blender_run "$PARTS" --python tools/blender_ao.py -- "$(winpath "$ROOT/unity/Mods/B52")"
   fi
   step "Blender LODs"            "LODS"                 blender_run "$PARTS" --python tools/blender_lods.py
-  step "Blender FBX export"      "EXPORTED"             blender_run "$PARTS" --python tools/blender_export.py -- "$(winpath "$ROOT/unity/Mods/B52")"
+  step "Aircraft icon"           "ICON"                 blender_run "$PARTS" --python tools/blender_icon.py -- "$(winpath "$ROOT/unity/Mods/B52")"
+  step "Blender structure"       "STRUCTURE"            blender_run "$PARTS" --python tools/blender_structure.py
+  step "Damage display masks"    "STATUS"               blender_run "$PARTS" --python tools/blender_status.py -- "$(winpath "$ROOT/unity/Mods/B52/Textures/Status")"
+  step "Damage display image"    ""                     "$PYTHON" tools/make_status_display.py
+  step "Blender tail gun"        "TAILGUN"              blender_run "$PARTS" --python tools/blender_tailgun.py
+  step "Blender FBX export"   "EXPORTED"             blender_run "$PARTS" --python tools/blender_export.py -- "$(winpath "$ROOT/unity/Mods/B52")"
+  step "Atlas at 8192"           "ATLASHD"              "$PYTHON" tools/make_atlas_hd.py
 fi
 
 if [[ "$MODE" == all || "$MODE" == --from-fbx ]]; then
@@ -48,6 +56,7 @@ if [[ "$MODE" == all || "$MODE" == --from-fbx ]]; then
   step "Unity prefab" "" unity_run B52Tools.B52Builder.Build "$LOGS/unity_prefab_editor.log"
   grep -E "error CS" "$LOGS/unity_prefab_editor.log" | head -5 || true
   grep -E "FAILED|Saved|Hardpoints|Materials|Livery targets" "$B52_UNITY_PROJECT/B52Build.log" || true
+  [ -f "$B52_UNITY_PROJECT/B52DonorAudit.md" ] && cp "$B52_UNITY_PROJECT/B52DonorAudit.md" docs/DONOR_AUDIT.md && grep -m1 "Components taken from the donor" docs/DONOR_AUDIT.md
   step "Unity mod bundle" "" unity_run B52Tools.B52Builder.BuildMod "$LOGS/unity_mod_editor.log"
   grep -E "\[Blueprinter\] (Built|Missing)|\[B52\] mod built" "$LOGS/unity_mod_editor.log" || true
   ls -la build/*.nobp
