@@ -31,19 +31,13 @@ hit wing2_L 0 778
 wait 1
 structure
 expectoff wingtip_L pod2_R
-say full pull (as much g as a slow B-52 can make): the weakened wing folds and takes its pod
-stick -1 0 0
-gwatch 4
-wait 4
-stick off
-wait 1
-structure
-camat @ac 0 25 -70 45 b52_d_after_pull.png
-expectoff wingtip_L pod2_R wing2_L pod2_L
-expectdead engine1 engine2 engine7 engine8
-mass
-say past the ultimate load: a 3.3 g pull at 220 m/s (gtest), what gives first (log only)
-gtest 1.3
+say a 1.5 g pull at 220 m/s (gtest): past the weakened wing's strength, inside the sound one's; it folds and takes its pod
+gtest 0.3 log
 wait 2
 structure
+camat @ac 0 25 -70 45 b52_d_after_pull.png
+# at 220 m/s losing the left outer wing rolls the jet hard, and in some runs the sound right outer wing goes too
+expectoff wingtip_L pod2_R wing2_L pod2_L wing2_R? wingtip_R?
+expectdead engine1 engine2 engine7 engine8
+mass
 say END

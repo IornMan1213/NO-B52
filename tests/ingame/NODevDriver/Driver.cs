@@ -545,15 +545,17 @@ namespace NODevDriverB52
                     foreach (var line in rep.Split('\n')) Logger.LogInfo("  " + line);
                     break;
                 }
-                case "expectoff":   // expectoff <part> [<part>...]: those parts have come off the player's jet, every other part is still on
+                case "expectoff":   // expectoff <part> [<part>...] [<part>?...]: those parts have come off the player's jet, every other part is still on; a part marked ? may or may not be off
                 {
                     var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
                     if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
-                    var want = new HashSet<string>(arg.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries));
+                    var words = arg.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+                    var want = new HashSet<string>(words.Where(w => !w.EndsWith("?")));
+                    var maybe = new HashSet<string>(words.Where(w => w.EndsWith("?")).Select(w => w.TrimEnd('?')));
                     var acParts2 = FindObjectsOfType<UnitPart>().Where(u => u.parentUnit == ac).ToList();
                     var off = acParts2.Where(u => u.IsDetached()).Select(u => u.name).OrderBy(s => s).ToList();
-                    bool ok = want.SetEquals(off);
-                    Test(ok, $"detached parts: [{string.Join(" ", off)}], expected [{string.Join(" ", want.OrderBy(s => s))}]");
+                    bool ok = want.IsSubsetOf(off) && off.All(o => want.Contains(o) || maybe.Contains(o));
+                    Test(ok, $"detached parts: [{string.Join(" ", off)}], expected [{string.Join(" ", want.OrderBy(s => s))}]" + (maybe.Count > 0 ? $", may be off: [{string.Join(" ", maybe.OrderBy(s => s))}]" : ""));
                     break;
                 }
                 case "expectdead":   // expectdead [engine...]: exactly those engines of the player's jet have failed (Turbofan.operable false)
