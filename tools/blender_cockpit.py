@@ -621,10 +621,19 @@ for side, sx in (('L', -0.55), ('R', 0.55)):
     yb.write(y)
     pb = Builder()
     py, pz = CAM_Y + 0.90, CAM_Z - 1.12                                                    # under the balls of the feet
+    tilt = rx(-20)
+    def on_pedal(px, along, out=0.0):
+        """A point on the pedal face: along its length (+ up), out of its face (+ towards the pilot)."""
+        return Vector((sx + px, py, pz)) + tilt @ Vector((0, -out, along))
     for px in (-0.165, 0.165):
-        pb.box((sx + px, py, pz), (0.11, 0.03, 0.20), M['metal'], rot=rx(-20))             # pedal plate
-        pb.box((sx + px, py - 0.017, pz), (0.09, 0.006, 0.16), M['rubber'], rot=rx(-20), bevel=0)   # tread
+        pb.box((sx + px, py, pz), (0.11, 0.03, 0.20), M['metal'], rot=tilt)               # pedal plate
+        for k in range(5):                                                                  # ribbed rubber tread
+            pb.box(on_pedal(px, -0.07 + k * 0.03, 0.018), (0.09, 0.006, 0.014), M['rubber'], rot=tilt, bevel=0)
+        pb.box(on_pedal(px, 0.115, 0.004), (0.11, 0.035, 0.05), M['metal'], rot=tilt, bevel=0.006)   # toe brake
+        pb.box(on_pedal(px, 0.115, 0.024), (0.09, 0.006, 0.035), M['rubber'], rot=tilt, bevel=0)    # its tread
         pb.box((sx + px, py + 0.06, (pz - 0.08 + FLOOR) / 2), (0.04, 0.04, pz - 0.08 - FLOOR), M['black'])   # pedal arm
+        pb.box((sx + px, py - 0.10, FLOOR + 0.015), (0.10, 0.08, 0.03), M['rubber'], bevel=0.008)          # heel rest
+    pb.cyl(Vector((sx - 0.24, py + 0.06, FLOOR + 0.05)), Vector((sx + 0.24, py + 0.06, FLOOR + 0.05)), 0.018, M['metal'], 12)   # pivot shaft
     pb.write(obj(f'pedals_{side}', root, (sx, py, FLOOR)))
 
 

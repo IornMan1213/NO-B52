@@ -8,7 +8,7 @@ nor is runtime state the game sets itself at spawn (ids, hit points, speed, g, f
 
 ## Summary
 
-- Components taken from the donor (copied, moved across or cloned): **193**; settings in them: 17266, of which **2741 still at the donor's value** (16%).
+- Components taken from the donor (copied, moved across or cloned): **193**; settings in them: 17266, of which **2739 still at the donor's value** (16%).
 - Game components the builder added fresh (B-52 values throughout): 1 (Airbrake x1).
 - Aircraft parameters: copied from the donor's; 0 of 178 settings still at the donor's value.
 - Aircraft definition: copied from the donor's; 4 of 50 settings still at the donor's value.
@@ -20,7 +20,6 @@ nor is runtime state the game sets itself at spawn (ids, hit points, speed, g, f
 |---|---|---|---|---|
 | ParticleSystem | 20 | 12160 | 2432 | copied, cloned, moved |
 | ParticleSystemRenderer | 20 | 1523 | 307 | copied, cloned, moved |
-| ControlsFilter | 1 | 45 | 2 | copied |
 | NetworkIdentity | 1 | 10 | 0 | copied |
 | Aircraft | 1 | 22 | 0 | copied |
 | Rigidbody | 1 | 15 | 0 | copied |
@@ -35,6 +34,7 @@ nor is runtime state the game sets itself at spawn (ids, hit points, speed, g, f
 | NavLights | 1 | 7 | 0 | copied |
 | VaporEffect | 1 | 33 | 0 | copied |
 | AutopilotPlane | 1 | 13 | 0 | copied |
+| ControlsFilter | 1 | 45 | 0 | copied |
 | WeaponManager | 1 | 123 | 0 | copied |
 | Cockpit | 1 | 30 | 0 | copied |
 | CapsuleCollider | 13 | 130 | 0 | moved, cloned |
@@ -230,9 +230,7 @@ copied from fuselage_F/fuselage_FF/cockpit/cockpit_int; 0 of 30 settings still t
 
 ### ControlsFilter: `fuselage_F/cockpit`
 
-copied from fuselage_F/fuselage_FF/cockpit; 2 of 45 settings still the donor's.
-
-`flyByWire.postStallManeuverSpeed`, `flyByWire.iFactor`
+copied from fuselage_F/fuselage_FF/cockpit; 0 of 45 settings still the donor's.
 
 ### ControlSurface: 3: `fuselage_R/hstab_L`, `fuselage_R/hstab_L/elevator_L`, `fuselage_R/hstab_R`
 

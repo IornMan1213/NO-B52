@@ -202,12 +202,15 @@ namespace B52Tools
             var ap = cockpit ? cockpit.GetComponent(T("AutopilotPlane")) : null;
             if (ap)
             {
-                // The AI's pilot: tuned at the B-52's cruise (about 230 m/s), gentler than a fighter-bomber's gains (a
-                // 200 t aircraft responds slowly, and hard corrections overshoot), never inverted, angle of attack held
-                // under the wing's stall (17 deg; the wing is set at 6 deg on the fuselage).
-                SetF(ap, "forwardFlightController.referenceAirspeed", 230f);
+                // The AI's pilot: gains as the stock heavy aircraft's, never inverted, angle of attack held under the
+                // wing's stall (17 deg; the wing is set at 6 deg on the fuselage).
+                SetF(ap, "forwardFlightController.referenceAirspeed", 180f);   // as the stock heavies (gains scale with (180/v)^2)
                 Set(ap, "forwardFlightController.Enabled", p => p.boolValue = true);
-                Set(ap, "forwardFlightController.pitchFlightPID.PID", p => p.vector3Value = new Vector3(0.05f, 0.015f, 0.015f));
+                // Pitch: the stock heavy aircraft's gains (Darkreach and the fast bomber use 0.07/0.02/0.01 around
+                // 180-200 m/s), integral trimmed a little for the B-52's weight. At 0.05 around 230 m/s it had too
+                // little authority at approach speed: on final it overshot a 1.4 deg correction into a 14 deg dive, and
+                // with less integral still it dove into the ground joining the pattern (tests/ingame/b52_ai.txt).
+                Set(ap, "forwardFlightController.pitchFlightPID.PID", p => p.vector3Value = new Vector3(0.07f, 0.015f, 0.012f));
                 Set(ap, "forwardFlightController.yawFlightPID.PID", p => p.vector3Value = new Vector3(0.04f, 0.001f, 0.005f));
                 Set(ap, "forwardFlightController.rollFlightPID.PID", p => p.vector3Value = new Vector3(0.025f, 0.001f, 0.015f));
                 Set(ap, "hoverController", p => p.FindPropertyRelative("Enabled").boolValue = false);   // not a VTOL
@@ -236,6 +239,10 @@ namespace B52Tools
                 Set(cf, "autoHover", p => { p.FindPropertyRelative("Enabled").boolValue = false; p.FindPropertyRelative("Active").boolValue = false; });   // not a VTOL
                 Set(cf, "aimAssist", p => p.FindPropertyRelative("Enabled").boolValue = false);   // no gun to aim
                 B52DonorAudit.Chose(cf, "autoHover"); B52DonorAudit.Chose(cf, "aimAssist");   // switched off: their settings are never used
+                // Kept at the donor's on purpose: postStallManeuverSpeed is only stored (the game's fly-by-wire tuner
+                // shows it; nothing flies by it), and iFactor is the pitch loop's small integral (0.01), which the
+                // B-52's gains above were tuned and flown with.
+                B52DonorAudit.Chose(cf, "flyByWire.postStallManeuverSpeed"); B52DonorAudit.Chose(cf, "flyByWire.iFactor");
                 Set(cf, "flightAssistDefault", p => p.boolValue = true);
                 Set(cf, "ReverseThrust", p => p.boolValue = false);   // the F130 installation has no thrust reversers (the B-52 uses its drag chute)
             }

@@ -27,6 +27,7 @@ namespace B52Systems
             Add<GroundEffect>(go);
             Add<Instruments>(go);
             Add<CockpitLighting>(go);
+            Add<Annunciators>(go);
             Add<ExteriorLights>(go);
             Add<EngineFans>(go);
             if (Plugin.TelemetryEnabled.Value) Add<Telemetry>(go);

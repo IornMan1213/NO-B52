@@ -9,11 +9,17 @@ namespace B52Tools
     // -executeMethod run because importing assemblies forces a recompile/domain reload.
     public static class BatchSetup
     {
-        const string GameExe = @"C:\Program Files (x86)\Steam\steamapps\common\Nuclear Option\NuclearOption.exe";
+        // The game folder: B52_GAME_DIR (tools/env.sh sets it from NO_GAME_DIR), else the Steam default for the OS.
+        static string GameExe => System.IO.Path.Combine(System.Environment.GetEnvironmentVariable("B52_GAME_DIR")
+            ?? (Application.platform == RuntimePlatform.WindowsEditor
+                ? @"C:\Program Files (x86)\Steam\steamapps\common\Nuclear Option"
+                : System.IO.Path.Combine(System.Environment.GetEnvironmentVariable("HOME") ?? "", ".steam/steam/steamapps/common/Nuclear Option")),
+            "NuclearOption.exe");
         // The Assets folder of an AssetRipper export of NuclearOption.exe (see docs/FIELD_NOTE_*.md, step 1).
         static string RippedAssets => System.Environment.GetEnvironmentVariable("NO_RIPPED_ASSETS")
             ?? throw new Exception("Set NO_RIPPED_ASSETS to your AssetRipper ExportedProject/Assets folder");
-        const string GameVersion = "0.34.1";
+        // The game version the assemblies are recorded under: NO_GAME_VERSION, or the one the mod was last tested on.
+        static string GameVersion => System.Environment.GetEnvironmentVariable("NO_GAME_VERSION") ?? "0.34.6";
 
         public static void Step2ImportAssemblies()
         {

@@ -61,7 +61,10 @@ namespace B52Tools
             SetN(par, "AoAEffects.ShakeFactor", 0.05f);
             B52DonorAudit.Chose(par, "AoAEffects.AudioClip");    // the game's buffet sound
             SetN(par, "PIDReferenceAirspeed", 230f);
-            SetN(par, "cornerSpeed", 165f);
+            // The AI's pattern speed (AIPilotLandingState flies the pattern at cornerSpeed) and its best-turn speed. 165 was
+            // a fighter's: AI B-52s flew the pattern at 600 km/h and reached the runway at 400 km/h. The stock AWACS
+            // uses 120; the B-52 flies its pattern at about 240 kt.
+            SetN(par, "cornerSpeed", 125f);
             SetN(par, "minimumRadarAlt", 120f);
             Set(par, "verticalLanding", p => p.boolValue = false);
             SetN(par, "levelBias", 0f);                           // not read by the game

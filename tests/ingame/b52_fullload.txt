@@ -1,8 +1,10 @@
-say START B-52J full-load takeoff (rotate at 170 kt)
+say START B-52J full-load takeoff at maximum takeoff weight (rotate at 170 kt)
 include spawn.txt B52J
+# The default loadout plus 89% fuel is 221 t, the real B-52H's (and the mod's) maximum takeoff weight. Full fuel on top
+# of it is 237 t, 16 t over: that still flies, but climbs about 6 m/s, as an overloaded B-52 would.
 bayfit 0.05
 mass
-fuel 1
+fuel 0.89
 wait 2
 mass
 runway

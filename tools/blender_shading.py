@@ -18,6 +18,9 @@ import numpy as np
 
 ANGLE = 50.0          # between the skin's curvature (faces meet at up to ~40 deg) and its creases (70-120 deg)
 KEEP = 25.0           # a corner this close to its target is left alone
+# Shaded flat: the rudder is 8 triangles from the source model, a thin slab with flat sides, and smoothing that few
+# faces bent the light across a third of it whatever the angle
+FLAT = {'rudder'}
 
 cos_a = math.cos(math.radians(ANGLE)); cos_k = math.cos(math.radians(KEEP))
 total_fixed = total = 0
@@ -33,6 +36,8 @@ for o in bpy.data.objects:
     fn = np.empty(np_ * 3); me.polygons.foreach_get('normal', fn); fn = fn.reshape(-1, 3)
     ls = np.empty(np_, int); me.polygons.foreach_get('loop_start', ls)
     lt = np.empty(np_, int); me.polygons.foreach_get('loop_total', lt)
+    if o.name.split('_LoD')[0] in FLAT:
+        me.polygons.foreach_set('use_smooth', np.zeros(np_, bool))
     sm = np.empty(np_, bool); me.polygons.foreach_get('use_smooth', sm)
     lp = np.repeat(np.arange(np_), lt)                                   # loop -> polygon
     # corner angle at each loop: its weight

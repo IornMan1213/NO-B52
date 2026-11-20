@@ -34,6 +34,8 @@ winpath() { if [[ $IS_WIN == 1 ]]; then cygpath -w "$1"; else printf '%s\n' "$1"
 # gets it from B52_VERSION.
 mod_version() { tr -d ' \r\n' < "$ROOT/VERSION"; }
 export B52_VERSION="$(mod_version)"
+# The game folder as the editor sees it (a Windows path on Windows), for BatchSetup.
+export B52_GAME_DIR="$(winpath "$NO_GAME_DIR")"
 
 game_running() {
   if [[ $IS_WIN == 1 ]]; then tasklist 2>/dev/null | grep -qi "NuclearOption.exe"

@@ -15,6 +15,7 @@ namespace B52Systems
         private Transform asi, alt, alt1k, alt10k, vsi, adi;
         private Quaternion asi0, alt0, alt1k0, alt10k0, vsi0, adi0;
         private Material adiMat;
+        private float rho0;                 // sea-level air density, for indicated airspeed
         private Rigidbody rb;
         // Panel normal toward the crew, in cockpit_int space (panel tilted back 12 deg).
         private static readonly Vector3 Normal = new Vector3(0f, Mathf.Sin(12f * Mathf.Deg2Rad), -Mathf.Cos(12f * Mathf.Deg2Rad));
@@ -44,7 +45,10 @@ namespace B52Systems
         private void LateUpdate()
         {
             if (!aircraft) return;
-            float kts = aircraft.speed * 1.94384f;
+            // indicated airspeed, as a real airspeed indicator shows: the game's speed is true airspeed, which at
+            // cruise height reads far higher (at 10 km, 480 kt true is about 290 kt indicated)
+            if (rho0 <= 0f) rho0 = Mathf.Max(LevelInfo.GetAirDensity(0f), 0.01f);
+            float kts = aircraft.speed * Mathf.Sqrt(Mathf.Clamp01(aircraft.GetAirDensity() / rho0)) * 1.94384f;
             float ft = aircraft.transform.position.GlobalY() * 3.28084f;
             float fpm = rb ? rb.velocity.y * 196.85f : 0f;
             if (asi) asi.localRotation = Quaternion.AngleAxis(Mathf.Clamp(kts, 0f, 500f) / 500f * 300f, Normal) * asi0;

@@ -54,7 +54,8 @@ grep -aq "Loading \[NO Dev Driver B-52" "$log" || { echo "the dev driver is not 
 expand() {
     local dir line i; local -a args inc_args; dir="$(dirname "$1")"; args=("${@:2}")
     while IFS= read -r line || [ -n "$line" ]; do
-        if [[ "$line" =~ ^include[[:space:]]+([^[:space:]]+)(.*)$ ]]; then
+        if [[ "$line" =~ ^[[:space:]]*# ]]; then continue                     # a comment
+        elif [[ "$line" =~ ^include[[:space:]]+([^[:space:]]+)(.*)$ ]]; then
             read -r -a inc_args <<< "${BASH_REMATCH[2]}"
             expand "$dir/${BASH_REMATCH[1]}" "${inc_args[@]}"
         else

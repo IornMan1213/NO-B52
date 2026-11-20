@@ -8,7 +8,7 @@ import json, os, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PATH = os.path.join(ROOT, 'nomnom', 'B52J.json')
-GAME_VERSION = '0.34.3'          # the game build the release was tested on
+GAME_VERSION = '0.34.6'          # the game build the release was tested on
 version, zip_name, sha, category = sys.argv[1:5]
 
 with open(PATH, encoding='utf-8') as f:

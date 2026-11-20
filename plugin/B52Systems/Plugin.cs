@@ -17,6 +17,7 @@ namespace B52Systems
         internal static ConfigEntry<bool> TelemetryEnabled;
         internal static ConfigEntry<bool> VerboseAeroCfg;
         internal static ConfigEntry<bool> AiTailGun;
+        internal static ConfigEntry<bool> LogAiApproach;
         internal static ConfigEntry<KeyboardShortcut> CrabLeft, CrabRight, CrabCentre, HelpKey;
         internal static bool VerboseAero => VerboseAeroCfg != null && VerboseAeroCfg.Value;
         public const string JsonKey = "B52J";
@@ -33,6 +34,8 @@ namespace B52Systems
             TelemetryEnabled = Config.Bind("Telemetry", "Enabled", false,
                 "Write a CSV flight log of your own B-52J flights to BepInEx/B52_telemetry (speed, altitude, attitude, " +
                 "events), for tuning and bug reports. Only the newest 20 logs are kept.");
+            LogAiApproach = Config.Bind("Debug", "LogAiApproach", false,
+                "Log AI-flown B-52s' landing approach every 2 s (distance, height, speed, inputs), for tuning.");
             VerboseAeroCfg = Config.Bind("Debug", "LogAeroCentres", false,
                 "Log each part's aerodynamic centre (aircraft frame) when a B-52J first flies.");
             CrabLeft = Config.Bind("Gear", "CrabLeft", new KeyboardShortcut(KeyCode.LeftBracket),

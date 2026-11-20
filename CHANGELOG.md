@@ -2,6 +2,21 @@
 
 Player-facing changes in each release.
 
+## Unreleased
+
+- **AI B-52s fly a B-52's approach.** They flew the landing pattern at a fighter's speed (600 km/h and more) and
+  dove at the runway. They now fly the pattern at about 240 kt, ease down to landing speed on final, lower the gear
+  early for the drag, and follow the glide path by their flight path instead of diving at it. They still don't always
+  make the runway: on short final they can sink below the glide path and land short.
+- **Working caution and warning lights.** The row of lamps under the glareshield was painted on, all lit. Each lamp is
+  now dark until its condition trips: fire, engine out, either wing's hydraulics, gear down, gear unsafe, low fuel,
+  fuel leak, chute, speedbrake, bay doors open, crosswind crab set, all engines running, low altitude with the gear
+  up, damage and a part lost.
+- Rudder pedals with ribbed treads, toe brakes, heel rests and their pivot shaft.
+- The standby airspeed indicator shows indicated airspeed, like a real one: at cruise height it used to read true
+  airspeed, far above the speeds to fly by.
+- The rudder no longer shades unevenly: it's a flat slab and now looks like one.
+
 ## 0.9.1 (pre-release)
 
 The second 1.0 release candidate: a rebuilt flight deck, an optional tail turret, a real damage model and a

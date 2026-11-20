@@ -1712,7 +1712,6 @@ namespace B52Tools
                         .Select(t => (Object)t.GetComponent(T("BayDoor"))).ToList();
 
             // HSAB pylons between the fuselage and the inboard engine pods, one per wing.
-            var pylonMat = Find(ourRoot, "pod1_L").GetComponent<Renderer>()?.sharedMaterial;
             var pylons = new List<(Transform mount, Renderer r, Object part)>();
             foreach (var sd in new[] { "L", "R" })
             {
@@ -1729,18 +1728,9 @@ namespace B52Tools
                     mountPos = new Vector3(pb.center.x, pb.min.y - 0.05f, pb.center.z);
                 }
                 else
-                {
-                    Note("  ! hsabPylon_" + sd + " not in the FBX (run tools/blender_pylons.py): using a box");
-                    var py = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                    py.name = "hsabPylon_" + sd;
-                    Object.DestroyImmediate(py.GetComponent<Collider>());
-                    py.transform.SetParent(wr, false);
-                    py.transform.position = new Vector3(x, wb.min.y - 0.35f, wb.center.z - 0.8f);
-                    py.transform.rotation = ourRoot.rotation;
-                    py.transform.localScale = new Vector3(0.32f, 0.9f, 5.2f);
-                    pr = py.GetComponent<Renderer>(); if (pylonMat) pr.sharedMaterial = pylonMat;
-                    mountPos = new Vector3(x, wb.min.y - 0.85f, wb.center.z - 0.8f);
-                }
+                    // A missing pylon means tools/blender_pylons.py didn't run or failed: stop rather than ship the grey
+                    // boxes that used to stand in for it.
+                    throw new Exception("hsabPylon_" + sd + " is not in B52.fbx: run tools/blender_pylons.py (bash tools/build_all.sh)");
                 pr.enabled = false;                                    // shown by the game while a pylon weapon is loaded
                 var mt = Child(wr, "pylonMount_" + sd, mountPos);
                 pylons.Add((mt, pr, wr.GetComponent(T("UnitPart"))));
@@ -2102,8 +2092,10 @@ namespace B52Tools
             ps.FindProperty("landingSpeed").floatValue = 72f;
             ps.FindProperty("shortLandingSpeed").floatValue = 68f;
             ps.FindProperty("cruiseThrottle").floatValue = 0.82f;
-            ps.FindProperty("turningRadius").floatValue = 3500f;
-            ps.FindProperty("cornerSpeed").floatValue = 180f;
+            // 2500 m: a 30 deg bank at 240 kt is about 2 km. The AI's final starts 3 radii out, so this also sets how
+            // far out it begins the approach (7.5 km).
+            ps.FindProperty("turningRadius").floatValue = 2500f;
+            ps.FindProperty("cornerSpeed").floatValue = 125f;            // see B52Spec.Definition
             ps.FindProperty("groundTurningRadius").floatValue = 45f;
             ps.ApplyModifiedPropertiesWithoutUndo();
 

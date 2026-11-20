@@ -46,6 +46,7 @@ namespace B52Systems
         private readonly ControlSurface[] spoilers = new ControlSurface[2];
         private readonly UnitPart[] spoilerParts = new UnitPart[2];
         private readonly bool[] locked = new bool[2];
+        internal bool SideLocked(int side) => locked[side];   // that wing's spoilers have lost their hydraulics (Annunciators)
         private LandingGear[] gear;
         private readonly HashSet<LandingGear> broken = new HashSet<LandingGear>();
         private float next;

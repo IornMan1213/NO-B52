@@ -1873,14 +1873,19 @@ System.Collections.IEnumerator GTest(Aircraft ac, float pitch)
             var pivot = root.position;
             foreach (var rb in Bodies()) { rb.position = pivot + q * (rb.position - pivot); rb.rotation = q * rb.rotation; rb.transform.SetPositionAndRotation(rb.position, rb.rotation); }
             float maxG = 0f; var worst = parts.ToDictionary(p => p, p => 0f);
+            var gs = new List<float>();
             for (int i = 0; i < 100; i++)
             {
                 yield return new WaitForFixedUpdate();
                 maxG = Mathf.Max(maxG, ac.gForce);
+                if (i >= 10) gs.Add(ac.gForce);   // after the jolt of the instant tilt
                 foreach (var p in parts) if (p != null && p.rb != null) worst[p] = Mathf.Max(worst[p], (root.transform.InverseTransformPoint(p.transform.position) - rest[p]).magnitude);
             }
-            Logger.LogInfo($"  gtest {pitch} deg: max g {maxG:F1}, iterations {root.solverIterations}/{root.solverVelocityIterations}");
-            Test(maxG > 2f && maxG < 12f, $"g-test {pitch} deg pull: max {maxG:F1} g (2 to 12 expected)");
+            // The tilt is instant, so the first steps carry a jolt well above the pull it sets up (4.9 g peak for a 3.3 g
+            // pull); the median after it is the sustained g, and is what's checked.
+            gs.Sort(); float holdG = gs.Count > 0 ? gs[gs.Count / 2] : 0f;
+            Logger.LogInfo($"  gtest {pitch} deg: sustained g {holdG:F2} (median after the first 10 steps), peak {maxG:F1}, iterations {root.solverIterations}/{root.solverVelocityIterations}");
+            Test(holdG > 2.5f && holdG < 5f, $"g-test {pitch} deg pull: sustained {holdG:F2} g, peak {maxG:F1} g (2.5 to 5 g expected)");
             if (ac != null && !ac.disabled) StartCoroutine(Cruise(ac, gen));
             foreach (var kv in worst.OrderByDescending(kv => kv.Value).Take(10)) Logger.LogInfo($"    {kv.Key.name}: {kv.Value * 100f:F1} cm");
         }
