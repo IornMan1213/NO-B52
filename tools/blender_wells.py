@@ -124,14 +124,25 @@ for k in ('FL', 'FR', 'RL', 'RR'):
     seam += keep(part, ref, select=lambda p: ylo < p.y < yhi and sgn * p.x > -0.05 and p.z < CHINE_Z + 0.05)
 
     # well box: walls from the rim up to the roof, roof over the opening; both windings so it shows from any side
+    # One side is built on shared vertices, and the back is a reversed copy made at the end. (Both windings were built
+    # at once and their doubled vertices merged: that folded each pair into one face, so the box was one-sided, and from
+    # inside the open well the game, which draws only fronts, showed the hull's inside and the sky through its walls.)
     wb = bmesh.new()
-    def V(p): return wb.verts.new(p)
+    vcache = {}
+    def V(p):
+        key = (round(p.x, 4), round(p.y, 4), round(p.z, 4))
+        if key not in vcache: vcache[key] = wb.verts.new(p)
+        return vcache[key]
+    def face(pts):
+        vs = list(dict.fromkeys(V(p) for p in pts))
+        if len(vs) < 3: return
+        try: wb.faces.new(vs)
+        except ValueError: pass                                           # already there
     roof_pts = []
     for a, b in rim_pts:
         if (b - a).length < 1e-4: continue
         ra, rb = Vector((a.x, a.y, ROOF_Z)), Vector((b.x, b.y, ROOF_Z))
-        for quad in ((a, b, rb, ra), (ra, rb, b, a)):
-            f = wb.faces.new([V(p) for p in quad])
+        face((a, b, rb, ra))
         roof_pts += [ra, rb]
     # roof: the opening's plan outline at roof height (convex hull of the rim in plan)
     pts2 = sorted({(round(p.x, 4), round(p.y, 4)) for p in roof_pts})
@@ -146,8 +157,9 @@ for k in ('FL', 'FR', 'RL', 'RR'):
     hull2 = lower[:-1] + upper[:-1]
     if len(hull2) >= 3:
         ring = [Vector((x, y, ROOF_Z)) for x, y in hull2]
-        wb.faces.new([V(p) for p in ring]); wb.faces.new([V(p) for p in reversed(ring)])
-    bmesh.ops.remove_doubles(wb, verts=wb.verts, dist=1e-4)
+        face(ring)
+    back = bmesh.ops.duplicate(wb, geom=list(wb.verts) + list(wb.edges) + list(wb.faces))['geom']
+    bmesh.ops.reverse_faces(wb, faces=[f for f in back if isinstance(f, bmesh.types.BMFace)])
     wb.transform(inv)
     wme = bpy.data.meshes.new(f'wellBox_{k}'); wb.to_mesh(wme); wb.free(); wme.materials.append(M_WELL)
     well = bpy.data.objects.new(f'wellBox_{k}', wme); bpy.context.scene.collection.objects.link(well)

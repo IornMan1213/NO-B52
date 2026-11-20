@@ -581,6 +581,46 @@ def trim_inside_hull():
 
 trim_inside_hull()
 
+
+# ---- Two flaws of the source model a tester saw
+#      Each wing root's leading edge has a 20 cm square hole (x +-2.34, y 14.7, z 0.47) straight into the hollow wing: from
+#      ahead it read as a black square beside the fuselage. It is filled with skin, painted as the skin round it.
+#      Over the tail cone just behind the fin, the tail part carries a flat 0.8 x 0.6 m patch 1 cm above the fuselage skin,
+#      mapped to one dark texel: a black square from above. The fuselage skin under it is whole, so the patch goes.
+def fix_source_flaws():
+    for k in ('wingroot_L', 'wingroot_R'):
+        bm = parts[k]; uvl = bm.loops.layers.uv.active
+        bm.edges.ensure_lookup_table()
+        edges = [e for e in bm.edges if e.is_boundary]
+        seen, filled = set(), 0
+        for e in edges:
+            if e in seen: continue
+            comp, stack = [], [e]
+            while stack:
+                x = stack.pop()
+                if x in seen: continue
+                seen.add(x); comp.append(x)
+                for v in x.verts: stack += [y for y in v.link_edges if y.is_boundary and y not in seen]
+            vs = {v for x in comp for v in x.verts}
+            if not (sum(x.calc_length() for x in comp) < 1.2 * S and min(v.co.y for v in vs) > 14.0 * S): continue
+            new = bmesh.ops.contextual_create(bm, geom=comp)['faces']
+            for f in new:
+                f.normal_update()
+                if f.normal.y < 0: f.normal_flip()
+                f.material_index = next(l.face.material_index for v in f.verts for l in v.link_loops if l.face not in new)
+                for l in f.loops:                                    # each corner: the UV this point has in the skin round it
+                    l[uvl].uv = next(l2[uvl].uv for l2 in l.vert.link_loops if l2.face not in new).copy()
+            filled += len(new)
+        print(f'SOURCEFIX {k}: leading-edge hole filled ({filled} faces)')
+    bm = parts['tail']; bm.normal_update()
+    patch = [f for f in bm.faces if (lambda c: abs(c.x) < 0.45 * S and -18.6 * S < c.y < -17.6 * S and c.z > 1.25 * S)(f.calc_center_median())
+             and abs(f.normal.z) > 0.8]
+    bmesh.ops.delete(bm, geom=patch, context='FACES')
+    print(f'SOURCEFIX tail: {len(patch)} faces of the dark patch over the tail cone removed')
+
+
+fix_source_flaws()
+
 # ---- Build objects
 for o in list(bpy.data.objects):
     bpy.data.objects.remove(o)

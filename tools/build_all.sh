@@ -46,7 +46,8 @@ if [[ "$MODE" == all ]]; then
   step "Damage display masks"    "STATUS"               blender_run "$PARTS" --python tools/blender_status.py -- "$(winpath "$ROOT/unity/Mods/B52/Textures/Status")"
   step "Damage display image"    ""                     "$PYTHON" tools/make_status_display.py
   step "Blender tail gun"        "TAILGUN"              blender_run "$PARTS" --python tools/blender_tailgun.py
-  step "Blender FBX export"   "EXPORTED"             blender_run "$PARTS" --python tools/blender_export.py -- "$(winpath "$ROOT/unity/Mods/B52")"
+  step "Blender shading"         "SHADING total"        blender_run "$PARTS" --python tools/blender_shading.py
+  step "Blender FBX export"  "EXPORTED"             blender_run "$PARTS" --python tools/blender_export.py -- "$(winpath "$ROOT/unity/Mods/B52")"
   step "Atlas at 8192"           "ATLASHD"              "$PYTHON" tools/make_atlas_hd.py
 fi
 

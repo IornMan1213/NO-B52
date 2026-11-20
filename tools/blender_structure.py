@@ -234,6 +234,27 @@ def _blockers():
     return BVHTree.FromBMesh(bm) if bm.faces else None
 
 
+def _bays():
+    """Each gear well box as a BVH, for a point-inside test: the box is open only at the bottom (its door opening), so a
+    point inside it meets the box going up and going each way across."""
+    out = []
+    for o in bpy.data.objects:
+        if o.type == 'MESH' and o.name.startswith('wellBox_'):
+            t = world_bm(o)
+            lo = Vector([min(v.co[i] for v in t.verts) for i in range(3)]); hi = Vector([max(v.co[i] for v in t.verts) for i in range(3)])
+            out.append((lo, hi, BVHTree.FromBMesh(t))); t.free()
+    return out
+
+BAYS = None
+def in_bay(p):
+    global BAYS
+    if BAYS is None: BAYS = _bays()
+    p = Vector(p)
+    dirs = (Vector((0, 0, 1)), Vector((1, 0, 0)), Vector((-1, 0, 0)), Vector((0, 1, 0)), Vector((0, -1, 0)))
+    return any(all(lo[i] - 0.01 < p[i] < hi[i] + 0.01 for i in range(3))
+               and all(t.ray_cast(p, d, 6.0)[0] is not None for d in dirs) for lo, hi, t in BAYS)
+
+
 def hull_body(part, bm, stations, a, b, axis, mesh):
     """Frames and stringers on the fuselage's OUTER skin only. Each frame station casts N_RAYS rays in the cut plane, in
     from outside towards the hull's centre line, and takes the first skin it meets: the outer skin, never the wells,
@@ -475,6 +496,15 @@ def build(part):
     for f in bm.faces:
         mesh.f.append([vbase + v.index for v in reversed(f.verts)]); mesh.m.append(1)
     moved = thinned
+    # Nothing inside a gear bay: the outer wing's inner skin, 2 cm under the top skin, ran through the tip-gear wells
+    # (their roof is 4 mm under it) and its frames showed in the open wells.
+    inb = {}
+    def bay(i):
+        if i not in inb: inb[i] = in_bay(mesh.v[i])
+        return inb[i]
+    keep = [(f, m) for f, m in zip(mesh.f, mesh.m) if not any(bay(i) for i in f)]
+    if len(keep) < len(mesh.f): print(f'STRUCT {part}: {len(mesh.f) - len(keep)} faces inside a gear bay dropped')
+    mesh.f = [f for f, _ in keep]; mesh.m = [m for _, m in keep]
     bm.free()
     obj = mesh.write(part + '_struct', o)
     obj.hide_render = False

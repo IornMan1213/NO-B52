@@ -42,11 +42,30 @@ for n in PARTS:
 # Wings and tail surfaces: the outer skin is what a vertical ray from above or below hits first.
 WINGS = [o.name for o in bpy.data.objects if o.type == 'MESH' and o.name.split('_')[0] in
          ('wingroot', 'wing1', 'wing2', 'wingtip', 'flap1', 'flap2', 'hstab', 'elevator', 'aileron')]
+# A spoiler well (blender_prep.py) belongs to one wing part but can lie over the next part's skin, whose own top skin
+# under the panel was removed: tested alone, that part's bottom skin saw nothing above it, was taken for the top and
+# flipped, and from below the game showed the sky through 4 m2 of each wing beside the outer pods. So every part is
+# tested with the other parts' wells in the way.
+def wells_of(names):
+    wb = bmesh.new()
+    for nm in names:
+        ob = bpy.data.objects[nm]
+        wi = {i for i, m in enumerate(ob.data.materials) if m and m.name == 'B52_SpoilerWell'}
+        if not wi: continue
+        t = bmesh.new(); t.from_mesh(ob.data); t.transform(ob.matrix_world); t.normal_update()
+        # the floors only: a well's walls, edge-on to these vertical rays, still stopped one now and then and left a
+        # strip of the thin trailing edge under the panels' back edge facing down
+        bmesh.ops.delete(t, geom=[f for f in t.faces if f.material_index not in wi or abs(f.normal.z) < 0.7], context='FACES')
+        me = bpy.data.meshes.new('w'); t.to_mesh(me); t.free(); wb.from_mesh(me); bpy.data.meshes.remove(me)
+    return wb
 for n in WINGS:
     o = bpy.data.objects[n]
     bm = bmesh.new(); bm.from_mesh(o.data); bm.transform(o.matrix_world)
     bm.faces.ensure_lookup_table()
-    tree = BVHTree.FromBMesh(bm)
+    test = bm.copy()                                    # this part's faces first (same indices), then the others' wells
+    others = wells_of([m for m in WINGS if m != n])
+    me = bpy.data.meshes.new('w'); others.to_mesh(me); others.free(); test.from_mesh(me); bpy.data.meshes.remove(me)
+    tree = BVHTree.FromBMesh(test); test.free()
     flip = []
     # the spoiler wells (blender_prep.py) are built facing the right way, floor and walls double-sided 1 mm apart: within
     # this test's 2 cm the two sides took each other for themselves, and where a well lies over the next part's skin
@@ -58,7 +77,9 @@ for n in WINGS:
         for d in (Vector((0, 0, 1)), Vector((0, 0, -1))):          # d = outward direction tested
             if f.normal.dot(d) > -0.2: continue
             loc, _, idx, _ = tree.ray_cast(c + d * 3.0, -d, 3.5)
-            if idx is not None and (idx == f.index or (loc - c).length < 0.02):
+            # 5 mm, not 2 cm: along the trailing edges the wing is 1 to 3 cm thick, and the top and bottom skins took
+            # each other for themselves, so one of them was turned inward and a strip of the edge showed the ground
+            if idx is not None and (idx == f.index or (loc - c).length < 0.005):
                 flip.append(f); break
     if flip:
         bmesh.ops.reverse_faces(bm, faces=flip)
