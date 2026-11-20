@@ -1,0 +1,27 @@
+say START B-52J spoilers: seven flat panels a side, flush in cruise, raised one side to roll, all up as a speedbrake
+include spawn.txt B52J
+expectac B52J
+runway
+wait 3
+say on the runway at idle the speedbrake is open: every panel up
+camat wing1_L -2 3 6 45 b52_sp_ground_front.png
+camat wing1_L -3 4 -9 45 b52_sp_ground_behind_L.png
+camat wing1_R 3 4 -9 45 b52_sp_ground_behind_R.png
+camat wing1_L -1 1.2 -6 50 b52_sp_ground_low.png
+takeoff 1.0 300 0.5
+wait 40
+setgear false
+wait 8
+say climbing, throttle up, stick centred: the panels lie flush in the wing's paint
+camat wing1_L -3 4 -9 45 b52_sp_flush_L.png
+camat wing1_R 3 4 -9 45 b52_sp_flush_R.png
+camat wing1_L -1 1.2 -6 50 b52_sp_flush_low.png
+say full left roll: the left wing's panels rise, the right wing's stay flush
+stick 0 -1 0
+wait 2
+camat wing1_L -2 3 6 45 b52_sp_roll_L_front.png
+camat wing1_L -3 4 -9 45 b52_sp_roll_L.png
+camat wing1_R 3 4 -9 45 b52_sp_roll_R.png
+stick off
+wait 3
+say END

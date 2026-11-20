@@ -10,12 +10,13 @@ Run last before the FBX export (the AO and livery bakes mustn't see the copies):
 import bpy, bmesh, math
 
 RATIO, MIN_TRIS = 0.25, 16       # a quarter of the triangles; tiny parts keep what they have
-THIN = ('hstab', 'elevator', 'rudder', 'tail', 'flap')   # thin plates fall apart below half (0.5)
+THIN = ('hstab', 'elevator', 'rudder', 'tail', 'flap', 'wingtip')   # thin plates fall apart below half (0.5): the
+#   wingtips lost their swept trailing corner at a quarter (1.8 m short on the right)
 SHARP = math.radians(40)         # edges sharper than this stay hard (trailing edges, fin tips)
 
 skin = bpy.data.materials.get('B52_Skin')
 if skin is None: raise SystemExit('no B52_Skin material: run blender_atlas.py first')
-skip = ('gear_', 'wheel_', 'tlink', 'wellBox', 'cockpit_int', 'fan_', 'hsabPylon')   # spoilers stay: they are wing skin
+skip = ('gear_', 'wheel_', 'tlink', 'wellBox', 'cockpit_int', 'fan_', 'hsabPylon', 'spoilerPanels')   # spoilers_ stays: wing skin
 inside = set(bpy.data.objects['cockpit_int'].children_recursive) if 'cockpit_int' in bpy.data.objects else set()
 parts = [o for o in bpy.data.objects
          if o.type == 'MESH' and not o.name.startswith(skip) and not o.name.endswith('_LoD') and o not in inside

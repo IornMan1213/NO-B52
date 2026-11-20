@@ -48,7 +48,12 @@ for n in WINGS:
     bm.faces.ensure_lookup_table()
     tree = BVHTree.FromBMesh(bm)
     flip = []
+    # the spoiler wells (blender_prep.py) are built facing the right way, floor and walls double-sided 1 mm apart: within
+    # this test's 2 cm the two sides took each other for themselves, and where a well lies over the next part's skin
+    # (spoiler 5 crosses the wing1/wing2 cut) both were flipped and the floor showed the sky through it
+    well = {i for i, m in enumerate(o.data.materials) if m and m.name == 'B52_SpoilerWell'}
     for f in bm.faces:
+        if f.material_index in well: continue
         c = f.calc_center_median()
         for d in (Vector((0, 0, 1)), Vector((0, 0, -1))):          # d = outward direction tested
             if f.normal.dot(d) > -0.2: continue

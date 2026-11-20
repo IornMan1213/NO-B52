@@ -944,14 +944,16 @@ namespace B52Tools
                 SetRef(cs, "visibleMesh", vis.gameObject);
                 if (name.StartsWith("spoilers"))
                 {
-                    // The aero surface stays hidden (it swings both ways); B52Systems.SpoilerDriver raises this
-                    // visible copy only on the wing whose spoilers go up. The panels are cut from the wing's skin, so
-                    // the copy is always shown: lying flat it is the wing's top surface.
+                    // The aero surface stays hidden (it swings both ways); B52Systems.SpoilerDriver raises the seven
+                    // panels (spoilerPanels_<side><n>, separate objects in the FBX, each hinged on its own front edge)
+                    // only on the wing whose spoilers go up. They are cut from the wing's skin, so they are always
+                    // shown: lying flat they are the wing's top surface.
                     var vr2 = vis.GetComponent<MeshRenderer>();
-                    var panel = Child(t, "spoilerPanels_" + name.Substring(name.Length - 1), vis.position, vis.rotation);
-                    panel.gameObject.AddComponent<MeshFilter>().sharedMesh = vis.GetComponent<MeshFilter>().sharedMesh;
-                    var pr2 = panel.gameObject.AddComponent<MeshRenderer>(); pr2.sharedMaterials = vr2.sharedMaterials; pr2.enabled = true;
                     if (vr2) vr2.enabled = false;
+                    int nPanels = 0;
+                    foreach (Transform c in t)
+                        if (c.name.StartsWith("spoilerPanels_")) { var r = c.GetComponent<MeshRenderer>(); if (r) r.enabled = true; nPanels++; }
+                    if (nPanels != 7) Note($"  ! {name}: {nPanels} spoiler panels in the FBX, expected 7 (run tools/blender_prep.py)");
                 }
                 SetRef(cs, "attachedSurface", t.GetComponent(T("UnitPart")));
                 SetF(cs, "pitchRange", pitch); SetF(cs, "rollRange", roll); SetF(cs, "yawRange", yaw);

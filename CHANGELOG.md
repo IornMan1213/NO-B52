@@ -34,6 +34,16 @@ Player-facing changes in each release. The development diary with every detail i
     black. Hits also dent the skin.
   - The structure inside a break looks like a real wing: truss ribs with cap strips, spar webs and straight
     stringers, instead of spiky artifacts.
+  - Spoilers are seven separate solid panels a side, as on the real B-52G/H, each hinged on its own front edge and
+    following the wing's dihedral, over a clean dark well. They used to rise as one long curved see-through strip
+    that swung through the outer wing and dragged a slab of the flap cove up with it. The row of slots behind them
+    stays whole, and nothing shows through the wing when they are up.
+  - The structure inside the fuselage and the engine pods is a light lattice (frames of thin chords and diagonals,
+    stringers) that follows the outer skin, stops at the gear wells and bomb bay, and never shows through the skin.
+    It used to fill the hull with a web of struts, and it stuck out of the pods and the tail cone as blades.
+  - The wings no longer run through the cabin: inside the fuselage only their front and rear spars cross, leaving
+    the hull open.
+  - At long range the wingtips keep their swept trailing corner (the distant model cut 1.8 m off it).
   - Night flying: the cockpit dims at dusk and night, and with night vision on its glow goes out and the displays
     turn down, so the cockpit no longer flares white under night vision.
 - **Brakes:** anti-skid. Full braking stops the B-52 at about a third of a g, as the real aircraft does; it used to

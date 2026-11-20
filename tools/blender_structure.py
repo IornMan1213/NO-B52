@@ -11,8 +11,12 @@ child object "<part>_struct" built from the part's own skin:
   through the sections and hung between the skins measured there, 3 cm in, and only where the wing is over 10 cm
   thick: they used to follow the raw cut outline (with its flap cut-outs, fairings and pylons), which left floating
   rib pieces, spikes at the trailing edges and stringers jumping between ribs.
-- Fuselage sections and engine pods (round sections): frames every 0.6 m (a ring a little inside the skin) and
-  stringers along it every 15 degrees, two of them heavier longerons.
+- Fuselage sections: frames every 0.6 m on the outer skin only (found by rays in from outside, so never round the
+  wells, bay or anything else inside the hull), stopping short of the gear wells and bomb bay, with stringers every
+  15 degrees and two heavier longerons. Inside the hull the wings are only their front and rear spars, crossing to
+  the centre line: the rest of the cabin is open.
+- Engine pods (round sections): frames every 0.6 m (a ring a little inside the skin, round each nacelle and the
+  pylon) and stringers along them every 15 degrees.
 - An inner skin: the part's skin seen from inside, in primer, 2 cm in (less at thin trailing edges), so a break looks into the structure rather than
   out through the far side of the part.
 The structure objects ship switched off: B52Systems turns on a part's structure, and its parent's, when it breaks off,
@@ -60,8 +64,9 @@ class Mesh:
         self.f.append(idx); self.m.append(mat)
         if both: self.f.append(idx[::-1]); self.m.append(mat)
 
-    def box(self, a, b, up, w, h, mat):
-        """A bar from a to b, w wide (across, perpendicular to up) and h deep (along up)."""
+    def box(self, a, b, up, w, h, mat, caps=True):
+        """A bar from a to b, w wide (across, perpendicular to up) and h deep (along up). Without caps (lattice members
+        that meet others at their ends) only its four long sides."""
         d = (b - a)
         if d.length < 1e-4: return
         side = d.cross(up)
@@ -69,8 +74,8 @@ class Mesh:
         side = side.normalized() * (w / 2); upn = side.cross(d).normalized() * (h / 2)
         c = [a - side - upn, a + side - upn, a + side + upn, a - side + upn]
         e = [p + d for p in c]
-        for q in ([c[0], c[1], c[2], c[3]], [e[3], e[2], e[1], e[0]], [c[0], e[0], e[1], c[1]], [c[1], e[1], e[2], c[2]],
-                  [c[2], e[2], e[3], c[3]], [c[3], e[3], e[0], c[0]]):
+        sides = [[c[0], e[0], e[1], c[1]], [c[1], e[1], e[2], c[2]], [c[2], e[2], e[3], c[3]], [c[3], e[3], e[0], c[0]]]
+        for q in ([[c[0], c[1], c[2], c[3]], [e[3], e[2], e[1], e[0]]] if caps else []) + sides:
             self.add(q, mat, both=False)
 
     def write(self, name, parent):
@@ -211,6 +216,132 @@ def crossing(loop, ax, val, bx):
     return hits[0], hits[-1]
 
 
+# ------------------------------------------------------------------ the fuselage
+
+HULL_PARTS = ('B52', 'fuselage_F', 'fuselage_R')
+HULL_HALF = 1.50          # the fuselage's half-width at the wing (the centre part's skin reaches x +-1.48)
+N_RAYS = 48               # frame resolution round the hull; every second one carries a stringer
+FRAME_OUT, FRAME_IN = 0.05, 0.17   # a frame runs from 5 cm inside the skin (clear of the 4 cm bay/well lining) to 17 cm
+
+
+def _blockers():
+    """What the frames stop at inside the hull: the gear well boxes and the bomb bay (real frames are cut there)."""
+    bm = bmesh.new()
+    for o in bpy.data.objects:
+        if o.type == 'MESH' and (o.name.startswith('wellBox_') or o.name == 'bombBay'):
+            t = world_bm(o); me = bpy.data.meshes.new('t'); t.to_mesh(me); t.free()
+            bm.from_mesh(me); bpy.data.meshes.remove(me)
+    return BVHTree.FromBMesh(bm) if bm.faces else None
+
+
+def hull_body(part, bm, stations, a, b, axis, mesh):
+    """Frames and stringers on the fuselage's OUTER skin only. Each frame station casts N_RAYS rays in the cut plane, in
+    from outside towards the hull's centre line, and takes the first skin it meets: the outer skin, never the wells,
+    bay walls or wing-root faces inside. The old frames were rings round every loop the cut found inside the hull, and
+    the stringers joined whatever loop came first on the next frame, criss-crossing the hull as a web of struts.
+    A frame is left out where a well box or the bomb bay comes within 20 cm of the skin (real frames are cut and
+    boxed round them), and stringers run only between neighbouring frames that agree within 25 cm."""
+    skin = BVHTree.FromBMesh(bm)
+    block = _blockers()
+    ua, ub = _unit(a), _unit(b)
+    rings = []
+    for st in stations:
+        # the hull's centre at this station: the middle of its extent across and up (vertices within 0.3 m of the cut)
+        near = [v.co for v in bm.verts if abs(v.co[axis] - st) < 0.3]
+        if len(near) < 8: rings.append(None); continue
+        c = Vector((0, 0, 0)); c[axis] = st
+        c[a] = (min(p[a] for p in near) + max(p[a] for p in near)) / 2
+        c[b] = (min(p[b] for p in near) + max(p[b] for p in near)) / 2
+        ring = []
+        for i in range(N_RAYS):
+            th = 2 * math.pi * i / N_RAYS
+            d = ua * math.cos(th) + ub * math.sin(th)
+            hit = skin.ray_cast(c + d * 6.0, -d, 6.0)
+            if hit[0] is None: ring.append(None); continue
+            r = 6.0 - hit[3]                                           # distance from the centre, on this side
+            if r < 0.4: ring.append(None); continue                   # through an opening to the far side
+            if block:
+                bh = block.ray_cast(c, d, r)
+                if bh[0] is not None and bh[3] < r - 0.20: ring.append(None); continue
+            ring.append((c, d, r))
+        rings.append(ring)
+    lattice(rings, axis, mesh, FRAME_OUT, FRAME_IN, longerons=True)
+
+
+def lattice(rings, axis, mesh, f_out, f_in, longerons):
+    """Lattice frames and stringers from rings of (centre, direction, skin radius) points, one ring per station, the
+    same angles on each. A frame is two thin chords round the ring (f_out and f_in inside the skin) with a zig-zag of
+    diagonals between them: small members, nothing solid, so where the skin turns sharply a member can't fan out into
+    a blade. Stringers join the same angle on neighbouring frames, just inside the outer chord."""
+    n = len(next(r for r in rings if r)) if any(rings) else 0
+    fwd = _unit(axis)
+    mid_r = (f_out + f_in) / 2
+    for ring in rings:
+        if not ring: continue
+        for i in range(n):
+            p, q = ring[i], ring[(i + 1) % n]
+            if not p or not q or abs(p[2] - q[2]) > 0.25: continue
+            fp = min(f_in, p[3]) if len(p) > 3 else f_in                         # no deeper than the wall allows
+            fq = min(f_in, q[3]) if len(q) > 3 else f_in
+            fo_p, fo_q = min(f_out, fp * 0.4), min(f_out, fq * 0.4)
+            po, pi_ = p[0] + p[1] * (p[2] - fo_p), p[0] + p[1] * (p[2] - fp)
+            qo, qi = q[0] + q[1] * (q[2] - fo_q), q[0] + q[1] * (q[2] - fq)
+            mesh.box(po, qo, fwd, 0.03, 0.02, 0, caps=False)                     # outer chord
+            mesh.box(pi_, qi, fwd, 0.03, 0.02, 0, caps=False)                    # inner chord
+            a0, a1 = (po, qi) if i % 2 == 0 else (pi_, qo)
+            mesh.box(a0, a1, fwd, 0.02, 0.015, 0, caps=False)                    # diagonal
+    for k in range(len(rings) - 1):
+        r0, r1 = rings[k], rings[k + 1]
+        if not r0 or not r1: continue
+        for i in range(0, n, 2):
+            p, q = r0[i], r1[i]
+            if not p or not q or abs(p[2] - q[2]) > 0.25: continue
+            heavy = longerons and i in (0, n // 2)                                # the two longerons along the sides
+            s0 = p[0] + p[1] * (p[2] - f_out + 0.01); s1 = q[0] + q[1] * (q[2] - f_out + 0.01)
+            mesh.box(s0, s1, -p[1], 0.06 if heavy else 0.03, 0.05 if heavy else 0.02, 0, caps=False)
+
+
+def pod_body(cuts, a, b, axis, mesh, front):
+    """Engine pods: the same lattice round each nacelle. A cut through a pod finds both nacelles and the pylon: the
+    pylon (a thin, flat section) gets no frame, and each nacelle's frames and stringers follow that nacelle from one
+    station to the next (matched by centre), never jumping across to the other one as they used to."""
+    tracks = []                                                       # per nacelle: rings by station
+    cuts = [[] if loops and max(p[axis] for p in loops[0]) > front - 1.2 else loops for loops in cuts]  # none in the lips
+    def box2(L):
+        xs = [p[a] for p in L]; ys = [p[b] for p in L]
+        return min(xs), max(xs), min(ys), max(ys)
+    def inside2(L, M):                                                # L's outline within M's (bounding boxes)
+        l, m = box2(L), box2(M)
+        return l is not m and m[0] < l[0] and l[1] < m[1] and m[2] < l[2] and l[3] < m[3]
+    for k, loops in enumerate(cuts):
+        for L in loops:
+            # A nacelle is a hollow tube: its cut is the outer cowl and, inside it, the intake duct. Only the cowl gets a
+            # frame, and only as deep as the wall between them allows (the first lattice put rings in the duct's airflow).
+            if any(inside2(L, M) for M in loops if M is not L): continue
+            ducts = [M for M in loops if M is not L and inside2(M, L)]
+            if _flat(L, a, b) or _extent(L, a, b) < 0.15: continue  # the pylon, or a sliver
+            xs = [p[a] for p in L]; ys = [p[b] for p in L]
+            asp = (max(xs) - min(xs)) / max(max(ys) - min(ys), 1e-6)
+            if not 0.6 < asp < 1.6: continue                          # both nacelles in one figure-8 outline (at the
+                                                                      # intakes): shrinking that toward its middle
+                                                                      # made the hourglass plates across the pod
+            c = sum(L, Vector()) / len(L)
+            pts = by_angle(L, a, b, 24)
+            inner = [by_angle(M, a, b, 24) for M in ducts]
+            ring = []
+            for i, p in enumerate(pts):
+                if p is None or (p - c).length < 0.1: ring.append(None); continue
+                r = (p - c).length
+                wall = min([r - (q[i] - c).length for q in inner if q[i] is not None] or [1.0])
+                # the frame keeps 1 cm clear of the duct; where the cowl is thinner than 5 cm there is none
+                ring.append((c, (p - c).normalized(), r, wall - 0.01) if wall >= 0.05 else None)
+            t = next((t for t in tracks if t[-1][0] == k - 1 and (t[-1][1] - c).length < 0.6), None)
+            if t is None: t = []; tracks.append(t)
+            t.append((k, c, ring))
+    for t in tracks:
+        lattice([r for _, _, r in t], axis, mesh, 0.03, 0.11, longerons=False)
+
+
 # ------------------------------------------------------------------ one part
 
 def build(part):
@@ -266,7 +397,10 @@ def build(part):
         RIB = [0.06 + i * (0.65 - 0.06) / 10 for i in range(11)]          # rib stations along the chord, spar to spar
         RIB = sorted(set([round(f, 3) for f in RIB] + list(SPARS)))
         STRINGERS = (0.25, 0.35, 0.45, 0.55)
+        def in_hull(k):                                                 # a wing root's stub inside the fuselage
+            return part.startswith('wingroot_') and abs(stations[k]) < HULL_HALF
         for k in range(len(stations)):
+            if in_hull(k): continue                                         # inside the hull: spars only, no ribs
             sk = [(f, skins(k, f)) for f in RIB]
             sk = [(f, s_) for f, s_ in sk if s_]
             # top and bottom flanges (cap strips following each skin)
@@ -286,36 +420,45 @@ def build(part):
                 mesh.add([c0[0], c1[0], c1[1], c0[1]], 0)
                 for t in (0, 1): mesh.box(c0[t], c1[t], up, 0.10, 0.03, 0)
             for f in STRINGERS:                                             # stringers along the inside of each skin
+                if in_hull(k) or in_hull(k + 1): break
                 c0, c1 = skins(k, f), skins(k + 1, f)
                 if not c0 or not c1: continue
                 for t in (0, 1):
                     d = c1[t] - c0[t]
                     if abs(d.dot(up)) > 0.3 * d.length: continue           # never a jump between unlike sections
                     mesh.box(c0[t], c1[t], up, 0.035, 0.025, 0)
+        if part.startswith('wingroot_'):
+            # The carry-through: inside the fuselage the wing is only its two spars, running on from the root rib to the
+            # centre line, where they meet the other wing's (blender_prep.py removes the wing skin inside the hull).
+            # Everything else in the hull stays open.
+            inner = sorted(range(len(stations)), key=lambda k: abs(stations[k]))
+            for f in SPARS:
+                k0 = next((k for k in inner if skins(k, f)), None)
+                if k0 is None: continue
+                s0 = skins(k0, f)
+                c0 = [p.copy() for p in s0]
+                for p in c0: p.x = 0.0                                      # the same height and chord, at x = 0
+                mesh.add([s0[0], c0[0], c0[1], s0[1]], 0)
+                for t in (0, 1): mesh.box(s0[t], c0[t], up, 0.10, 0.03, 0)
+    elif part in HULL_PARTS:
+        hull_body(part, bm, stations, a, b, axis, mesh)
     else:
-        # Bodies: a frame at each station (a ring a little inside the skin, on every loop of the cut: a pod's two
-        # nacelles and its pylon), then stringers every 15 degrees from frame to frame, the two at the sides heavier.
-        for loops in cuts:
-            for loop in loops:
-                outer = radial(loop, a, b, 0.02); inner = radial(loop, a, b, 0.16)
-                n = len(outer)
-                off = Vector((0, 0, 0)); off[axis] = 0.015
-                for i in range(n):
-                    j = (i + 1) % n
-                    mesh.add([outer[i] - off, outer[j] - off, inner[j] - off, inner[i] - off], 0)
-                    mesh.add([outer[i] + off, outer[j] + off, inner[j] + off, inner[i] + off], 0)
-                    mesh.add([inner[i] - off, inner[j] - off, inner[j] + off, inner[i] + off], 0)
-        for k in range(len(main) - 1):
-            L0, L1 = main[k], main[k + 1]
-            if not L0 or not L1: continue
-            N = 24
-            r0 = by_angle(radial(L0, a, b, 0.04), a, b, N); r1 = by_angle(radial(L1, a, b, 0.04), a, b, N)
-            c0 = sum(L0, Vector()) / len(L0)
-            for i in range(N):
-                p, q = r0[i], r1[i]
-                if p is None or q is None: continue
-                heavy = i in (0, N // 2)
-                mesh.box(p, q, p - c0, 0.07 if heavy else 0.035, 0.07 if heavy else 0.025, 0)
+        pod_body(cuts, a, b, axis, mesh, hi[axis])          # hi[axis]: the front of the intake lips
+
+    # Last check: no member may show through the skin. Any structure face with a corner outside the part's skin (by its
+    # nearest skin face and that face's normal, over 5 mm) is dropped; what's left of a member ends inside the skin.
+    bm.normal_update()
+    near = BVHTree.FromBMesh(bm)
+    outside = {}
+    def out(i):
+        if i not in outside:
+            loc, nrm, _, _ = near.find_nearest(Vector(mesh.v[i]))
+            outside[i] = loc is not None and (Vector(mesh.v[i]) - loc).dot(nrm) > 0.005
+        return outside[i]
+    keep = [(f, m) for f, m in zip(mesh.f, mesh.m) if not any(out(i) for i in f)]
+    dropped = len(mesh.f) - len(keep)
+    mesh.f = [f for f, _ in keep]; mesh.m = [m for _, m in keep]
+    if dropped: print(f'STRUCT {part}: {dropped} member faces outside the skin dropped')
 
     # Inner skin: the part's own faces turned inward, 2 cm in, or a third of the way to the skin opposite where the
     # part is thinner than that (trailing edges), so it never comes out through the other side.

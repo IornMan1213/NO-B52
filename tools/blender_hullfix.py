@@ -22,7 +22,7 @@ from mathutils.kdtree import KDTree
 
 SRC = sys.argv[sys.argv.index('--') + 1]
 SCALE = 56.39 / 55.98                                     # = blender_prep.py
-SKIP = ('gear_', 'wheel_', 'tlink', 'wellBox', 'hsabPylon', 'gearDoorPanel_', 'outDoor', 'spoilers_')
+SKIP = ('gear_', 'wheel_', 'tlink', 'wellBox', 'hsabPylon', 'gearDoorPanel_', 'outDoor', 'spoilers_', 'spoilerPanels')
 HULL = ('cockpit', 'fuselage_F', 'B52')                   # objects the dent window can touch
 DENT = dict(y0=20.5, y1=24.5, z0=0.3, z1=1.4)       # the dent's extent (right side)
 

@@ -128,11 +128,32 @@ namespace B52Tools
                     foreach (var r in go.GetComponentsInChildren<Renderer>())
                         foreach (var n in f[8].Split(','))
                             if (r.transform.name == n || PathOf(r.transform).Contains(n + "/")) { r.enabled = false; hidden.Add(r); }
+                // optional 10th field, comma-separated: struct (the internal structure shown, as after a break),
+                // spoil (the spoiler panels raised 45 deg, as SpoilerDriver turns them), lod1 (the distant model)
+                var flags = f.Length > 9 ? f[9].Split(',') : new string[0];
+                var shown = new System.Collections.Generic.List<Renderer>();
+                var turned = new System.Collections.Generic.List<(Transform t, Quaternion q)>();
+                var lodGroup = go.GetComponent<LODGroup>();
+                if (System.Array.IndexOf(flags, "struct") >= 0)
+                    foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+                        if (r.name.EndsWith("_struct") && !r.enabled) { r.enabled = true; shown.Add(r); }
+                if (System.Array.IndexOf(flags, "spoil") >= 0)
+                    foreach (var t in go.GetComponentsInChildren<Transform>(true))
+                        if (t.name.StartsWith("spoilerPanels_")) { turned.Add((t, t.localRotation)); t.localRotation *= Quaternion.AngleAxis(45f, Vector3.right); }
+                if (lodGroup && System.Array.IndexOf(flags, "lod1") >= 0) lodGroup.ForceLOD(1);
+                // flaps+ / flaps-: the flaps' visible meshes turned 35 deg about their hinge (local X), either way
+                foreach (var fl in new[] { ("flaps+", 35f), ("flaps-", -35f) })
+                    if (System.Array.IndexOf(flags, fl.Item1) >= 0)
+                        foreach (var t in go.GetComponentsInChildren<Transform>(true))
+                            if (t.name.StartsWith("flap") && t.name.EndsWith("_visible")) { turned.Add((t, t.localRotation)); t.localRotation *= Quaternion.AngleAxis(fl.Item2, Vector3.right); }
                 camGo.transform.position = new Vector3(F(1), F(2), F(3)); camGo.transform.LookAt(new Vector3(F(4), F(5), F(6)));
                 cam.Render(); RenderTexture.active = rt;
                 var tex = new Texture2D(1280, 720, TextureFormat.RGB24, false); tex.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0); tex.Apply();
                 System.IO.File.WriteAllBytes("B52Shot_" + f[0] + ".png", tex.EncodeToPNG());
                 foreach (var r in hidden) r.enabled = true;
+                foreach (var r in shown) r.enabled = false;
+                foreach (var (t, q) in turned) t.localRotation = q;
+                if (lodGroup) lodGroup.ForceLOD(-1);
             }
             RenderTexture.active = null;
             Object.DestroyImmediate(go); Object.DestroyImmediate(camGo); Object.DestroyImmediate(lightGo);

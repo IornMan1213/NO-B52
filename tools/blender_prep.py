@@ -11,7 +11,8 @@ get their origin on the hinge line with local +X along the hinge, because the ga
 (ControlSurfaceJob_Math: restingRotation * AngleAxis(angle, Vector3.right)).
 """
 import bpy, bmesh, sys, os, math
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, geometry
+from mathutils.bvhtree import BVHTree
 
 ARGS = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 OUT = ARGS[0] if ARGS else os.path.join(os.path.dirname(bpy.data.filepath), 'out')
@@ -288,10 +289,16 @@ for src in ('Engines', 'EngineBlades', 'RandomStuff', 'RandomStuff2'):
 #      liveries, damage shading and panel lines), its edges straight cuts. The wing keeps a shallow dark well under
 #      each panel (a floor 6 cm down and walls up to the cut), seen only when the panels rise. One ControlSurface per
 #      wing drives them (B52Systems makes them one-way); they hinge at their leading edge.
+#      The real B-52G/H has seven separate panels a side (an inboard group of three, an outboard group of four), each a
+#      flat plate hinged on its own front edge. So besides spoilers_<sd> (all seven, the aero surface, hidden in game)
+#      each panel is its own object, spoilerPanels_<sd><n>, its origin on its front edge and its X axis along that edge
+#      as it really runs (the wing has dihedral: the old single hinge was level, so the outer panels swung through the
+#      skin), with a 1 cm seam to its neighbours. Only the top skin is cut: the old cut also took the flap-cove floor
+#      and the skin's own painted vents below it, which rose with the panels as a hooked slab.
 SPOILER_WELL_DEPTH = 0.06
 SPOILER_WELL = bpy.data.materials.new('B52_SpoilerWell'); SPOILER_WELL.use_nodes = True
-SPOILER_WELL.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.09, 0.095, 0.1, 1)
-SPOILER_WELL.diffuse_color = (0.09, 0.095, 0.1, 1)
+SPOILER_WELL.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.012, 0.013, 0.014, 1)
+SPOILER_WELL.diffuse_color = (0.012, 0.013, 0.014, 1)   # near black once the game reads it as sRGB (0.09 showed light grey)
 ALL_MATS.append(SPOILER_WELL)
 
 
@@ -301,66 +308,278 @@ def make_spoilers(sgn, a, b):
     fwd, up = Vector((0, 1, 0)), Vector((0, 0, 1))
     across = hinge.cross(up).normalized()                  # normal of the vertical planes along the hinge line
     n_pan, t0, t1 = 7, 0.33, 0.98                          # along the flap line, outboard part only
-    chord = 1.05 * S
+    # The panels' back edge (measured square to the flap hinge line) clears the source skin's row of slots, the
+    # "zipper", which stays whole behind them as it is on the model. The row runs only along the outboard third
+    # (0.65 to 0.98 of the hinge line) and slants: its centre line is 0.31 m ahead of the hinge at 0.65 and 0.13 m at
+    # 0.98 (fitted through its 50 slots, both wings alike). Inboard of it the edge is 0.50 m ahead; alongside it, it
+    # keeps 0.19 m ahead of that line (the strays sit up to 13 cm off it), parallel to the zipper. (A first cut at
+    # 0.13 m ran through the row and left a ragged staircase, and its open slots looked into the wing; a straight cut
+    # at 0.50 m left the zipper running at a slant to the panels.)
+    def back_at(t):                                        # along y: the hinge line is swept 27.5 deg
+        perp = 0.50 if t <= 0.65 else 0.50 - 0.565 * (t - 0.65)
+        return perp / 0.887 * S
+    FRONT = 1.20 * S                                       # the front edge stays 1.20 m (along y) ahead of the hinge
+    NU, NV = 12, 6                                         # each panel's grid: along the span, along the chord
+    keys = [k for k in parts if k.startswith('wing') and k.endswith(sd)]
+    # the outer pod's pylon fairing runs on over the wing's top under the skin; under the outboard panels it lay level
+    # with them and showed through as dark bars, so it is cut and cleared with the wing's skin
+    clear = keys + [k for k in parts if k.startswith('pod') and k.endswith(sd)]
     panels = bmesh.new()
+    per = [bmesh.new() for _ in range(n_pan)]
     for i in range(n_pan):
         # neighbouring panels share a cut line: a strip of skin between them was too thin for the livery bake
         # and kept the plain grey under the camouflage
         s0 = t0 + (t1 - t0) * i / n_pan
         s1 = t0 + (t1 - t0) * (i + 1) / n_pan
-        p0 = a.lerp(b, s0) + fwd * 0.15 * S
-        p1 = a.lerp(b, s1) + fwd * 0.15 * S
-        quad = [p0, p1, p1 + fwd * chord, p0 + fwd * chord]
+        # back corners on the edge above, front corners on a line along the hinge; the sides run along y
+        p0 = a.lerp(b, s0) + fwd * back_at(s0)
+        p1 = a.lerp(b, s1) + fwd * back_at(s1)
+        f0 = a.lerp(b, s0) + fwd * FRONT
+        f1 = a.lerp(b, s1) + fwd * FRONT
+        quad = [p0, p1, f1, f0]
         lo_x, hi_x = min(q.x for q in quad), max(q.x for q in quad)
         lo_y, hi_y = min(q.y for q in quad), max(q.y for q in quad)
+        def ahead(p_, q_):                                 # horizontal normal of the line p_-q_, pointing forward
+            n_ = Vector((-(q_ - p_).y, (q_ - p_).x, 0)).normalized()
+            return n_ if n_.y > 0 else -n_
+        n_back, n_front = ahead(p0, p1), ahead(f0, f1)
 
         def inside(c):
-            # side edges run along y (x between the two ends), the other two along the hinge line
             if not (min(p0.x, p1.x) < c.x < max(p0.x, p1.x)): return False
-            d0 = (c - p0).dot(across); d1 = (c - (p0 + fwd * chord)).dot(across)
-            return d0 * d1 < 0
+            return (c - p0).dot(n_back) > 0 and (c - f0).dot(n_front) < 0
 
-        for k in [k for k in parts if k.startswith('wing') and k.endswith(sd)]:
+        def overlaps(f):
+            # the face's extent overlaps the panel's (with 10 cm to spare): a large face can pass right through the well
+            # with every corner and its centre far outside, and was never cut
+            xs = [v.co.x for v in f.verts]; ys = [v.co.y for v in f.verts]
+            return max(xs) > lo_x - 0.1 and min(xs) < hi_x + 0.1 and max(ys) > lo_y - 0.1 and min(ys) < hi_y + 0.1
+
+        def gpt(u, v):                                     # grid point (u, v) of the panel's outline
+            return p0.lerp(p1, u / NU).lerp(f0.lerp(f1, u / NU), v / NV)
+
+        # 1. cut each wing part's skin (and the pod fairing over it) along the panel's outline
+        for k in clear:
             bm = parts[k]
-
-            def top_near():
+            for co, no in ((p0, Vector((1, 0, 0))), (p1, Vector((1, 0, 0))), (p0, n_back), (f0, n_front)):
                 bm.normal_update()
-                return [f for f in bm.faces if f.normal.z > 0.3 and lo_x - 1 < f.calc_center_median().x < hi_x + 1
-                        and lo_y - 1 < f.calc_center_median().y < hi_y + 1]
-            for co, no in ((p0, Vector((1, 0, 0))), (p1, Vector((1, 0, 0))), (p0, across), (p0 + fwd * chord, across)):
-                near = top_near()
+                near = [f for f in bm.faces if f.normal.z > -0.5 and overlaps(f)]   # not the bottom skin: cutting that
+                # changed the tip-gear door cuts; the slots' walls and lips are cut too, or their pieces stayed on top
                 if not near: break
                 geom = list({e for f in near for e in f.edges}) + list({v for f in near for v in f.verts}) + near
                 bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, dist=1e-4)
+
+        # 2. the top skin under the panel, sampled on a grid: height, texture coordinates and material. A sample that
+        #    falls through one of the skin's slots (a row of them runs along the spoilers) onto the cove below is
+        #    replaced by its neighbour's, so the panel is one smooth plate.
+        samp = bmesh.new()
+        for k in keys:
+            me = bpy.data.meshes.new('t'); parts[k].to_mesh(me); samp.from_mesh(me); bpy.data.meshes.remove(me)
+        # never the wells already built for the panels before this one: rays at a shared edge hit their dark walls
+        bmesh.ops.delete(samp, geom=[f for f in samp.faces if f.material_index == ALL_MATS.index(SPOILER_WELL)], context='FACES')
+        bmesh.ops.triangulate(samp, faces=samp.faces[:])
+        samp.faces.ensure_lookup_table()
+        uvl = samp.loops.layers.uv.active
+        tree = BVHTree.FromBMesh(samp)
+        grid = {}
+        for u in range(NU + 1):
+            for v in range(NV + 1):
+                q = gpt(u, v)
+                # the centre ray, unless it went through a slot: then the highest of four rays 2.5 cm round it (on the
+                # sloping skin the highest alone sat 3 mm proud everywhere)
+                best = tree.ray_cast(Vector((q.x, q.y, 10.0)), -up, 30.0)
+                for ox, oy in ((0.025, 0), (-0.025, 0), (0, 0.025), (0, -0.025)):
+                    hit = tree.ray_cast(Vector((q.x + ox, q.y + oy, 10.0)), -up, 30.0)
+                    if hit[0] is not None and (best[0] is None or hit[0].z > best[0].z + 0.015): best = hit
+                grid[u, v] = None if best[0] is None else (Vector((q.x, q.y, best[0].z)), best[2])
+        if sum(1 for g in grid.values() if g) < 6: samp.free(); continue
+        # per chordwise column, a straight line through its samples; one more than 1.5 cm under it went through a slot
+        # and takes the line's height (a single plane over the whole panel sat up to 3 cm under the curved skin)
+        filled = {k_ for k_, g in grid.items() if g is None}
+        for u in range(NU + 1):
+            col = [(v, grid[u, v]) for v in range(NV + 1)]
+            ok = [(v, g) for v, g in col if g]
+            for _ in range(3):
+                if len(ok) < 2: break
+                mv = sum(v for v, _ in ok) / len(ok); mz = sum(g[0].z for _, g in ok) / len(ok)
+                sv = sum((v - mv) ** 2 for v, _ in ok) or 1e-9
+                k = sum((v - mv) * (g[0].z - mz) for v, g in ok) / sv
+                line = lambda v, mv=mv, mz=mz, k=k: mz + k * (v - mv)
+                keep = [(v, g) for v, g in ok if g[0].z > line(v) - 0.015]
+                if len(keep) == len(ok): break
+                ok = keep
+            good = dict(ok)
+            for v, g in col:
+                if v in good: continue
+                filled.add((u, v))
+                src = good[min(good, key=lambda v2: abs(v2 - v))] if good else None
+                if src is None: continue
+                q = gpt(u, v)
+                grid[u, v] = (Vector((q.x, q.y, line(v) if len(ok) >= 2 else src[0].z)), src[1])
+        for key, g in list(grid.items()):                   # a column with nothing at all: its neighbour's
+            if g is None:
+                u, v = key
+                nb = next((grid[u2, v] for u2 in sorted(range(NU + 1), key=lambda x: abs(x - u)) if grid[u2, v]), None)
+                q = gpt(u, v)
+                grid[key] = (Vector((q.x, q.y, nb[0].z)), nb[1])
+        valid = list(grid.values())
+        n_ = len(valid); mx = sum(g[0].x for g in valid) / n_; my = sum(g[0].y for g in valid) / n_; mz = sum(g[0].z for g in valid) / n_
+        sxx = sum((g[0].x - mx) ** 2 for g in valid); sxy = sum((g[0].x - mx) * (g[0].y - my) for g in valid)
+        syy = sum((g[0].y - my) ** 2 for g in valid); sxz = sum((g[0].x - mx) * (g[0].z - mz) for g in valid)
+        syz = sum((g[0].y - my) * (g[0].z - mz) for g in valid); det = sxx * syy - sxy * sxy or 1e-9
+        gx = (sxz * syy - syz * sxy) / det; gy = (syz * sxx - sxz * sxy) / det
+        plane = lambda x, y: mz + gx * (x - mx) + gy * (y - my)        # the panel's mean plane: how deep the well goes
+
+        def uv_at(pt, fi):
+            # texture coordinates at pt from triangle fi (extended past its edges: the skin's mapping is smooth there)
+            f = samp.faces[fi]
+            A, B, C = (l.vert.co for l in f.loops)
+            ua, ub, uc = (Vector((l[uvl].uv.x, l[uvl].uv.y, 0)) for l in f.loops)
+            r = geometry.barycentric_transform(pt, A, B, C, ua, ub, uc)
+            return r.x, r.y
+
+        # 3. the panel: its top is the skin's (texture and paint), 3 cm thick, dark underneath and round its edges
+        pm = bmesh.new()
+        puv = pm.loops.layers.uv.new('UVMap')
+        TH = 0.03 * S
+        top = {k_: pm.verts.new(g[0]) for k_, g in grid.items()}
+        bot = {k_: pm.verts.new(g[0] - up * TH) for k_, g in grid.items()}
+        dark = ALL_MATS.index(SPOILER_WELL)
+        for u in range(NU):
+            for v in range(NV):
+                ks = [(u, v), (u + 1, v), (u + 1, v + 1), (u, v + 1)]
+                # each corner's texture from the skin triangle under it; the square takes the material most of its
+                # corners have, and a corner on another material borrows a same-material corner's triangle (the
+                # source textures are separate images: mixing their coordinates painted dark wedges on the panels)
+                mats = [samp.faces[grid[k_][1]].material_index for k_ in ks]
+                m = max(set(mats), key=mats.count)
+                donor = next(grid[k_][1] for k_, mm in zip(ks, mats) if mm == m)
+                f = pm.faces.new([top[k_] for k_ in ks]); f.normal_update()
+                flipped = f.normal.z < 0
+                if flipped: f.normal_flip()
+                f.material_index = m
+                for l in f.loops:
+                    k_ = next(k2 for k2 in ks if top[k2] is l.vert)
+                    if k_ in filled:
+                        # a point over one of the skin's slots: the paint of the nearest point on solid skin (worked
+                        # out at its own position, the texture there shows the slot drawn in, as dark blocks)
+                        src = min((k2 for k2 in grid if k2 not in filled), key=lambda k2: (k2[0] - k_[0]) ** 2 + (k2[1] - k_[1]) ** 2)
+                        fi = grid[src][1] if samp.faces[grid[src][1]].material_index == m else donor
+                        l[puv].uv = uv_at(grid[src][0], fi)
+                    else:
+                        fi = grid[k_][1] if samp.faces[grid[k_][1]].material_index == m else donor
+                        l[puv].uv = uv_at(l.vert.co, fi)
+                g_ = pm.faces.new([bot[k_] for k_ in ks]); g_.normal_update()
+                if g_.normal.z > 0: g_.normal_flip()
+                g_.material_index = dark
+        ring = [(u, 0) for u in range(NU)] + [(NU, v) for v in range(NV)] + [(u, NV) for u in range(NU, 0, -1)] + [(0, v) for v in range(NV, 0, -1)]
+        ctr = sum((g[0] for g in grid.values()), Vector()) / len(grid)
+        for j in range(len(ring)):
+            ka, kb = ring[j], ring[(j + 1) % len(ring)]
+            # the edges get points of their own: shared with the top, smooth shading bent the top's edge normals
+            # towards the sides and shaded a dark wedge along every panel edge
+            f = pm.faces.new([pm.verts.new(top[ka].co), pm.verts.new(top[kb].co), pm.verts.new(bot[kb].co), pm.verts.new(bot[ka].co)])
+            f.normal_update()
+            if f.normal.dot((top[ka].co + top[kb].co) / 2 - ctr) < 0: f.normal_flip()
+            f.material_index = dark
+        me = bpy.data.meshes.new('t'); pm.to_mesh(me); panels.from_mesh(me); per[i].from_mesh(me); bpy.data.meshes.remove(me)
+        pm.free()
+
+        # 4. the wing's skin under the panel, and everything down to 20 cm below it (the cove, the slots), is
+        #    replaced by a clean dark well: a floor 8 cm down and walls up to the skin's cut edge
+        DEPTH, FLOOR = 0.20 * S, 0.08 * S
+        home = None
+        for k in clear:
+            bm = parts[k]
             bm.normal_update()
-            sel = {i for i, f in enumerate(bm.faces) if f.normal.z > 0.3 and inside(f.calc_center_median())}
-            if not sel: continue
-            cut, rest = bm.copy(), bm.copy()          # copies keep the face order, so positions carry over
-            bmesh.ops.delete(cut, geom=[f for i, f in enumerate(cut.faces) if i not in sel], context='FACES')
-            bmesh.ops.delete(rest, geom=[f for i, f in enumerate(rest.faces) if i in sel], context='FACES')
-            # the well: the cut skin copied 6 cm down as a dark floor, plus walls from the cut edge down to it
-            well = cut.copy()
-            for v in well.verts: v.co.z -= SPOILER_WELL_DEPTH
-            for f in well.faces: f.material_index = ALL_MATS.index(SPOILER_WELL)
-            centre = sum((f.calc_center_median() for f in cut.faces), Vector()) / len(cut.faces)
-            rim = [e for e in cut.edges if e.is_boundary]
-            for e in rim:
-                v0, v1 = e.verts
-                q = [well.verts.new(v0.co), well.verts.new(v1.co),
-                     well.verts.new(v1.co - up * SPOILER_WELL_DEPTH), well.verts.new(v0.co - up * SPOILER_WELL_DEPTH)]
-                f = well.faces.new(q); f.material_index = ALL_MATS.index(SPOILER_WELL); f.normal_update()
-                mid = (v0.co + v1.co) / 2
-                if f.normal.dot(centre - mid) < 0: f.normal_flip()     # walls face into the well
-            tmp = bpy.data.meshes.new('t'); cut.to_mesh(tmp); panels.from_mesh(tmp); bpy.data.meshes.remove(tmp)
-            cut.free()
-            tmp = bpy.data.meshes.new('t'); well.to_mesh(tmp); rest.from_mesh(tmp); bpy.data.meshes.remove(tmp)
-            well.free(); bm.free(); parts[k] = rest
+            def under(f):               # how far the face lies under the panel's surface
+                c = f.calc_center_median(); return plane(c.x, c.y) - c.z
+            # everything in the outline down to DEPTH, but a downward face only near the top (a lip or a slot's
+            # roof), never the bottom skin
+            # Anything standing up inside the well goes: tall faces (the outer pod's pylon fairing, the wall where the
+            # wing is split into two parts) reached below the floor and past the outline, kept their centres outside
+            # the rule above and stood in the open well as dark blocks when the panels rose. So everything near the
+            # outline is first sliced at the floor's level, and every piece above it inside the outline is removed,
+            # whichever way it faces (the bottom skin is far below the floor).
+            fn = Vector((-gx, -gy, 1.0)).normalized()
+            fco = Vector((mx, my, mz - FLOOR - 0.01 * S))
+            near = [f for f in bm.faces if overlaps(f)]
+            if near:
+                geom = list({e for f in near for e in f.edges}) + list({v for f in near for v in f.verts}) + near
+                bmesh.ops.bisect_plane(bm, geom=geom, plane_co=fco, plane_no=fn, dist=1e-4)
+                bm.normal_update()
+            gone = [f for f in bm.faces if inside(f.calc_center_median())
+                    and (under(f) < FLOOR + 0.01 * S or (under(f) < DEPTH and f.normal.z > -0.7))]
+
+            if k.startswith('pod') and gone: print(f'SPOILER {sd}{i + 1}: {len(gone)} faces of {k}\'s fairing under the panel cleared')
+            if gone and k.startswith('wing') and (home is None or len(gone) > home[1]): home = (k, len(gone))
+            bmesh.ops.delete(bm, geom=gone, context='FACES')
+        if home:
+            bm = parts[home[0]]
+            # the floor reaches 1 cm past the panel's sides along the hinge, so neighbouring wells' floors overlap:
+            # ending both on the shared line left a hairline you could see the sky down between two raised panels
+            fl = {k_: bm.verts.new(g[0] - up * FLOOR + hinge * ((-1 if k_[0] == 0 else 1 if k_[0] == NU else 0)
+                                                               * 0.01 * S * (1 if (p1 - p0).dot(hinge) > 0 else -1)))
+                  for k_, g in grid.items()}
+            sk = {k_: bm.verts.new(g[0]) for k_, g in grid.items() if k_ in ring}
+            # Floor and walls are built as triangles, each with a dark back 1 cm behind it on the same triangle: the
+            # floor follows the curved skin, so its squares are slightly bent, and a square and its reversed copy were
+            # split along opposite diagonals on export; the back then poked through the front in places, and the game,
+            # which draws only fronts, showed the sky through it.
+            def two_sided(tri, facing, back_off):
+                f = bm.faces.new(tri); f.normal_update()
+                if f.normal.dot(facing) < 0: f.normal_flip()
+                f.material_index = dark
+                g_ = bm.faces.new([bm.verts.new(v.co + back_off) for v in tri]); g_.normal_update()
+                if g_.normal.dot(facing) > 0: g_.normal_flip()
+                g_.material_index = dark
+            for u in range(NU):
+                for v in range(NV):
+                    q = [fl[(u, v)], fl[(u + 1, v)], fl[(u + 1, v + 1)], fl[(u, v + 1)]]
+                    for tri in ((q[0], q[1], q[2]), (q[0], q[2], q[3])):
+                        two_sided(list(tri), up, -up * 0.01 * S)
+            for j in range(len(ring)):
+                ka, kb = ring[j], ring[(j + 1) % len(ring)]
+                mid = (sk[ka].co + sk[kb].co) / 2
+                inward = (ctr - mid); inward.z = 0; inward.normalize()   # walls face into the well
+                q = [sk[ka], sk[kb], fl[kb], fl[ka]]
+                for tri in ((q[0], q[1], q[2]), (q[0], q[2], q[3])):
+                    two_sided(list(tri), inward, -inward * 0.01 * S)
+        samp.free()
     if not panels.faces: raise SystemExit(f'spoilers_{sd}: no wing skin found under the panels')
     add(f'spoilers_{sd}', panels)
+    SPOILER_PANELS[sd] = (per, hinge, -across if (-across).y > 0 else across)
+
+
+SPOILER_PANELS = {}
 
 
 make_spoilers(-1, hingeL[0], hingeL[1])
 make_spoilers(1, hingeR[0], hingeR[1])
+
+# ---- The wings stop inside the fuselage wall
+#      The source model's wings run on through the fuselage almost to the centre line (x +-0.23): inside the hull each
+#      wing root was 18.5 m2 of skin, the whole 8 m chord in the top 1.2 m of the cabin, with its ribs and stringers
+#      built inside it (blender_structure.py). Wing-root and inboard-flap skin is cut along the plane |x| = HULL_CUT and
+#      everything inboard of it removed. The cut is a plane, not the fuselage's curved side, so a short stub of wing stays
+#      inside the wall (the hull is 1.48 m wide at the wing's foot and 0.83 m at its top), but nothing outside the hull is
+#      touched. (A first version removed whole faces whose centre was inside: the source wing is made of long triangles
+#      running from the centre line out past the fuselage side, so that cut holes in the wing outside the hull.)
+#      What carries the wing's load across the hull, its front and rear spars, blender_structure.py builds as the
+#      carry-through.
+HULL_CUT = 0.75 * S
+def trim_inside_hull():
+    for k in [k for k in parts if k.startswith(('wingroot_', 'flap1_'))]:
+        bm = parts[k]
+        sgn = 1 if sum(v.co.x for v in bm.verts) > 0 else -1
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=Vector((sgn * HULL_CUT, 0, 0)),
+                               plane_no=Vector((1, 0, 0)), dist=1e-4)
+        gone = [f for f in bm.faces if all(abs(v.co.x) <= HULL_CUT + 1e-3 for v in f.verts)]
+        area = sum(f.calc_area() for f in gone)
+        bmesh.ops.delete(bm, geom=gone, context='FACES')
+        print(f'HULLTRIM {k}: {len(gone)} faces ({area:.1f} m2) inboard of |x| {HULL_CUT:.2f} removed')
+
+
+trim_inside_hull()
 
 # ---- Build objects
 for o in list(bpy.data.objects):
@@ -441,6 +660,32 @@ for child, par in PARENT.items():
     if child in objs and par in objs:
         c = objs[child]; mw = c.matrix_world.copy()
         c.parent = objs[par]; c.matrix_world = mw
+
+# ---- The seven spoiler panels a side, each its own flat plate on its own hinge (see make_spoilers)
+SEAM = 0.005 * S                                            # half the gap between neighbouring panels
+for sd, (per, hinge, fwd_perp) in SPOILER_PANELS.items():
+    for i, bm in enumerate(per):
+        if not bm.verts: continue
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+        vs = [v.co for v in bm.verts]
+        mid = sum(vs, Vector()) / len(vs)
+        lo, hi = min(v.dot(hinge) for v in vs), max(v.dot(hinge) for v in vs)
+        k = SEAM / max((hi - lo) / 2, 0.1)
+        for v in bm.verts:                                   # pull the side edges in: a hairline seam to the next panel
+            v.co -= hinge * ((v.co - mid).dot(hinge) * k)
+        vs = [v.co for v in bm.verts]
+        # front edge: the forward-most vertices; its two ends (along the hinge) give the hinge line, slope included
+        front = max(v.dot(fwd_perp) for v in vs)
+        lead = [v for v in vs if v.dot(fwd_perp) > front - 0.06 * S]
+        p0 = min(lead, key=lambda v: v.dot(hinge)); p1 = max(lead, key=lambda v: v.dot(hinge))
+        axis = p1 - p0
+        if axis.x < 0: axis = -axis
+        nf = len(bm.faces)
+        o = new_obj(f'spoilerPanels_{sd}{i + 1}', bm, ALL_MATS)
+        set_origin(o, (p0 + p1) / 2, axis)
+        mw = o.matrix_world.copy(); o.parent = objs[f'spoilers_{sd}']; o.matrix_world = mw
+        print(f'SPOILER {o.name}: hinge {tuple(round(c, 2) for c in (p0 + p1) / 2)}, {axis.length:.2f} m wide, '
+              f'slope {math.degrees(math.atan2(axis.z, axis.xy.length)):.1f} deg, {nf} faces')
 
 # ---- New materials for scratch-built parts
 def flat_mat(name, rgb, metal=0.0, rough=0.6):
