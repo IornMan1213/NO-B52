@@ -1,0 +1,15 @@
+say START B-52J side liveries: Boscali blue-grey and Primeva dark splinter, by day
+include spawn.txt B52J
+expectac B52J
+wait 3
+tod 13
+wait 2
+skintex _Livery Z:/home/iornman1213/NuclearOption/NO-B52/unity/Mods/B52/Textures/B52_livery_boscali.png
+wait 2
+camat @ac -38 10 42 45 b52_liv_boscali_front34.png
+camat @ac 30 25 -45 45 b52_liv_boscali_rear34.png
+skintex _Livery Z:/home/iornman1213/NuclearOption/NO-B52/unity/Mods/B52/Textures/B52_livery_primeva.png
+wait 2
+camat @ac -38 10 42 45 b52_liv_primeva_front34.png
+camat @ac 30 25 -45 45 b52_liv_primeva_rear34.png
+say END

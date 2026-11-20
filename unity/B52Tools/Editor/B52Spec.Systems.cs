@@ -223,7 +223,9 @@ namespace B52Tools
             if (cf)
             {
                 // The fly-by-wire's g limiter (TuneFlyByWire sets its limits and gains). Corner speed: the B-52's manoeuvring
-                // speed, about 165 m/s; the same for the switch between its slow and fast gains. Roll authority is cut
+                // speed, about 135 m/s (260 kt); the same for the switch between its slow and fast gains. Below it the
+                // game scales pitch authority by (speed / corner speed)^2: at 165 m/s, full stick at approach speed asked for
+                // about 4 deg/s, and the AI (and a player) couldn't stop a sink on short final. Roll authority is cut
                 // above 180 m/s, as the spoilers' rolling power is limited at speed. A big fin weathervanes into the wind.
                 // Gentle input smoothing for a heavy aircraft. Active above 40 m/s (well before rotation).
                 SetF(cf, "minSpeed", 40f);
@@ -231,8 +233,8 @@ namespace B52Tools
                 Set(cf, "flightAssistName", p => p.stringValue = "G Limiter");
                 Set(cf, "flyByWire.Enabled", p => p.boolValue = true);
                 SetF(cf, "flyByWire.opacity", 1f);
-                SetF(cf, "flyByWire.cornerSpeed", 165f);
-                SetF(cf, "flyByWire.pidTransitionSpeed", 165f);
+                SetF(cf, "flyByWire.cornerSpeed", 135f);
+                SetF(cf, "flyByWire.pidTransitionSpeed", 135f);
                 SetF(cf, "flyByWire.maxRollSpeed", 180f);
                 SetF(cf, "flyByWire.yawWeathervaning", 0.08f);
                 Set(cf, "flyByWire.inputSmoothing", p => p.vector3Value = new Vector3(0.1f, 0.1f, 0.1f));

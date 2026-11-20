@@ -28,6 +28,10 @@ namespace B52Systems
         private static readonly FieldInfo InputsF = AccessTools.Field(typeof(PilotBaseState), "controlInputs");
 
         internal static float Target;   // last target speed, for the test driver
+        private const float MinFinalThrottle = 0.08f;   // keeps the airbrake (the spoilers) shut on final
+
+        private static bool OnFinalNow(AIPilotLandingState s, int mode) =>
+            mode == StabilizedApproach || (mode == TurningToFinal && ReachedF != null && ReachedF.GetValue(s) is bool r && r);
         private static readonly FieldInfo ReachedF = AccessTools.Field(typeof(AIPilotLandingState), "reachedFinal");
         private static float nextLog;
 
@@ -46,9 +50,9 @@ namespace B52Systems
             var ac = AircraftF.GetValue(__instance) as Aircraft;
             if (!Plugin.IsB52(ac)) return;
             int mode = System.Convert.ToInt32(ModeF.GetValue(__instance));
-            if (mode != TurningToFinal && mode != StabilizedApproach) return;
+            if (mode != JoiningPattern && mode != TurningToFinal && mode != StabilizedApproach) return;
             try { Touchdown = ((Airbase.Runway.RunwayUsage)UsageF.GetValue(__instance)).GetTouchdownPoint(); } catch { return; }
-            OnFinal = mode == StabilizedApproach || (ReachedF != null && ReachedF.GetValue(__instance) is bool r && r);
+            OnFinal = mode == StabilizedApproach || (mode == TurningToFinal && ReachedF != null && ReachedF.GetValue(__instance) is bool r && r);
             Approaching = ac;
         }
 
@@ -86,6 +90,16 @@ namespace B52Systems
             float fwd = Vector3.Dot(ac.transform.forward, ac.rb.velocity);
             float throttle = Mathf.Clamp((Target + 5f - fwd) * 0.1f, 0f, par.cruiseThrottle);
             if (!low) inputs.throttle = Mathf.Min(inputs.throttle, throttle);
+            // On final, more than 400 m out: never quite idle, and power for the glide path. At exactly zero throttle the
+            // game opens the airbrake, which on the B-52 is the spoilers: raised together they dump lift, and with full
+            // nose-up stick it still came down at 11-14 m/s (a 10 deg glide) and hit 800 m short. A sink faster than the
+            // 3 deg path (plus 2 m/s) adds power.
+            if (mode != JoiningPattern && OnFinalNow(__instance, mode) && d > AimFlightPath.HandBack)
+            {
+                float pathSink = ac.speed * Mathf.Tan(3f * Mathf.Deg2Rad) + 2f;
+                float extra = Mathf.Clamp((-ac.rb.velocity.y - pathSink) * 0.06f, 0f, 0.6f);
+                inputs.throttle = Mathf.Clamp(Mathf.Max(inputs.throttle, MinFinalThrottle) + extra, 0f, par.cruiseThrottle);
+            }
             if (mode != JoiningPattern && ac.speed < GearSpeed && ac.gearState == LandingGear.GearState.LockedRetracted)
                 ac.SetGear(deployed: true);
         }
@@ -104,12 +118,18 @@ namespace B52Systems
     [HarmonyPatch(typeof(AutopilotPlane), nameof(AutopilotPlane.AutoAim))]
     internal static class AimFlightPath
     {
-        private const float Glide = 3f, MinGamma = -4.5f, MaxGamma = 2f, HighPerMetre = 0.015f, LowPerMetre = 0.05f, HandBack = 400f;
+        private const float Glide = 3f, MinGamma = -4.5f, MaxGamma = 2f, HighPerMetre = 0.015f, LowPerMetre = 0.05f;
+        internal const float HandBack = 400f;
+        // The pattern's bank limit. The game lets the AI bank up to 135 deg in the pattern and the final turn; a B-52 rolls
+        // slowly and overbanked, and pulling in a steep bank only tightened a spiral dive (full nose-up stick at 38 m/s
+        // sink, into the ground 7 km out). Heavy bombers fly the pattern at 30 deg at most.
+        private const float MaxBank = 30f;
 
-        private static void Prefix(AutopilotPlane __instance, ref GlobalPosition destination, ref bool aimVelocity)
+        private static void Prefix(AutopilotPlane __instance, ref GlobalPosition destination, ref bool aimVelocity, ref float bankAllowed)
         {
             var ac = AiApproach.Approaching;
             if (ac == null || __instance.aircraft != ac) return;
+            bankAllowed = Mathf.Min(bankAllowed, MaxBank);
             if (!AiApproach.OnFinal) return;                       // still turning in: the game's own aim
             aimVelocity = true;                                    // the flight path, not the nose
             var here = ac.GlobalPosition();

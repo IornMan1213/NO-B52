@@ -283,7 +283,7 @@ namespace B52Tools
             }
             // The extra liveries (ExtraLiveries): same size, plain DXT1 rather than BC7, so each adds about half as much
             // to the download; flat paint looks the same either way.
-            foreach (var (_, file, _) in ExtraLiveries)
+            foreach (var (_, file, _, _) in ExtraLiveries)
                 if (AssetImporter.GetAtPath(ModDir + "/Textures/" + file) is TextureImporter tc)
                 {
                     tc.maxTextureSize = 4096; tc.textureCompression = TextureImporterCompression.Compressed;
@@ -1449,11 +1449,14 @@ namespace B52Tools
         static readonly Dictionary<Material, Material> MatCache = new Dictionary<Material, Material>();
         // Liveries after the USAF one: asset name, texture (made by the build: tools/make_clean_livery.py, make_liveries.py),
         // name in the game. One missing from Textures is left out.
-        static readonly (string asset, string file, string name)[] ExtraLiveries =
+        // faction: offered only to that side (its Faction asset's name), or to every side when null
+        static readonly (string asset, string file, string name, string faction)[] ExtraLiveries =
         {
-            ("B52_USAF_clean_livery", "B52_atlas_clean.png", "USAF Gunship Gray, clean"),
-            ("B52_SEA_livery", "B52_livery_sea.png", "Southeast Asia camouflage, black belly"),
-            ("B52_SIOP_livery", "B52_livery_siop.png", "Southeast Asia camouflage, white belly"),
+            ("B52_USAF_clean_livery", "B52_atlas_clean.png", "USAF Gunship Gray, clean", null),
+            ("B52_SEA_livery", "B52_livery_sea.png", "Southeast Asia camouflage, black belly", null),
+            ("B52_SIOP_livery", "B52_livery_siop.png", "Southeast Asia camouflage, white belly", null),
+            ("B52_Boscali_livery", "B52_livery_boscali.png", "Boscali blue-grey", "Boscali"),
+            ("B52_Primeva_livery", "B52_livery_primeva.png", "Primeva dark splinter", "Primeva"),
         };
         const float CockpitFill = 0.25f;  // interior paint glow, x its colour: 0 left the frames black, 0.5 washed it flat (tests/ingame/b52_cockpit_fill.txt)
 
@@ -2059,7 +2062,7 @@ namespace B52Tools
             }
             var livGuid = Livery("B52_USAF_livery", "B52_atlas.png");
             var extra = ExtraLiveries.Where(l => AssetDatabase.LoadAssetAtPath<Texture2D>(ModDir + "/Textures/" + l.file))
-                                     .Select(l => (guid: Livery(l.asset, l.file), l.name)).ToList();
+                                     .Select(l => (guid: Livery(l.asset, l.file), l.name, l.faction)).ToList();
             var lv = ps.FindProperty("liveries");
             var seen = new HashSet<Object>();
             for (int i = lv.arraySize - 1; i >= 0; i--)
@@ -2073,6 +2076,7 @@ namespace B52Tools
                 e.FindPropertyRelative("assetReference.m_SubObjectName").stringValue = "";
                 for (int k = extra.Count - 1; k >= 0; k--)          // copies right after it, same faction, in list order
                 {
+                    if (extra[k].faction != null && (!f || f.name != extra[k].faction)) continue;   // another side's
                     lv.InsertArrayElementAtIndex(i);
                     var c = lv.GetArrayElementAtIndex(i + 1);
                     c.FindPropertyRelative("name").stringValue = extra[k].name;
@@ -2092,9 +2096,9 @@ namespace B52Tools
             ps.FindProperty("landingSpeed").floatValue = 72f;
             ps.FindProperty("shortLandingSpeed").floatValue = 68f;
             ps.FindProperty("cruiseThrottle").floatValue = 0.82f;
-            // 2500 m: a 30 deg bank at 240 kt is about 2 km. The AI's final starts 3 radii out, so this also sets how
-            // far out it begins the approach (7.5 km).
-            ps.FindProperty("turningRadius").floatValue = 2500f;
+            // 3000 m: the AI B-52 banks at most 30 deg in the pattern (B52Systems AimFlightPath), and at the pattern's
+            // 125 m/s that turns on about 2.8 km. The AI's final starts 3 radii out, so the approach begins 9 km out.
+            ps.FindProperty("turningRadius").floatValue = 3000f;
             ps.FindProperty("cornerSpeed").floatValue = 125f;            // see B52Spec.Definition
             ps.FindProperty("groundTurningRadius").floatValue = 45f;
             ps.ApplyModifiedPropertiesWithoutUndo();

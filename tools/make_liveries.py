@@ -1,6 +1,7 @@
 """Paints the camouflage liveries from the clean atlas and the baked masks (tools/blender_livery_masks.py):
   SEA camouflage over a black belly: the B-52D over Vietnam, the black up the fuselage and fin sides
   SEA camouflage over an anti-flash white belly: the B-52G/H's 1970s nuclear alert scheme
+  Boscali and Primeva: one scheme for each of the game's sides
 Top: the T.O. 1-1-4 Southeast Asia colours, tan FS 30219, medium green FS 34102 and dark green FS 34079, about a
 third each, in patches about 6 m across that run on across parts and texture seams (the masks are sampled in 3D).
 Panel lines and shading come from the clean atlas, and so do the markings (lettering, insignia, nose art).
@@ -15,10 +16,19 @@ CLEAN = os.path.join(TEX, 'B52_atlas_clean.png')
 
 TAN, MED_GREEN, DARK_GREEN = (150, 124, 92), (88, 100, 70), (58, 70, 52)
 BLACK, WHITE = (32, 32, 34), (232, 232, 226)
-# livery file -> belly colour, the normal z the belly reaches up to (0 = the sides), how much the line waves
+SEA = (TAN, MED_GREEN, DARK_GREEN)
+# The two game sides' schemes (offered only to that side; B52Builder.ExtraLiveries): new designs in the spirit of each,
+# not copies of the game's own liveries. Boscali: a low-visibility blue-grey three-tone over a light grey belly.
+# Primeva: a dark charcoal, olive and grey-green scheme over a mid grey belly.
+BOSCALI = ((162, 170, 176), (118, 132, 146), (92, 104, 118))
+PRIMEVA = ((84, 82, 64), (56, 59, 62), (74, 84, 78))
+# livery file -> top colours (a third the first, the rest split between the other two), belly colour, the normal z the
+# belly reaches up to (0 = the sides), how much the line waves
 LIVERIES = {
-    'B52_livery_sea.png':  (BLACK, 0.30, 0.12),      # black over the lower sides and the fin, as on the B-52D
-    'B52_livery_siop.png': (WHITE, -0.20, 0.08),     # white under the wings and belly, the line along the lower sides
+    'B52_livery_sea.png':  (SEA, BLACK, 0.30, 0.12),               # black over the lower sides and the fin, as on the B-52D
+    'B52_livery_siop.png': (SEA, WHITE, -0.20, 0.08),              # white under the wings and belly, the line along the lower sides
+    'B52_livery_boscali.png': (BOSCALI, (196, 200, 204), -0.10, 0.06),
+    'B52_livery_primeva.png': (PRIMEVA, (122, 126, 128), -0.10, 0.06),
 }
 
 clean = np.asarray(Image.open(CLEAN).convert('RGB')).astype(np.float32)
@@ -53,7 +63,9 @@ nz = np.where(np.abs(nz - med) > 0.6, med, nz)
 ta = np.quantile(na[covered], 0.64); tb = np.quantile(nb[covered], 0.5)
 tan = ramp(na, ta - 0.006, ta + 0.006)[..., None]
 dark = ramp(nb, tb - 0.006, tb + 0.006)[..., None]
-camo = tan * np.array(TAN) + (1 - tan) * (dark * np.array(DARK_GREEN) + (1 - dark) * np.array(MED_GREEN))
+def camo_of(top):
+    c0, c1, c2 = (np.array(c) for c in top)
+    return tan * c0 + (1 - tan) * (dark * c2 + (1 - dark) * c1)
 
 # detail from the clean atlas, measured only on the faces (the empty space around them would outline every part):
 # shading and panel lines as a ratio, markings pasted over
@@ -64,10 +76,10 @@ chroma = np.abs(clean - lum[..., None]).max(-1)
 mark = np.maximum(ramp(np.abs(lum - local), 22, 36), ramp(chroma, 14, 28)) * cov
 mark = np.maximum(mark, blur(mark, 1.0) * cov)[..., None]          # include the strokes' soft edges
 
-for name, (belly, line, wave) in LIVERIES.items():
+for name, (top, belly, line, wave) in LIVERIES.items():
     edge = line + wave * (nb - 0.5) * 2
     under = (1 - ramp(nz, edge - 0.015, edge + 0.015))[..., None]
-    out = (under * np.array(belly) + (1 - under) * camo) * shade
+    out = (under * np.array(belly) + (1 - under) * camo_of(top)) * shade
     out = out * (1 - mark) + clean * mark
     res = np.where(baked[..., None], out, clean)                    # the bake margin too, so mip-maps bleed camouflage
     Image.fromarray(np.clip(res, 0, 255).astype(np.uint8)).save(os.path.join(TEX, name))

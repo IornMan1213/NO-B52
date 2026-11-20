@@ -17,7 +17,9 @@ namespace B52Systems
     /// </summary>
     public class CockpitLighting : MonoBehaviour
     {
-        private const float FillNight = 0.04f, ScreenNight = 0.30f;   // share of the daytime glow left at full night
+        // share of the daytime glow left at full night: 0.10 stands in for the crew's dim flood lights (at 0.04 the panel
+        // was black apart from the displays; tests/ingame/b52_look_fixes.txt, b52_lf_cp_night.png)
+        private const float FillNight = 0.10f, ScreenNight = 0.30f;
         private const float FillNvg = 0f, ScreenNvg = 0.10f;          // with night vision on
 
         private static readonly Dictionary<string, Color> dayEmission = new Dictionary<string, Color>();

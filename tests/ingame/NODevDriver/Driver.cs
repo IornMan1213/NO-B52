@@ -814,11 +814,12 @@ namespace NODevDriverB52
                     else Test(broken == 0, $"parts: {broken} of {total} joints broken");
                     break;
                 }
-                case "gtest":   // gtest <pitch deg>: player's jet to 1,500 m up at 220 m/s, then nose up by that much; logs g and how far each part moves off the root
+                case "gtest":   // gtest <pitch deg> [log]: player's jet to 1,500 m up at 220 m/s, then nose up by that much; logs g and how far each part moves off the root
                 {
                     var hud = SceneSingleton<CombatHUD>.i; var ac = hud != null ? hud.aircraft : null;
                     if (ac == null) { Logger.LogWarning("  no aircraft"); break; }
-                    hud.StartCoroutine(GTest(ac, float.Parse(arg, System.Globalization.CultureInfo.InvariantCulture)));
+                    var ga = arg.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+                    hud.StartCoroutine(GTest(ac, float.Parse(ga[0], System.Globalization.CultureInfo.InvariantCulture), !(ga.Length > 1 && ga[1] == "log")));
                     break;
                 }
                 case "pickac":   // pickac <definition name>: clicks the aircraft selection button for that aircraft (exact name, e.g. MiG29SMT)
@@ -1854,7 +1855,7 @@ namespace NODevDriverB52
             if (inp != null) inp.brake = 0f;
             StickHold.Held = null; StickHold.Throttle = null;
         }
-System.Collections.IEnumerator GTest(Aircraft ac, float pitch)
+System.Collections.IEnumerator GTest(Aircraft ac, float pitch, bool check = true)
         {
             int gen = ++flightGen; StickHold.Held = Vector3.zero;
             var bf = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
@@ -1885,7 +1886,7 @@ System.Collections.IEnumerator GTest(Aircraft ac, float pitch)
             // pull); the median after it is the sustained g, and is what's checked.
             gs.Sort(); float holdG = gs.Count > 0 ? gs[gs.Count / 2] : 0f;
             Logger.LogInfo($"  gtest {pitch} deg: sustained g {holdG:F2} (median after the first 10 steps), peak {maxG:F1}, iterations {root.solverIterations}/{root.solverVelocityIterations}");
-            Test(holdG > 2.5f && holdG < 5f, $"g-test {pitch} deg pull: sustained {holdG:F2} g, peak {maxG:F1} g (2.5 to 5 g expected)");
+            if (check) Test(holdG > 2.5f && holdG < 5f, $"g-test {pitch} deg pull: sustained {holdG:F2} g, peak {maxG:F1} g (2.5 to 5 g expected)");
             if (ac != null && !ac.disabled) StartCoroutine(Cruise(ac, gen));
             foreach (var kv in worst.OrderByDescending(kv => kv.Value).Take(10)) Logger.LogInfo($"    {kv.Key.name}: {kv.Value * 100f:F1} cm");
         }

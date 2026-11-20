@@ -68,5 +68,53 @@ for o in bpy.data.objects:
     me.normals_split_custom_set([tuple(v) for v in new])
     total_fixed += int(fix.sum())
     if fix.sum() > 20: print(f'SHADING {o.name}: {int(fix.sum())} of {nl} corners rebuilt across sharp edges')
+# Gaps in the top skin. Along the flaps' front edges (and a few other seams) the source model's top skin stops short of
+# the next part's, so from above the only surface there is the bottom skin, seen from behind: the game draws only the
+# front of a face, and the sky showed through as a white hairline (EX20). Each wing bottom-skin face with no top skin
+# anywhere above it gets an upward-facing copy 1 mm above: from above, a line of the wing's own paint.
+import bmesh
+from mathutils import Vector
+from mathutils.bvhtree import BVHTree
+WING = ('wingroot', 'wing1', 'wing2', 'wingtip', 'flap1', 'flap2', 'aileron', 'hstab', 'elevator')
+wing_objs = [o for o in bpy.data.objects if o.type == 'MESH' and o.name.split('_')[0] in WING
+             and not o.name.endswith(('_LoD', '_struct')) and o.data.polygons]
+allb = bmesh.new()
+for o in wing_objs:
+    t = bmesh.new(); t.from_mesh(o.data); t.transform(o.matrix_world)
+    me_ = bpy.data.meshes.new('_t'); t.to_mesh(me_); t.free(); allb.from_mesh(me_); bpy.data.meshes.remove(me_)
+allb.normal_update(); allb.faces.ensure_lookup_table()
+tree = BVHTree.FromBMesh(allb)
+up = Vector((0, 0, 1)); gap_total = 0
+def covered_above(q):
+    """Is there an upward-facing face somewhere above the point (seen from above, does something hide it)?"""
+    p0 = q + up * 0.002
+    for _ in range(8):
+        loc, n, idx, dist = tree.ray_cast(p0, up, 3.0)
+        if loc is None: return False
+        if allb.faces[idx].normal.z > 0.3: return True
+        p0 = loc + up * 0.002
+    return False
+for o in wing_objs:
+    bm = bmesh.new(); bm.from_mesh(o.data); bm.transform(o.matrix_world); bm.normal_update()
+    exposed = []
+    for f in bm.faces:
+        if f.normal.z > -0.7: continue
+        c = f.calc_center_median()
+        # the centre and points near each corner and edge middle: a big face can be covered at its centre and open
+        # along one edge
+        pts = [c] + [c.lerp(v.co, 0.85) for v in f.verts] + [c.lerp((e.verts[0].co + e.verts[1].co) / 2, 0.85) for e in f.edges]
+        if any(not covered_above(q) for q in pts): exposed.append(f)
+    if exposed:
+        new_faces = bmesh.ops.duplicate(bm, geom=exposed)['geom']
+        nf = [g for g in new_faces if isinstance(g, bmesh.types.BMFace)]
+        bmesh.ops.reverse_faces(bm, faces=nf)
+        for v in {v for f in nf for v in f.verts}: v.co += up * 0.001
+        bm.transform(o.matrix_world.inverted()); bm.to_mesh(o.data); o.data.update()
+        area = sum(f.calc_area() for f in exposed)
+        gap_total += len(exposed)
+        print(f'SHADING {o.name}: {len(exposed)} bottom-skin faces open from above ({area:.2f} m2) given a top side')
+    bm.free()
+allb.free()
+print('SHADING top-skin gaps closed:', gap_total, 'faces')
 bpy.ops.wm.save_mainfile()
 print(f'SHADING total {total_fixed} of {total} corners rebuilt (by angle {ANGLE:.0f} deg)')
