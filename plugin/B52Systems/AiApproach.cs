@@ -94,7 +94,16 @@ namespace B52Systems
             // game opens the airbrake, which on the B-52 is the spoilers: raised together they dump lift, and with full
             // nose-up stick it still came down at 11-14 m/s (a 10 deg glide) and hit 800 m short. A sink faster than the
             // 3 deg path (plus 2 m/s) adds power.
-            if (mode != JoiningPattern && OnFinalNow(__instance, mode) && d > AimFlightPath.HandBack)
+            // Short final (the game's own flare and touchdown, the last 400 m): it cuts the throttle to zero, which opens
+            // the spoilers and dumps lift just before the wheels touch; the B-52 dropped onto the runway and broke its
+            // wings. Until touchdown, keep the spoilers shut and add power against a sink over 3 m/s.
+            if (mode == StabilizedApproach && d <= AimFlightPath.HandBack && ac.radarAlt > 0.5f)
+            {
+                float sinkExtra = Mathf.Clamp((-ac.rb.velocity.y - 3f) * 0.1f, 0f, 0.5f);
+                inputs.throttle = Mathf.Clamp(Mathf.Max(inputs.throttle, MinFinalThrottle) + sinkExtra, 0f, par.cruiseThrottle);
+            }
+            bool wellHigh = h0 - 0.05f * d > AimFlightPath.HighBand;   // well above the path: the speedbrake may open
+            if (mode != JoiningPattern && OnFinalNow(__instance, mode) && d > AimFlightPath.HandBack && !wellHigh)
             {
                 float pathSink = ac.speed * Mathf.Tan(3f * Mathf.Deg2Rad) + 2f;
                 float extra = Mathf.Clamp((-ac.rb.velocity.y - pathSink) * 0.06f, 0f, 0.6f);
@@ -119,7 +128,8 @@ namespace B52Systems
     internal static class AimFlightPath
     {
         private const float Glide = 3f, MinGamma = -4.5f, MaxGamma = 2f, HighPerMetre = 0.015f, LowPerMetre = 0.05f;
-        internal const float HandBack = 400f;
+        internal const float HandBack = 400f, HighBand = 80f;
+        private const float SteepGamma = -6f;
         // The pattern's bank limit. The game lets the AI bank up to 135 deg in the pattern and the final turn; a B-52 rolls
         // slowly and overbanked, and pulling in a steep bank only tightened a spiral dive (full nose-up stick at 38 m/s
         // sink, into the ground 7 km out). Heavy bombers fly the pattern at 30 deg at most.
@@ -139,7 +149,9 @@ namespace B52Systems
             float h = -toTd.y;                                     // height above the touchdown point
             float err = h - d * Mathf.Tan(Glide * Mathf.Deg2Rad);  // + : above the path
             // above the path: ease down gently; below it: level off quickly (60 m low = level flight)
-            float gamma = Mathf.Clamp(-Glide - err * (err > 0f ? HighPerMetre : LowPerMetre), MinGamma, MaxGamma);
+            // well above the path (over 80 m) it may come down at up to 6 deg, with the speedbrake (AiApproach lets it open)
+            float minG = err > HighBand ? SteepGamma : MinGamma;
+            float gamma = Mathf.Clamp(-Glide - err * (err > 0f ? HighPerMetre : LowPerMetre), minG, MaxGamma);
             Vector3 course = destination - here; course.y = 0f;
             if (course.sqrMagnitude < 1f) return;
             course.Normalize();
