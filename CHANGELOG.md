@@ -2,7 +2,11 @@
 
 Player-facing changes in each release. The development diary with every detail is [MODLOG.md](MODLOG.md).
 
-## Unreleased (next: 1.0.0)
+## 0.9.1 (pre-release)
+
+The second 1.0 release candidate: a rebuilt flight deck, an optional tail turret, a real damage model and a
+long list of tester fixes. Needs Blueprinter 2.1.1. In multiplayer, every player needs 0.9.1.
+
 - **Optional B-52H tail turret.** A new "Tail Turret" station in the loadout screen: the B-52H's M61A1 20 mm
   six-barrel cannon in the tail, aimed by its radar. It engages fighters closing from behind on its own
   (the game's own "engage at will / hold fire" turret toggle), or select it to aim it with your view. Empty by default:
@@ -43,6 +47,15 @@ Player-facing changes in each release. The development diary with every detail i
     It used to fill the hull with a web of struts, and it stuck out of the pods and the tail cone as blades.
   - The wings no longer run through the cabin: inside the fuselage only their front and rear spars cross, leaving
     the hull open.
+  - No more seeing through the aircraft. Patches of skin faced inward, and the game draws only the outside of a
+    surface: under each wing beside the outer engines (a 4 m patch, from the spoiler rebuild), along the trailing
+    edges, on the wingtips, elevators and left inner flap from above. The main gear wells were open from inside,
+    so the hull's inside and the sky showed through them; the outrigger wells had the wing's structure in them.
+  - The square holes in the wing roots' leading edges are filled, and the dark patch on the tail cone behind the
+    fin is gone.
+  - No more dark smears and shadow streaks on the skin. The shading was smoothed across sharp edges: round the
+    flaps, wing roots, engine pods and gear struts, and most of all on the distant model, whose rear fuselage was
+    half smeared.
   - At long range the wingtips keep their swept trailing corner (the distant model cut 1.8 m off it).
   - Night flying: the cockpit dims at dusk and night, and with night vision on its glow goes out and the displays
     turn down, so the cockpit no longer flares white under night vision.

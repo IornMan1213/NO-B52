@@ -90,6 +90,7 @@ In `BepInEx/config/com.ironman1213.b52systems.cfg` (or in-game with the BepInEx 
 ## Compatibility
 | B-52J | Nuclear Option | Blueprinter | BepInEx |
 |---|---|---|---|
+| 0.9.1 (pre-release) | 0.34.3 | 2.1.1 | 5.4.23 |
 | 0.9.0 (pre-release) | 0.34.3 | 2.0.1 or newer (tested on 2.1.1) | 5.4.23 |
 
 Changes per version: [CHANGELOG.md](CHANGELOG.md).
