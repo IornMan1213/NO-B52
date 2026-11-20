@@ -1,6 +1,6 @@
 # Changelog
 
-Player-facing changes in each release. The development diary with every detail is [MODLOG.md](MODLOG.md).
+Player-facing changes in each release.
 
 ## 0.9.1 (pre-release)
 

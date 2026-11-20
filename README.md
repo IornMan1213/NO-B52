@@ -131,8 +131,7 @@ the usual install locations; override them with `BLENDER`, `UNITY`, `B52_UNITY_P
 | `plugin/HeavyHangar/`, `HANGAR.md` | Heavy Hangar sources, kept in step with [NO-HeavyHangar](https://github.com/IornMan1213/NO-HeavyHangar) for anyone building other large aircraft |
 | `tests/ingame/` | Scripted in-game test flights (dev only) |
 
-[MODLOG.md](MODLOG.md) records every development step, and [SPEC.md](SPEC.md) has the flight-model and loadout
-numbers.
+[SPEC.md](SPEC.md) has the flight-model and loadout numbers.
 
 ## Credits
 - **Base 3D model:** "Boeing B-52 Stratofortress" by **bohmerang** on Sketchfab

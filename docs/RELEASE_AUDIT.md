@@ -3,28 +3,27 @@
 The interactive version, where you tick what to do, is the **B-52J Release Planner** page:
 https://claude.ai/artifact/6Tvz9Zd9JiRK3ZfRneArKW . Item IDs here match the page.
 
-The first audit (2026-10-27, against 0.4.1) listed 91 items, and 34 more turned up during the work. **77 are done and
-no longer listed** (the player-facing ones are in [CHANGELOG.md](../CHANGELOG.md), up to 0.9.1). One was dropped on
-purpose: BR11, removing the duplicate Heavy Hangar sources, since both copies stay and are updated together.
+The first audit (2026-10-27, against 0.4.1) listed 91 items, and 34 more turned up during the work. **81 are done and
+no longer listed** (the player-facing ones are in [CHANGELOG.md](../CHANGELOG.md), up to 0.9.1). Two were dropped on
+purpose: BR11, removing the duplicate Heavy Hangar sources (both copies stay and are updated together), and BR10, the
+GitHub build check (removed from the repo). T3, the two-player test, is done: you've flown it in multiplayer.
 
 Priority: ✕ release blocker · — fix before 1.0 · / polish for 1.0 · ○ after 1.0. ★ = recommended for 1.0.
 Status: where the item stands now. Evidence: code = confirmed in the source, renders = seen in renders, model scan =
 measured from B52.fbx, in-game check = needs a flight to confirm, idea = new work.
 
-**47 items left:** 1 blocker, 7 before 1.0, 20 polish, 19 later. Recommended for 1.0: 15 items, about 39 h.
+**43 items left:** no blockers, 6 before 1.0, 19 polish, 18 later. Recommended for 1.0: 13 items, about 34 h.
 
 ## Road to 1.0
 
 1. Fix the AI landing (MP1) and the weak full-load climb (FP8): the two flight problems the last test runs found.
 2. Run every in-game test on one build (T7), then a night flight with night vision (T9).
-3. Two-player test (T3). Needs you and a second player or PC; it also settles what other players see of the chute (SY2).
-4. List on NOMNOM (BR6) and publish 1.0.0 as the latest release (BR7), last, as you asked.
+3. List on NOMNOM (BR6) and publish 1.0.0 as the latest release (BR7), last, as you asked.
 
 ## Testing
 
 | ID | Priority | | Item | Status | Effort | Evidence | Where |
 |---|---|---|---|---|---|---|---|
-| T3 | — Before 1.0 | ★ | **Two-player multiplayer check**. A host and one client, both with the mod installed. Check the other player sees the gear, doors, spoilers, bay doors, chute and weapon release, and that a client without the DLL gets a clear failure instead of a half-working aircraft. *Now:* Needs a second player or PC to join as a client. | Needs you | 3 h | in-game check |  |
 | T7 | — Before 1.0 | ★ | **Run every in-game test on the 0.9.1 build**. Flight, systems, belly landing, damage, crew and fuel, AI, full load, looks and spoilers have each passed on some build, but not all on the current one. tests/ingame/run.sh over every b52_*.txt in a row, failing on any B-52 exception in the log. *Now:* On 19 Nov systems, belly landing, crew and fuel, damage and spoilers passed; AI and full load failed (MP1, FP8). Not all rerun on 0.9.1. | Partly done | 3 h | in-game check |  |
 | T8 | / Polish | ★ | **The g test's measurement glitch**. The g readings in the test runs can't be trusted yet, so the airframe-strength checks are weaker than they look. | Not started | 1 h | code |  |
 | T9 | / Polish | ★ | **Night flight with night vision**. The best single check of the cockpit dimming: if the screens are too dim or too bright, the levels are quick to adjust. | Not started | 0.5 h | in-game check |  |
@@ -36,7 +35,6 @@ measured from B52.fbx, in-game check = needs a flight to confirm, idea = new wor
 
 | ID | Priority | | Item | Status | Effort | Evidence | Where |
 |---|---|---|---|---|---|---|---|
-| SY2 | ✕ Blocker | ★ | **Drag chute looks wrong to other players**. On other players' screens it stays at 15% size, or never appears. Advance inflation on every client and keep only the drag force owner-side. Better: send deploy and jettison over the network so every client shows the same chute. *Now:* Chute works for the pilot in game; what other players see needs the two-player test (T3). | Needs you | 2 h | code | `plugin/B52Systems/DragChute.cs:44-46` |
 | SY17 | / Polish |  | **Speedbrake at idle on the runway is inconsistent**. Spawned at the hangar, the spoilers rose at idle; spawned on the runway they stayed flush. Not yet worked out why. | Not started | 1 h | in-game check |  |
 | SY15 | ○ Later |  | **Sync the crab angle in multiplayer**. Other players see the trucks pointing straight ahead. | Not started | 3 h | idea |  |
 | SY16 | ○ Later |  | **Tail hatch opens for the chute**. Animate the tail-cone compartment door when the chute deploys. | Not started | 4 h | idea |  |
@@ -110,14 +108,12 @@ measured from B52.fbx, in-game check = needs a flight to confirm, idea = new wor
 | BR6 | — Before 1.0 | ★ | **List the B-52 in the mod manager**. Heavy Hangar has a NOMM manifest; the B-52 doesn't. nomnom/B52J.json with the release URL, hash, and Blueprinter and Heavy Hangar as dependencies; then submit it to the index. *Now:* nomnom/B52J.json lists 0.9.1 and 0.9.0 with hashes; submit to NOMNOM last, as you asked. | Partly done | 2 h | code |  |
 | BR7 | — Before 1.0 | ★ | **Publish 1.0.0 as the latest release**. 0.4.1 is still marked pre-release. *Now:* Last step, after the two-player test: publish 1.0.0 as Latest. | Needs you | 1 h | docs |  |
 | BR15 | / Polish | ★ | **Fail the build instead of using box pylons**. If blender_pylons.py didn't run, the builder quietly puts grey boxes on the wings. | Not started | 0.5 h | code | `unity/B52Tools/Editor/B52Builder.cs (BuildHardpoints, CreatePrimitive)` |
-| BR10 | ○ Later |  | **Build check on every push**. A GitHub Action that compiles both plugins and lints the Python tools. *Now:* The check is set up, but GitHub won't start it: your account is locked due to a billing issue. Clear that in GitHub's billing settings; the same checks pass locally. | Needs you | 4 h | idea |  |
 | BR12 | ○ Later |  | **Delete one-off scripts**. patch_v020 to patch_v022 and six probe or render scripts that nothing uses. | Not started | 0.5 h | code |  |
 
 ## Docs and store page
 
 | ID | Priority | | Item | Status | Effort | Evidence | Where |
 |---|---|---|---|---|---|---|---|
-| DC7 | / Polish |  | **Development diary is a month behind**. MODLOG.md stops at 0.4.1; the player CHANGELOG is current. | Not started | 2 h | docs |  |
 | DC5 | ○ Later |  | **Telemetry report script**. Summarise a flight log for bug reports. | Not started | 2 h | idea |  |
 
 ## Code health
