@@ -1006,7 +1006,7 @@ namespace B52Tools
                 }
                 SetRef(hld, "aeroPart", t.GetComponent(T("AeroPart")));
                 SetRef(hld, "swingWingController", null);
-                SetF(hld, "deployedArea", Phys[f].area * 1.0f);     // Fowler flaps slide aft: about double the area
+                SetF(hld, "deployedArea", Phys[f].area * FlapExtraArea);   // Fowler flaps slide aft; see FlapExtraArea
                 SetF(hld, "speedDeployed", 105f);                    // fully down below 204 kt (heavy lift-off ~180 kt)
                 SetF(hld, "speedRetracted", 130f);                   // fully up by 253 kt
                 // Camber the wing section aft of the CoM-ish line that each flap really sits on. The wing root's
@@ -1032,7 +1032,15 @@ namespace B52Tools
         }
 
         const float WingIncidence = 6f;
-        const float FlapInnerCamber = 10f, FlapOwnCamber = 10f;   // 6 + 10 = 16 deg, just under the 17 deg CLmax
+        // Flaps: camber (each section's lift frame turned down) plus area (the Fowler flaps slide aft), on the flapped
+        // section (B52FlappedLift). With 10 deg of camber on the plain wing curve the cambered sections sat a degree short
+        // of their 17 deg stall with the body level: above 1 deg angle of attack the flapped wing gained 4 t of lift per
+        // degree against 12 clean, and at 140 kt a 150 t B-52 needed 10 deg and 17 of the elevator's 20 deg just to hold
+        // height (a 170 t one more than it had). Nothing was left to flare with, and AI B-52s sank onto the runway with
+        // the stick held back (FP9). With 8 deg on the flapped section, 150 t at 140 kt needs 2.6 deg and 8 deg of
+        // elevator, 4 deg more gives 1.4 g, and level lift-off speed is a little lower than before (tools/trim_check.py).
+        const float FlapInnerCamber = 8f, FlapOwnCamber = 8f;
+        const float FlapExtraArea = 2.0f;     // deployed area added, times the flap's own: 3 times the flap area in all
 
         static AnimationCurve Linear(params float[] kv)
         {
@@ -1050,6 +1058,12 @@ namespace B52Tools
         // High-aspect-ratio B-52 wing (AR 8.5): CL slope ~5/rad, CLmax ~1.45, induced drag rising with lift.
         static AnimationCurve B52Lift() => Linear(-3.14159f, 0, -1.57f, 0, -0.785f, -1.1f, -0.45f, -1.0f, -0.30f, -1.45f, -0.22f, -1.1f, 0, 0,
                                                   0.22f, 1.1f, 0.30f, 1.45f, 0.45f, 1.0f, 0.785f, 1.1f, 1.57f, 0, 3.14159f, 0);
+        // The flapped section (flap panels, and the inner wing while the flaps are down): the wing's curve up to 17 deg,
+        // then on to CL 1.75 at 23 deg before it stalls. A slotted flap raises the maximum lift and lowers the stall
+        // angle only a little; turning the wing's own curve by the flap camber lowered the stall angle by all of it.
+        static AnimationCurve B52FlappedLift() => Linear(-3.14159f, 0, -1.57f, 0, -0.785f, -1.1f, -0.52f, -1.15f, -0.40f, -1.75f, -0.30f, -1.45f,
+                                                         -0.22f, -1.1f, 0, 0, 0.22f, 1.1f, 0.30f, 1.45f, 0.40f, 1.75f, 0.52f, 1.15f, 0.785f, 1.1f,
+                                                         1.57f, 0, 3.14159f, 0);
         static AnimationCurve B52Drag() => Linear(-3f, 0, -1.49f, 0.6f, -0.30f, 0.13f, -0.20f, 0.06f, -0.10f, 0.022f, 0, 0.010f,
                                                   0.10f, 0.022f, 0.20f, 0.06f, 0.30f, 0.13f, 1.49f, 0.6f, 3f, 0);
         // Rolls-Royce F130 (high bypass): lapse with altitude and airspeed.
@@ -1997,11 +2011,12 @@ namespace B52Tools
             var ps = SO(par);
             ps.FindProperty("aircraftName").stringValue = "B52J";
             var af = ps.FindProperty("airfoils");
+            af.arraySize = 2;                 // 0: the wing; 1: the flapped wing (flap panels; the inner wing while flaps are down)
             for (int i = 0; i < af.arraySize; i++)
             {
                 var a = af.GetArrayElementAtIndex(i);
-                a.FindPropertyRelative("name").stringValue = "B52_wing";
-                a.FindPropertyRelative("liftCoef").animationCurveValue = B52Lift();
+                a.FindPropertyRelative("name").stringValue = i == 0 ? "B52_wing" : "B52_flapped";
+                a.FindPropertyRelative("liftCoef").animationCurveValue = i == 0 ? B52Lift() : B52FlappedLift();
                 a.FindPropertyRelative("dragCoef").animationCurveValue = B52Drag();
             }
             ps.FindProperty("rankRequired").intValue = 4;

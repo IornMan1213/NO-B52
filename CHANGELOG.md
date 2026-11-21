@@ -14,13 +14,22 @@ Player-facing changes in each release.
   up, damage and a part lost.
 - Rudder pedals with ribbed treads, toe brakes, heel rests and their pivot shaft.
 - **Two new liveries, one for each side:** Boscali blue-grey (a low-visibility three-tone over a light grey belly) and
-  Primeva dark splinter (charcoal, olive and grey-green over a mid grey belly). Each is offered only to its own side.
+  Primeva dark splinter (charcoal, olive and grey-green over a mid grey belly). Each is offered only to its own side,
+  and neither carries the USAF markings (tail code, serial, insignia, nose art).
+- **Flaps that let you flare.** With the flaps down the wing used to be a degree from stalling with the nose level, so
+  raising the nose added almost no lift, and full up-elevator couldn't hold more than about 6 deg angle of attack:
+  the B-52 sank onto the runway however hard you pulled. The flaps now raise the wing's maximum lift (as slotted
+  Fowler flaps do) instead of only bending it, and the stabiliser trims nose-up as they come down, like the real
+  one's. On approach there's lift to spare when you raise the nose, and full elevator holds about 9 deg. Takeoff is
+  shorter too: hands-off it now lifts off on its own at about 300 km/h after 1,500 m (it ran to 340 km/h and 2,100 m
+  with the nose pinned down), and at 221 t rotated at 150 kt it lifts off at about 295 km/h after 1,800 m.
 - **Crisper pitch response at low speed.** The fly-by-wire treated 320 kt as the B-52's manoeuvring speed and cut pitch
   authority hard below it: at approach speed full stick gave about 4 deg/s. It now uses the B-52's 260 kt, which about
   doubles the response on approach and changes nothing at cruise.
 - At night the flight deck keeps a dim flood-light glow instead of going black apart from the displays.
 - No more white hairline through the wing at the front of the outer flaps (a gap in the top skin), and the same
-  fix on the elevators.
+  fix on the elevators. The wing's parts also have their cut ends closed, where a crack between two parts could show
+  the sky at grazing angles.
 - The standby airspeed indicator shows indicated airspeed, like a real one: at cruise height it used to read true
   airspeed, far above the speeds to fly by.
 - The rudder no longer shades unevenly: it's a flat slab and now looks like one.

@@ -56,6 +56,36 @@ namespace B52Systems
             Approaching = ac;
         }
 
+        /// <summary>Debug (Plugin.LogAiApproach): where the pitching moment comes from. Centre of mass, attitude, angle of
+        /// attack, the fly-by-wire's pitch-rate demand and the actual rate, and each aero part's moment about the CoM
+        /// (nose-up positive), largest first.</summary>
+        private static void LogPitchBalance(Aircraft ac)
+        {
+            var rb = ac.rb; var t = ac.transform;
+            var com = rb.worldCenterOfMass;
+            var lc = t.InverseTransformPoint(com);
+            var v = t.InverseTransformDirection(rb.velocity);
+            float aoa = Mathf.Atan2(-v.y, v.z) * Mathf.Rad2Deg;
+            float pitch = Mathf.Asin(Mathf.Clamp(t.forward.y, -1f, 1f)) * Mathf.Rad2Deg;
+            var fbw = ac.GetControlsFilter()?.GetFlyByWire();
+            var parts = new System.Collections.Generic.List<(string n, float m)>();
+            float total = 0f;
+            foreach (var p in ac.GetComponentsInChildren<AeroPart>())
+            {
+                if (p.rb != rb) continue;
+                var f = AeroCentres.Force(p);
+                float m = Vector3.Dot(Vector3.Cross(AeroCentres.WorldAC(p) - com, f), -t.right);   // nose-up positive
+                total += m;
+                if (Mathf.Abs(m) > 2e4f) parts.Add((p.name, m));
+            }
+            parts.Sort((a, b) => Mathf.Abs(b.m).CompareTo(Mathf.Abs(a.m)));
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < Mathf.Min(10, parts.Count); i++) sb.Append($" {parts[i].n} {parts[i].m / 1e6f:+0.00;-0.00}");
+            Plugin.Log.LogInfo($"B-52J AI pitch: CoM z {lc.z:F2} y {lc.y:F2}, pitch {pitch:F1}, AoA {aoa:F1}, " +
+                               $"rate {(fbw != null ? fbw.GetPitchAngVel() : 0f):F3} (want {(fbw != null ? fbw.GetTargetPitchAngVel() : 0f):F3}), " +
+                               $"aero moment {total / 1e6f:+0.00;-0.00} MN.m:{sb}");
+        }
+
         private static void Postfix(AIPilotLandingState __instance)
         {
             Approaching = null;
@@ -81,6 +111,7 @@ namespace B52Systems
                 Plugin.Log.LogInfo($"B-52J AI approach: mode {mode}, final {ReachedF?.GetValue(__instance)}, {d:F0} m to touchdown, {h:F0} m above it " +
                                    $"(3 deg path {0.05f * d:F0} m), {ac.speed:F0} m/s (target {Target:F0}), climb {ac.rb.velocity.y:F1} m/s, " +
                                    $"pitch input {inputs.pitch:F2}, throttle {inputs.throttle:F2}");
+                LogPitchBalance(ac);
             }
             // only ever slower than the game asks for: never speed a B-52 up on the approach; and below the glide path
             // (under 70% of a 3 deg path's height) the game's own throttle stands, so a low, slow B-52 can power out

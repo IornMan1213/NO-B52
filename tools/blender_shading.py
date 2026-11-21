@@ -116,5 +116,72 @@ for o in wing_objs:
     bm.free()
 allb.free()
 print('SHADING top-skin gaps closed:', gap_total, 'faces')
+
+# Cut ends. The source model's wing is cut spanwise into parts (wingroot, wing1, wing2, wingtip and the flaps) and each
+# part is an open shell: at the cut, its skin just stops. Where two parts meet, the gap between their skins, seen at a
+# grazing angle, looked through both open ends into the sky: a fore-and-aft hairline (EX20). Each part's outline at
+# its own innermost and outermost span station is filled with a flat cap facing out of the part, so the crack shows
+# the wing's own paint. Its loose ends (the outline has small gaps where the skin's edges don't meet) are joined to
+# their nearest neighbour first.
+from collections import defaultdict
+CAP_TOL = 0.02          # m: how far from the station plane a cut-end edge may lie
+cap_total = 0
+for o in wing_objs:
+    bm = bmesh.new(); bm.from_mesh(o.data); bm.transform(o.matrix_world)
+    bm.verts.ensure_lookup_table()
+    uv = bm.loops.layers.uv.active
+    # stations: span positions where the open edges lying across the span add up to a wing section (over 1 m of edge
+    # and 1.5 m of chord); smaller ones are fairings and pods, closed or not, left alone
+    by_x = defaultdict(list)
+    for e in bm.edges:
+        a, b = e.verts
+        if e.is_boundary and abs(a.co.x - b.co.x) < CAP_TOL: by_x[round((a.co.x + b.co.x) / 2 / CAP_TOL)].append(e)
+    stations = []
+    for k in sorted(by_x):
+        es = by_x[k] + by_x.get(k + 1, [])                                  # a station may straddle two bins
+        ys = [v.co.y for e in es for v in e.verts]
+        if sum(e.calc_length() for e in es) >= 1.0 and max(ys) - min(ys) >= 1.5 and not any(abs(k - s) <= 1 for s, _ in stations):
+            stations.append((k, sum(v.co.x for e in es for v in e.verts) / (2 * len(es))))
+    made = 0
+    for _, station in stations:
+        if abs(station) < 1.0: continue                                     # the centre line: the fuselage covers it
+        es = [e for e in bm.edges if e.is_boundary and all(abs(v.co.x - station) < CAP_TOL for v in e.verts)]
+        if sum(e.calc_length() for e in es) < 1.0: continue               # no real section here
+        # out of the part: away from the skin that the cut edges belong to
+        side = sum(f.calc_center_median().x - station for e in es for f in e.link_faces)
+        out_x = -1.0 if side > 0 else 1.0
+        vs = {v for e in es for v in e.verts}
+        deg = defaultdict(int)
+        for e in es:
+            for v in e.verts: deg[v] += 1
+        loose = [v for v in vs if deg[v] == 1]
+        # join loose ends pairwise, nearest first
+        while len(loose) >= 2:
+            a = loose.pop(0)
+            b = min(loose, key=lambda v: (v.co - a.co).length)
+            loose.remove(b)
+            if bm.edges.get((a, b)) is None: es.append(bm.edges.new((a, b)))
+        n_before = len(bm.faces)
+        res = bmesh.ops.triangle_fill(bm, use_beauty=True, use_dissolve=False, edges=es)
+        faces = [f for f in res['geom'] if isinstance(f, bmesh.types.BMFace)]
+        if not faces: continue
+        for f in faces:
+            f.normal_update()
+            if f.normal.x * out_x < 0: f.normal_flip()
+            f.smooth = False
+            if f.material_index is not None and f.verts[0].link_faces:
+                nb = [g for g in f.verts[0].link_faces if g not in faces]
+                if nb: f.material_index = nb[0].material_index
+            if uv:   # each corner takes the UV its vertex has on the skin next to it: the paint at the cut
+                for l in f.loops:
+                    skin = [m for m in l.vert.link_loops if m.face not in faces]
+                    if skin: l[uv].uv = skin[0][uv].uv
+        made += len(faces)
+    if made:
+        bm.transform(o.matrix_world.inverted()); bm.to_mesh(o.data); o.data.update()
+        print(f'SHADING {o.name}: cut ends capped with {made} faces')
+        cap_total += made
+    bm.free()
+print('SHADING cut ends capped:', cap_total, 'faces')
 bpy.ops.wm.save_mainfile()
 print(f'SHADING total {total_fixed} of {total} corners rebuilt (by angle {ANGLE:.0f} deg)')

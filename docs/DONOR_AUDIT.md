@@ -10,7 +10,7 @@ nor is runtime state the game sets itself at spawn (ids, hit points, speed, g, f
 
 - Components taken from the donor (copied, moved across or cloned): **193**; settings in them: 17266, of which **2739 still at the donor's value** (16%).
 - Game components the builder added fresh (B-52 values throughout): 1 (Airbrake x1).
-- Aircraft parameters: copied from the donor's; 1 of 190 settings still at the donor's value.
+- Aircraft parameters: copied from the donor's; 1 of 193 settings still at the donor's value.
 - Aircraft definition: copied from the donor's; 4 of 50 settings still at the donor's value.
 - Game assets used: 45 (below).
 
@@ -510,7 +510,7 @@ copied from fuselage_F/fuselage_FF/cockpit; 0 of 123 settings still the donor's.
 
 ## Aircraft parameters: donor values
 
-1 of 190 settings still the donor's.
+1 of 193 settings still the donor's.
 
 `turningRadius`
 

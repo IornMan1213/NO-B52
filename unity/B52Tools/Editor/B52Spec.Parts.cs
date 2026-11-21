@@ -104,7 +104,11 @@ namespace B52Tools
 
                 // Every lifting part uses the B-52's wing section (MakeDefinition: airfoil 0, B52_wing, the B-52's own
                 // lift and drag curves); fuselage sections and pods have no wing area, so it only sets their side force.
-                Set(ap, "airfoil", p => p.intValue = 0);
+                // The flap panels use the flapped section (airfoil 1, B52_flapped: the same up to 17 deg, then on to a
+                // higher maximum, as a slotted flap does). The inner wing ahead of them switches to it only while the
+                // flaps are down (B52Systems.FlappedAirfoil), so the clean wing still stalls as before.
+                bool flapPanel = name.StartsWith("flap1") || name.StartsWith("flap2");
+                Set(ap, "airfoil", p => p.intValue = flapPanel ? 1 : 0);
 
                 // Impact damage (above).
                 var imp = Impact.TryGetValue(name, out var iv) ? iv : (3f, 4f);

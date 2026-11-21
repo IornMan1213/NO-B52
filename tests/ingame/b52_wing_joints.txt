@@ -1,0 +1,16 @@
+# EX20: the joints between wing parts (wingroot/wing1 at 7.6 m out, wing1/wing2 at 15.1 m, wing2/wingtip at 22.4 m,
+# and the flaps), seen at grazing angles from above, where the parts' open cut ends used to show the sky as a hairline
+say START B-52J wing joints at grazing angles
+include spawn.txt B52J
+expectac B52J
+wait 3
+tod 13
+wait 2
+camat wing1_L 0 1.2 -14 35 b52_joint_w1_aft.png
+camat wing1_L 0 1.0 14 35 b52_joint_w1_fwd.png
+camat wing2_L 0 1.0 -12 35 b52_joint_w2_aft.png
+camat wing2_L 0 0.8 12 35 b52_joint_w2_fwd.png
+camat wingtip_L 0 0.8 -10 35 b52_joint_tip_aft.png
+camat flap2_L 0 0.8 -8 35 b52_joint_flap_aft.png
+camat wing1_R 0 1.2 -14 35 b52_joint_w1R_aft.png
+say END

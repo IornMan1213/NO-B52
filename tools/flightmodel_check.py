@@ -25,14 +25,19 @@ B52_CL = [(-3.14159, 0), (-1.57, 0), (-0.785, -1.1), (-0.45, -1.0), (-0.30, -1.4
           (0.22, 1.1), (0.30, 1.45), (0.45, 1.0), (0.785, 1.1), (1.57, 0), (3.14159, 0)]
 B52_CD = [(-3, 0), (-1.49, 0.6), (-0.30, 0.13), (-0.20, 0.06), (-0.10, 0.022), (0, 0.010),
           (0.10, 0.022), (0.20, 0.06), (0.30, 0.13), (1.49, 0.6), (3, 0)]
+# The flapped section (B52Builder.B52FlappedLift, airfoil 1): the flap panels always, the inner wing while flaps are down.
+_FP = [(0.22, 1.1), (0.30, 1.45), (0.40, 1.75), (0.52, 1.15), (0.785, 1.1), (1.57, 0), (3.14159, 0)]
+B52_CL_FLAPPED = [(-x, -y) for x, y in reversed(_FP)] + [(0, 0)] + _FP
 
 F130_ALT = [(0, 1.0), (3000, 0.80), (6000, 0.62), (9000, 0.47), (12000, 0.33), (15000, 0.21), (17500, 0.12)]
 F130_SPD = [(0, 1.0), (50, 0.88), (100, 0.77), (150, 0.73), (200, 0.70), (250, 0.69), (280, 0.66), (300, 0.58), (340, 0.30)]
 STATIC = 75600.0 * 8
 
 INC = 6.0          # wing incidence, degrees
-FLAP_INNER = 10.0   # extra camber on the inner wing when the flaps are down
-FLAP_OWN = 10.0    # extra camber on the flap panels
+FLAP_INNER = 8.0    # extra camber on the inner wing when the flaps are down (B52Builder.FlapInnerCamber)
+FLAP_OWN = 8.0      # extra camber on the flap panels (B52Builder.FlapOwnCamber)
+FLAP_AREA = 3.0     # flap area deployed, times retracted (1 + B52Builder.FlapExtraArea)
+STAB_FLAP_TRIM = 4.0  # stabiliser nose-up trim with the flaps fully down, deg (B52Systems.FlapTrim.StabTrim)
 
 # name: (wingArea, dragArea, incidence_deg, inner_wing)  - B52Builder.Phys
 PARTS = {
@@ -52,10 +57,11 @@ def forces(V, alt, pitch_deg, flaps):
         a_deg = pitch_deg + inc
         if flaps and inner: a_deg += FLAP_INNER
         if name == 'flaps':
-            S = S * 2.0 if flaps else S
+            S = S * FLAP_AREA if flaps else S
             if flaps: a_deg += FLAP_OWN
         a = math.radians(a_deg)
-        L += interp(B52_CL, a) * q * S
+        cl = B52_CL_FLAPPED if name == 'flaps' or (flaps and inner) else B52_CL
+        L += interp(cl, a) * q * S
         D += interp(B52_CD, a) * q * S + 0.25 * rho * V * V * Sd
     D += interp(B52_CD, 0) * q * TAIL_SIDE[0] + 0.25 * rho * V * V * TAIL_SIDE[1]
     return L, D

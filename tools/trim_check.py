@@ -12,7 +12,7 @@ AC = json.load(open(os.path.join(HERE, '..', 'blender', 'out', 'aero_centres.jso
 CG = (5.8, 0.3)                     # (z, y) of the CoM transform
 ENG_Y = -0.4                        # mean nozzle height (inboard -0.6, outboard -0.2)
 INC = fm.INC
-FLAP_PARTS = ('flap1', 'flap2')     # get FLAP_OWN camber and doubled area
+FLAP_PARTS = ('flap1', 'flap2')     # get FLAP_OWN camber and FLAP_AREA times the area
 CAMBER_PARTS = tuple(os.environ.get('CAMBER_PARTS', 'wing1,wing2').split(','))   # get FLAP_INNER camber
 ELEV_MAX = 20.0
 STAB_RATIO = float(os.environ.get('STAB_RATIO', '0.4'))   # moving stabilizer: deflects STAB_RATIO x the elevator angle
@@ -26,7 +26,7 @@ def part_alpha(name, alpha, flaps, delta):
     if flaps and base in CAMBER_PARTS: a += fm.FLAP_INNER
     if flaps and base in FLAP_PARTS: a += fm.FLAP_OWN
     if base == 'elevator': a += delta
-    if base == 'hstab': a += delta * STAB_RATIO
+    if base == 'hstab': a += delta * STAB_RATIO - (fm.STAB_FLAP_TRIM if flaps else 0.0)
     return a
 
 
@@ -37,9 +37,10 @@ def forces(V, alt, alpha, delta, flaps, thrust_frac):
         a = part_alpha(name, alpha, flaps, delta)
         if a is None: continue
         base = name.rsplit('_', 1)[0] if name[-2] == '_' else name
-        if flaps and base in FLAP_PARTS: S *= 2.0
+        if flaps and base in FLAP_PARTS: S *= fm.FLAP_AREA
         r = math.radians(a)
-        l = fm.interp(fm.B52_CL, r) * q * S
+        cl = fm.B52_CL_FLAPPED if base in FLAP_PARTS or (flaps and base in CAMBER_PARTS) else fm.B52_CL
+        l = fm.interp(cl, r) * q * S
         d = fm.interp(fm.B52_CD, r) * q * S
         L += l; D += d
         M += l * (z - CG[0]) + d * (y - CG[1])            # nose-up positive
